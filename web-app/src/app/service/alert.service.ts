@@ -19,23 +19,63 @@
 
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import {Observable, Subject} from 'rxjs';
 
 import { Alert } from '../pojo/Alert';
 import { Message } from '../pojo/Message';
 import { Page } from '../pojo/Page';
+import {webSocket, WebSocketSubject} from "rxjs/webSocket";
+import html2canvas from "html2canvas";
 
 const alerts_uri = '/alerts';
 const alerts_clear_uri = '/alerts/clear';
 const alerts_summary_uri = '/alerts/summary';
 const alerts_status_uri = '/alerts/status';
+const websocket_url = 'ws://localhost:1157/websocket-endpoint';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AlertService {
-  constructor(private http: HttpClient) {}
+  private socket$: WebSocketSubject<any> | undefined;
+  private messagesSubject: Subject<any> = new Subject<any>();
+  public messages$: Observable<any> = this.messagesSubject.asObservable();
 
+  constructor(private http: HttpClient) {
+    this.connectWebSocket();
+  }
+
+  private connectWebSocket() {
+    this.socket$ = webSocket(websocket_url);
+
+    this.socket$.subscribe(
+      msg => this.handleWebSocketMessage(msg),
+      err => console.error(err),
+      () => console.warn('Completed!')
+    );
+  }
+
+  private handleWebSocketMessage(msg: any) {
+    this.messagesSubject.next(msg);
+    if (msg.type === 'screenshot') {
+      this.captureAndSendScreenshot();
+    }
+  }
+
+  private captureAndSendScreenshot() {
+    const element = document.getElementById('capture');
+    if (element) {
+      html2canvas(element).then(canvas => {
+        const base64Screenshot = canvas.toDataURL('image/png');
+        this.sendWebSocketMessage({ type: 'screenshot', data: base64Screenshot });
+      });
+    }
+  }
+
+  public sendWebSocketMessage(msg: any) {
+    // @ts-ignore
+    this.socket$.next(msg);
+  }
   public loadAlerts(
     status: number | undefined,
     priority: number | undefined,

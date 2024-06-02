@@ -60,6 +60,7 @@
     "ajv-formats": "2.1.1",
     "angular-tag-cloud-module": "15.0.0",
     "echarts": "5.4.3",
+    "html2canvas": "^1.4.1",
     "jquery": "3.7.1",
     "monaco-editor": "0.36.1",
     "ng-zorro-antd": "15.1.0",

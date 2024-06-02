@@ -22,7 +22,7 @@ import { ActivatedRoute, ParamMap } from '@angular/router';
 import { I18NService } from '@core';
 import { ALAIN_I18N_TOKEN } from '@delon/theme';
 import { NzNotificationService } from 'ng-zorro-antd/notification';
-import { throwError } from 'rxjs';
+import {Subscription, throwError} from 'rxjs';
 import { finalize, switchMap } from 'rxjs/operators';
 
 import { Message } from '../../../pojo/Message';
@@ -30,6 +30,8 @@ import { Monitor } from '../../../pojo/Monitor';
 import { Param } from '../../../pojo/Param';
 import { AppDefineService } from '../../../service/app-define.service';
 import { MonitorService } from '../../../service/monitor.service';
+import {AlertService} from "../../../service/alert.service";
+import html2canvas from "html2canvas";
 
 @Component({
   selector: 'app-monitor-detail',
@@ -37,12 +39,15 @@ import { MonitorService } from '../../../service/monitor.service';
   styleUrls: ['./monitor-detail.component.less']
 })
 export class MonitorDetailComponent implements OnInit, OnDestroy {
+  private subscription: Subscription | undefined;
+
   constructor(
     private monitorSvc: MonitorService,
     private route: ActivatedRoute,
     private notifySvc: NzNotificationService,
     private appDefineSvc: AppDefineService,
     private cdr: ChangeDetectorRef,
+    private alertService: AlertService,
     @Inject(ALAIN_I18N_TOKEN) private i18nSvc: I18NService
   ) {}
 
@@ -64,6 +69,12 @@ export class MonitorDetailComponent implements OnInit, OnDestroy {
     this.loadRealTimeMetric();
     this.countDownTime = this.deadline;
     this.interval$ = setInterval(this.countDown.bind(this), 1000);
+    this.subscription = this.alertService.messages$.subscribe(
+      msg => {
+        console.log('Received message from server:', msg);
+        // 处理接收到的WebSocket消息
+      }
+    );
   }
 
   loadMetricChart() {
@@ -204,5 +215,7 @@ export class MonitorDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     clearInterval(this.interval$);
+    // @ts-ignore
+    this.subscription.unsubscribe();
   }
 }
