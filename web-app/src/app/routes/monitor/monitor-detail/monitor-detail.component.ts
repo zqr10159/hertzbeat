@@ -69,10 +69,12 @@ export class MonitorDetailComponent implements OnInit, OnDestroy {
     this.loadRealTimeMetric();
     this.countDownTime = this.deadline;
     this.interval$ = setInterval(this.countDown.bind(this), 1000);
-    this.subscription = this.alertService.messages$.subscribe(
-      msg => {
-        console.log('Received message from server:', msg);
-        // 处理接收到的WebSocket消息
+    this.alertService.createObservableSocket('ws://localhost:1157/ws').subscribe(
+      data => {
+        console.log(data);
+      },
+      error => {
+        console.error(error);
       }
     );
   }

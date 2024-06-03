@@ -19,63 +19,75 @@
 
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import {Observable, Subject} from 'rxjs';
+import html2canvas from 'html2canvas';
+import { Observable, Subject } from 'rxjs';
+import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 
 import { Alert } from '../pojo/Alert';
 import { Message } from '../pojo/Message';
 import { Page } from '../pojo/Page';
-import {webSocket, WebSocketSubject} from "rxjs/webSocket";
-import html2canvas from "html2canvas";
 
 const alerts_uri = '/alerts';
 const alerts_clear_uri = '/alerts/clear';
 const alerts_summary_uri = '/alerts/summary';
 const alerts_status_uri = '/alerts/status';
-const websocket_url = 'ws://localhost:1157/websocket-endpoint';
+const websocket_url = 'ws://localhost:1157/ws';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AlertService {
+  // @ts-ignore
+  private ws: WebSocket;
   private socket$: WebSocketSubject<any> | undefined;
   private messagesSubject: Subject<any> = new Subject<any>();
-  public messages$: Observable<any> = this.messagesSubject.asObservable();
 
-  constructor(private http: HttpClient) {
-    this.connectWebSocket();
+  constructor(private http: HttpClient) {}
+  createObservableSocket(url: string): Observable<any> {
+    this.ws = new WebSocket(url);
+    return new Observable(observer => {
+      this.ws.onmessage = event => observer.next(event.data); // 成功，返回数据
+      this.ws.onerror = event => observer.error(event); // 失败
+      this.ws.onclose = event => observer.complete(); // 完成后，要结束
+    });
   }
-
-  private connectWebSocket() {
-    this.socket$ = webSocket(websocket_url);
-
-    this.socket$.subscribe(
-      msg => this.handleWebSocketMessage(msg),
-      err => console.error(err),
-      () => console.warn('Completed!')
-    );
-  }
-
-  private handleWebSocketMessage(msg: any) {
-    this.messagesSubject.next(msg);
-    if (msg.type === 'screenshot') {
-      this.captureAndSendScreenshot();
-    }
-  }
-
-  private captureAndSendScreenshot() {
-    const element = document.getElementById('capture');
-    if (element) {
-      html2canvas(element).then(canvas => {
-        const base64Screenshot = canvas.toDataURL('image/png');
-        this.sendWebSocketMessage({ type: 'screenshot', data: base64Screenshot });
-      });
-    }
-  }
-
-  public sendWebSocketMessage(msg: any) {
-    // @ts-ignore
-    this.socket$.next(msg);
-  }
+  // connectWebSocket() {
+  //   this.socket$ = webSocket(websocket_url);
+  //   // 订阅主题
+  //   this.socket$
+  //     .multiplex(
+  //       () => ({ subscribe: '/topic/screenshot' }),
+  //       () => ({ unsubscribe: '/topic/screenshot' }),
+  //       message => message.type === 'screenshot'
+  //     )
+  //     .subscribe(
+  //       msg => this.handleWebSocketMessage(msg),
+  //       err => console.error(err)
+  //     );
+  // }
+  //
+  // private handleWebSocketMessage(msg: any) {
+  //   console.log('Received message:', msg);
+  //   this.messagesSubject.next(msg);
+  //   if (msg.type === 'screenshot') {
+  //     this.captureAndSendScreenshot();
+  //   }
+  // }
+  //
+  // private captureAndSendScreenshot() {
+  //   const element = document.body;
+  //   if (element) {
+  //     html2canvas(element).then(canvas => {
+  //       const base64Screenshot = canvas.toDataURL('image/png');
+  //       this.sendWebSocketMessage({ type: 'screenshot', data: base64Screenshot });
+  //     });
+  //   }
+  // }
+  //
+  // public sendWebSocketMessage(msg: any) {
+  //   // @ts-ignore
+  //   this.socket$.next(msg);
+  // }
   public loadAlerts(
     status: number | undefined,
     priority: number | undefined,
