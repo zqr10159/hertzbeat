@@ -98,7 +98,7 @@
     <properties>
         <hzb.version>1.8.0</hzb.version>
 
-        <java.version>17</java.version>
+        <java.version>21</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <maven-jar-plugin.version>3.2.0</maven-jar-plugin.version>
@@ -124,7 +124,7 @@
         <caffeine.version>2.9.3</caffeine.version>
         <httpclient.version>4.5.14</httpclient.version>
 
-        <lombok.version>1.18.32</lombok.version>
+        <lombok.version>1.18.42</lombok.version>
         <slf4j.version>2.0.9</slf4j.version>
         <xml.bind.version>2.3.0</xml.bind.version>
         <snake.yaml.version>2.2</snake.yaml.version>
