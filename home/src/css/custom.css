@@ -1,6 +1,10 @@
 @import url(navbar.css);
 @import url(hero.css);
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
     --ifm-color-primary: #7228B5;
     --ifm-color-primary-dark: #6228B5;
