@@ -29,9 +29,10 @@ function Home() {
             description={`${siteConfig.tagline}`}
         >
           <header className={clsx('hero--primary', styles.heroBanner)}>
-            <div className="container">
+            <div className="container relative z-10">
               <h1 className="hero__title">
                 <img
+                    className="animate-float mx-auto"
                     style={{ width: '500px', marginTop: '100px' }}
                     src={'/img/hertzbeat-brand.svg'}
                     alt={'#'}
@@ -40,11 +41,15 @@ function Home() {
               <p className="hero__subtitle">
                 <Translate>slogan</Translate>
               </p>
-              <div className={styles.buttons}>
+              <div className={clsx(styles.buttons, 'mt-8')}>
                 <Link
                     to="/docs/"
                     className={clsx(
-                        'button button--primary button--lg'
+                        'button button--primary button--lg',
+                        'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700',
+                        'transform hover:scale-105 transition-all duration-300',
+                        'shadow-xl hover:shadow-2xl',
+                        'border-0 text-white font-bold'
                     )}
                 >
                   <Translate>quickstart</Translate>
@@ -53,70 +58,74 @@ function Home() {
             </div>
           </header>
           <main>
-            <div>
-              <Swiper
-                  modules={[Autoplay, EffectFade, Navigation]}
-                  watchSlidesProgress={true}
-                  navigation={{
-                    nextEl: '.user-swiper-button-next',
-                    prevEl: '.user-swiper-button-prev',
-                  }}
-                  grabCursor
-                  // effect will disable when auto scroll
-                  // effect={'fade'}
-                  // fadeEffect={{
-                  //   crossFade: true
-                  // }}
-                  // slidesPerView={1}
-                  // auto scroll
-                  loop={true}
-                  speed={0}
-                  autoplay={{
-                    delay: 6000,
-                    disableOnInteraction: false,
-                    waitForTransition: false,
-                  }}
-              >
-                <SwiperSlide>
-                  <img
-                      style={{ width: '1400px', display: 'block', margin: '0 auto' }}
-                      src={useBaseUrl('/img/docs/hertzbeat-arch.png')}
-                  />
-                </SwiperSlide>
-                <SwiperSlide>
-                  <img
-                      style={{ width: '1400px', display: 'block', margin: '0 auto' }}
-                      src={useBaseUrl('/img/home/status.png')}
-                  />
-                </SwiperSlide>
-                <SwiperSlide>
-                  <img
-                      style={{ width: '1400px', display: 'block', margin: '0 auto' }}
-                      src={useBaseUrl('/img/home/0.png')}
-                  />
-                </SwiperSlide>
-                <SwiperSlide>
-                  <img
-                      style={{ width: '1400px', display: 'block', margin: '0 auto' }}
-                      src={useBaseUrl('/img/home/1.png')}
-                  />
-                </SwiperSlide>
-                <SwiperSlide>
-                  <img
-                      style={{ width: '1400px', display: 'block', margin: '0 auto' }}
-                      src={useBaseUrl('/img/home/9.png')}
-                  />
-                </SwiperSlide>
-              </Swiper>
+            <div className="py-16 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
+              <div className="container mx-auto px-4">
+                <div className="rounded-3xl overflow-hidden shadow-2xl border-4 border-purple-200 dark:border-purple-800">
+                  <Swiper
+                      modules={[Autoplay, EffectFade, Navigation]}
+                      watchSlidesProgress={true}
+                      navigation={{
+                        nextEl: '.user-swiper-button-next',
+                        prevEl: '.user-swiper-button-prev',
+                      }}
+                      grabCursor
+                      // effect will disable when auto scroll
+                      // effect={'fade'}
+                      // fadeEffect={{
+                      //   crossFade: true
+                      // }}
+                      // slidesPerView={1}
+                      // auto scroll
+                      loop={true}
+                      speed={0}
+                      autoplay={{
+                        delay: 6000,
+                        disableOnInteraction: false,
+                        waitForTransition: false,
+                      }}
+                  >
+                    <SwiperSlide>
+                      <img
+                          style={{ width: '1400px', display: 'block', margin: '0 auto' }}
+                          src={useBaseUrl('/img/docs/hertzbeat-arch.png')}
+                      />
+                    </SwiperSlide>
+                    <SwiperSlide>
+                      <img
+                          style={{ width: '1400px', display: 'block', margin: '0 auto' }}
+                          src={useBaseUrl('/img/home/status.png')}
+                      />
+                    </SwiperSlide>
+                    <SwiperSlide>
+                      <img
+                          style={{ width: '1400px', display: 'block', margin: '0 auto' }}
+                          src={useBaseUrl('/img/home/0.png')}
+                      />
+                    </SwiperSlide>
+                    <SwiperSlide>
+                      <img
+                          style={{ width: '1400px', display: 'block', margin: '0 auto' }}
+                          src={useBaseUrl('/img/home/1.png')}
+                      />
+                    </SwiperSlide>
+                    <SwiperSlide>
+                      <img
+                          style={{ width: '1400px', display: 'block', margin: '0 auto' }}
+                          src={useBaseUrl('/img/home/9.png')}
+                      />
+                    </SwiperSlide>
+                  </Swiper>
+                </div>
+              </div>
             </div>
 
             <div
-                className="swiper-button-prev user-swiper-button-prev"
-                style={{ top: '880px', left: '50px', color: '#000033' }}
+                className="swiper-button-prev user-swiper-button-prev bg-white dark:bg-gray-800 rounded-full shadow-xl hover:scale-110 transition-transform"
+                style={{ top: '880px', left: '50px', color: '#7228B5', width: '50px', height: '50px' }}
             />
             <div
-                className="swiper-button-next user-swiper-button-next"
-                style={{ top: '880px', right: '50px', color: '#000033' }}
+                className="swiper-button-next user-swiper-button-next bg-white dark:bg-gray-800 rounded-full shadow-xl hover:scale-110 transition-transform"
+                style={{ top: '880px', right: '50px', color: '#7228B5', width: '50px', height: '50px' }}
             />
             {features && features.length > 0 && (
                 <Section>
