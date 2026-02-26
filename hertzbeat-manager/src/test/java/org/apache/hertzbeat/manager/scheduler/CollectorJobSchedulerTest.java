@@ -17,6 +17,7 @@
 
 package org.apache.hertzbeat.manager.scheduler;
 
+import org.apache.hertzbeat.collector.engine.CollectorEngine;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.dto.CollectorInfo;
 import org.apache.hertzbeat.common.entity.job.Job;
@@ -64,6 +65,8 @@ public class CollectorJobSchedulerTest {
     private CollectorJobScheduler collectorJobScheduler;
     @Mock
     private ConsistentHash consistentHash;
+    @Mock
+    private CollectorEngine collectorEngine;
     @Mock
     private CollectorDao collectorDao;
     @Mock

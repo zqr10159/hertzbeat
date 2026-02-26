@@ -32,8 +32,8 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.hertzbeat.collector.dispatch.entrance.internal.CollectJobService;
 import org.apache.hertzbeat.collector.dispatch.entrance.internal.CollectResponseEventListener;
+import org.apache.hertzbeat.collector.engine.CollectorEngine;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.dto.CollectorInfo;
 import org.apache.hertzbeat.common.entity.dto.ServerInfo;
@@ -81,7 +81,7 @@ public class CollectorJobScheduler implements CollectorScheduling, CollectJobSch
     private ConsistentHash consistentHash;
 
     @Autowired
-    private CollectJobService collectJobService;
+    private CollectorEngine collectorEngine;
 
     @Autowired
     private AppService appService;
@@ -212,7 +212,7 @@ public class CollectorJobScheduler implements CollectorScheduling, CollectJobSch
                     }
                     addedJobIds.add(addingJobId);
                     if (CommonConstants.MAIN_COLLECTOR_NODE.equals(collectorName)) {
-                        collectJobService.addAsyncCollectJob(job);
+                        collectorEngine.submitAsync(job);
                     } else {
                         ClusterMsg.Message message = ClusterMsg.Message.newBuilder()
                                 .setDirection(ClusterMsg.Direction.REQUEST)
@@ -227,7 +227,7 @@ public class CollectorJobScheduler implements CollectorScheduling, CollectJobSch
             }
             if (CollectionUtils.isNotEmpty(assignJobs.getRemovingJobs())) {
                 if (CommonConstants.MAIN_COLLECTOR_NODE.equals(collectorName)) {
-                    assignJobs.getRemovingJobs().forEach(jobId -> collectJobService.cancelAsyncCollectJob(jobId));
+                    assignJobs.getRemovingJobs().forEach(collectorEngine::cancel);
                 } else {
                     ClusterMsg.Message message = ClusterMsg.Message.newBuilder()
                             .setDirection(ClusterMsg.Direction.REQUEST)
@@ -299,11 +299,10 @@ public class CollectorJobScheduler implements CollectorScheduling, CollectJobSch
             return Collections.singletonList(metricsData);
         }
         if (CommonConstants.MAIN_COLLECTOR_NODE.equals(node.getIdentity())) {
-            return collectJobService.collectSyncJobData(job);
+            return collectorEngine.collectOnce(job);
         } else {
             List<CollectRep.MetricsData> metricsData = new LinkedList<>();
             CountDownLatch countDownLatch = new CountDownLatch(1);
-
             ClusterMsg.Message message = ClusterMsg.Message.newBuilder()
                     .setType(ClusterMsg.MessageType.ISSUE_ONE_TIME_TASK)
                     .setDirection(ClusterMsg.Direction.REQUEST)
@@ -344,7 +343,7 @@ public class CollectorJobScheduler implements CollectorScheduling, CollectJobSch
             return Collections.singletonList(metricsData);
         }
         if (CommonConstants.MAIN_COLLECTOR_NODE.equals(node.getIdentity())) {
-            return collectJobService.collectSyncJobData(job);
+            return collectorEngine.collectOnce(job);
         }
         List<CollectRep.MetricsData> metricsData = new LinkedList<>();
         ClusterMsg.Message message = ClusterMsg.Message.newBuilder()
@@ -397,7 +396,7 @@ public class CollectorJobScheduler implements CollectorScheduling, CollectJobSch
             node.getAssignJobs().addPinnedJob(jobId);
         }
         if (CommonConstants.MAIN_COLLECTOR_NODE.equals(node.getIdentity())) {
-            collectJobService.addAsyncCollectJob(job);
+            collectorEngine.submitAsync(job);
         } else {
             ClusterMsg.Message message = ClusterMsg.Message.newBuilder()
                     .setType(ClusterMsg.MessageType.ISSUE_CYCLIC_TASK)
@@ -441,7 +440,7 @@ public class CollectorJobScheduler implements CollectorScheduling, CollectJobSch
                     || assignJobs.getJobs().remove(jobId) || assignJobs.getAddingJobs().remove(jobId)) {
                 node.removeVirtualNodeJob(jobId);
                 if (CommonConstants.MAIN_COLLECTOR_NODE.equals(node.getIdentity())) {
-                    collectJobService.cancelAsyncCollectJob(jobId);
+                    collectorEngine.cancel(jobId);
                 } else {
                     ClusterMsg.Message deleteMessage = ClusterMsg.Message.newBuilder()
                             .setType(ClusterMsg.MessageType.DELETE_CYCLIC_TASK)
