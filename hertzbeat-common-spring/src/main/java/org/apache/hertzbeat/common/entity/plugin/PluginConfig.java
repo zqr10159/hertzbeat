@@ -25,7 +25,7 @@ package org.apache.hertzbeat.common.entity.plugin;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Data;
-import org.apache.hertzbeat.common.entity.manager.ParamDefine;
+import org.apache.hertzbeat.common.entity.job.param.ParamDefine;
 
 /**
  * The configuration file of the plugin, including parameters and other information

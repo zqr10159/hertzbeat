@@ -19,7 +19,7 @@ package org.apache.hertzbeat.manager.component.validator.impl;
 
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.manager.Param;
-import org.apache.hertzbeat.common.entity.manager.ParamDefine;
+import org.apache.hertzbeat.common.entity.job.param.ParamDefine;
 import org.apache.hertzbeat.common.util.IntervalExpressionUtil;
 import org.apache.hertzbeat.manager.component.validator.ParamValidator;
 import org.springframework.stereotype.Component;

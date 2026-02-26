@@ -18,7 +18,7 @@
 package org.apache.hertzbeat.manager.component.validator;
 
 import org.apache.hertzbeat.common.entity.manager.Param;
-import org.apache.hertzbeat.common.entity.manager.ParamDefine;
+import org.apache.hertzbeat.common.entity.job.param.ParamDefine;
 
 /**
  * Parameter validator interface

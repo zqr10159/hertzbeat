@@ -39,6 +39,10 @@
     <dependencies>
         <dependency>
             <groupId>org.apache.hertzbeat</groupId>
+            <artifactId>hertzbeat-collector-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hertzbeat</groupId>
             <artifactId>hertzbeat-collector-common</artifactId>
         </dependency>
         <!-- spring -->

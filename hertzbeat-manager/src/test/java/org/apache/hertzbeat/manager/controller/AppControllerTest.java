@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.job.Job;
-import org.apache.hertzbeat.common.entity.manager.ParamDefine;
+import org.apache.hertzbeat.common.entity.job.param.ParamDefine;
 import org.apache.hertzbeat.manager.pojo.dto.Hierarchy;
 import org.apache.hertzbeat.manager.pojo.dto.MonitorDefineDto;
 import org.apache.hertzbeat.manager.service.impl.AppServiceImpl;
