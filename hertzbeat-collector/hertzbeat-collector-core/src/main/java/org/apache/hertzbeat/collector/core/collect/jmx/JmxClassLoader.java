@@ -29,7 +29,7 @@ public class JmxClassLoader extends ClassLoader {
             "java.",
             "javax.management.",
             "org.apache.hertzbeat.",
-            "org.springframework.util.",
+            "org.apache.commons.lang3.",
             "com.sun.",
             "sun.",
             "org.slf4j.",

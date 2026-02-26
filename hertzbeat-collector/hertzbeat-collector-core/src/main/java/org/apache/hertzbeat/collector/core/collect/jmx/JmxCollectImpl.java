@@ -56,8 +56,8 @@ import org.apache.hertzbeat.common.util.CommonUtil;
 import org.apache.hertzbeat.common.util.LogUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * jmx protocol acquisition implementation
@@ -84,13 +84,13 @@ public class JmxCollectImpl extends AbstractCollect {
 
     @Override
     public void preCheck(Metrics metrics) throws IllegalArgumentException {
-        Assert.isTrue(metrics != null && metrics.getJmx() != null, "JMX collect must have JMX params");
+        Validate.isTrue(metrics != null && metrics.getJmx() != null, "JMX collect must have JMX params");
         JmxProtocol jmxProtocol = metrics.getJmx();
 
         // Validate JMX URL if provided
         String url = jmxProtocol.getUrl();
-        if (StringUtils.hasText(url)) {
-            Assert.doesNotContain(url, IGNORED_STUB, "JMX url prohibit contains stub, please check");
+        if (StringUtils.isNotBlank(url)) {
+            Validate.isTrue(!url.contains(IGNORED_STUB), "JMX url prohibit contains stub, please check");
 
             // Prevent JNDI injection by validating URL format
             validateJmxUrl(url);
@@ -100,8 +100,8 @@ public class JmxCollectImpl extends AbstractCollect {
             int port = Integer.parseInt(jmxProtocol.getPort());
 
             // Validate host format (only allow valid hostnames or IP addresses)
-            Assert.isTrue(isValidHostname(host), "Invalid hostname format");
-            Assert.isTrue(port > 0 && port <= 65535, "Port must be between 1 and 65535");
+            Validate.isTrue(isValidHostname(host), "Invalid hostname format");
+            Validate.isTrue(port > 0 && port <= 65535, "Port must be between 1 and 65535");
         }
     }
 
@@ -113,7 +113,7 @@ public class JmxCollectImpl extends AbstractCollect {
      */
     private void validateJmxUrl(String url) throws IllegalArgumentException {
         // Only allow service:jmx:rmi protocol
-        Assert.isTrue(url.startsWith("service:jmx:rmi:"), "Only service:jmx:rmi protocol is supported");
+        Validate.isTrue(url.startsWith("service:jmx:rmi:"), "Only service:jmx:rmi protocol is supported");
 
         String[] disallowedPatterns = { "ldap:", "rmi:", "iiop:", "nis:", "dns:", "corbaname:", "http:", "https:" };
         for (String pattern : disallowedPatterns) {
@@ -301,7 +301,7 @@ public class JmxCollectImpl extends AbstractCollect {
         System.setProperty("com.sun.jndi.cosnaming.object.trustURLCodebase", "false");
 
         Map<String, Object> environment = new HashMap<>(4);
-        if (StringUtils.hasText(jmxProtocol.getUsername()) && StringUtils.hasText(jmxProtocol.getPassword())) {
+        if (StringUtils.isNotBlank(jmxProtocol.getUsername()) && StringUtils.isNotBlank(jmxProtocol.getPassword())) {
             String[] credential = new String[] { jmxProtocol.getUsername(), jmxProtocol.getPassword() };
             environment.put(javax.management.remote.JMXConnector.CREDENTIALS, credential);
         }

@@ -32,7 +32,7 @@ import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.entity.StringEntity;
-import org.springframework.http.MediaType;
+
 
 /**
  * redfish client impl
@@ -77,7 +77,7 @@ public class RedfishClient {
         }
 
         requestBuilder.addHeader(HttpHeaders.CONNECTION, NetworkConstants.KEEP_ALIVE);
-        requestBuilder.addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        requestBuilder.addHeader(HttpHeaders.CONTENT_TYPE, "application/json");
         requestBuilder.addHeader(HttpHeaders.USER_AGENT, NetworkConstants.USER_AGENT);
         requestBuilder.addHeader(HttpHeaders.CONTENT_ENCODING, StandardCharsets.UTF_8 + "");
 

@@ -158,7 +158,7 @@ public class TimerDispatcher implements TimerDispatch {
     }
 
     public Long getNextExecutionInterval(Job job) {
-        if (ScheduleTypeEnum.CRON.getCode() == job.getScheduleType() && job.getCronExpression() != null && !job.getCronExpression().isEmpty()) {
+        if (ScheduleTypeEnum.CRON.getType().equals(job.getScheduleType()) && job.getCronExpression() != null && !job.getCronExpression().isEmpty()) {
             try {
                 ExecutionTime executionTime = ExecutionTime.forCron(CRON_PARSER.parse(job.getCronExpression()));
                 ZonedDateTime now = ZonedDateTime.now();

@@ -38,8 +38,7 @@ import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.Assert;
-import org.springframework.util.StopWatch;
+import org.apache.commons.lang3.Validate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -64,14 +63,14 @@ public class MqttCollectImpl extends AbstractCollect {
     @Override
     public void preCheck(Metrics metrics) throws IllegalArgumentException {
         MqttProtocol mqttProtocol = metrics.getMqtt();
-        Assert.hasText(mqttProtocol.getHost(), "MQTT protocol host is required");
-        Assert.hasText(mqttProtocol.getPort(), "MQTT protocol port is required");
+        Validate.notBlank(mqttProtocol.getHost(), "MQTT protocol host is required");
+        Validate.notBlank(mqttProtocol.getPort(), "MQTT protocol port is required");
 
         if ("mqtts".equalsIgnoreCase(mqttProtocol.getProtocol())) {
             if (Boolean.parseBoolean(mqttProtocol.getEnableMutualAuth())) {
-                Assert.hasText(mqttProtocol.getCaCert(), "CA certificate is required for mutual auth");
-                Assert.hasText(mqttProtocol.getClientCert(), "Client certificate is required for mutual auth");
-                Assert.hasText(mqttProtocol.getClientKey(), "Client private key is required for mutual auth");
+                Validate.notBlank(mqttProtocol.getCaCert(), "CA certificate is required for mutual auth");
+                Validate.notBlank(mqttProtocol.getClientCert(), "Client certificate is required for mutual auth");
+                Validate.notBlank(mqttProtocol.getClientKey(), "Client private key is required for mutual auth");
             }
         }
     }
@@ -132,12 +131,10 @@ public class MqttCollectImpl extends AbstractCollect {
         }
 
 
-        StopWatch connectWatch = new StopWatch();
-        connectWatch.start();
+        long startTime = System.currentTimeMillis();
 
         client.connect(connOpts).waitForCompletion(Long.parseLong(protocol.getTimeout()));
-        connectWatch.stop();
-        return connectWatch.getTotalTimeMillis();
+        return System.currentTimeMillis() - startTime;
     }
 
 

@@ -30,7 +30,7 @@ import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.common.entity.job.Metrics;
 import org.apache.hertzbeat.common.entity.job.protocol.IpmiProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
-import org.springframework.util.Assert;
+import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -56,10 +56,10 @@ public class IpmiCollectImpl extends AbstractCollect {
             throw new IllegalArgumentException("Ipmi collect must has ipmi params");
         }
         IpmiProtocol ipmiProtocol = metrics.getIpmi();
-        Assert.hasText(ipmiProtocol.getHost(), "Ipmi Protocol host is required.");
-        Assert.hasText(ipmiProtocol.getPort(), "Ipmi Protocol port is required.");
-        Assert.hasText(ipmiProtocol.getUsername(), "Ipmi Protocol username is required.");
-        Assert.hasText(ipmiProtocol.getPassword(), "Ipmi Protocol password is required.");
+        Validate.notBlank(ipmiProtocol.getHost(), "Ipmi Protocol host is required.");
+        Validate.notBlank(ipmiProtocol.getPort(), "Ipmi Protocol port is required.");
+        Validate.notBlank(ipmiProtocol.getUsername(), "Ipmi Protocol username is required.");
+        Validate.notBlank(ipmiProtocol.getPassword(), "Ipmi Protocol password is required.");
     }
 
     @Override

@@ -18,6 +18,7 @@
 package org.apache.hertzbeat.collector.core.dispatch;
 
 import org.apache.hertzbeat.common.timer.Timeout;
+import org.apache.hertzbeat.common.entity.job.Metrics;
 
 /**
  * Metrics collection task scheduler interface
@@ -29,5 +30,22 @@ public interface MetricsTaskDispatch {
      * @param timeout timeout
      */
     void dispatchMetricsTask(Timeout timeout);
+
+    /**
+     * dispatch collect data
+     * @param timeout timeout
+     * @param metrics metrics
+     * @param metricsData metrics data
+     */
+    void dispatchCollectData(Timeout timeout, Metrics metrics, org.apache.hertzbeat.common.entity.message.CollectRep.MetricsData metricsData);
+
+
+    /**
+     * dispatch collect data list
+     * @param timeout timeout
+     * @param metrics metrics
+     * @param metricsDataList metrics data list
+     */
+    void dispatchCollectData(Timeout timeout, Metrics metrics, java.util.List<org.apache.hertzbeat.common.entity.message.CollectRep.MetricsData> metricsDataList);
 }
 

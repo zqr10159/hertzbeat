@@ -53,6 +53,11 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.hertzbeat</groupId>
+                <artifactId>hertzbeat-collector-core</artifactId>
+                <version>${hertzbeat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.hertzbeat</groupId>
                 <artifactId>hertzbeat-collector-basic</artifactId>
                 <version>${hertzbeat.version}</version>
             </dependency>

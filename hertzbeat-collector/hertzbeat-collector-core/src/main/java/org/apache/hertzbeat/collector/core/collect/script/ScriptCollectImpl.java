@@ -37,8 +37,8 @@ import org.apache.hertzbeat.common.entity.job.Metrics;
 import org.apache.hertzbeat.common.entity.job.protocol.ScriptProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.hertzbeat.common.util.CommonUtil;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 
 /**
  * Script protocol collection implementation
@@ -59,13 +59,13 @@ public class ScriptCollectImpl extends AbstractCollect {
 
     @Override
     public void preCheck(Metrics metrics) throws IllegalArgumentException {
-        Assert.notNull(metrics, "Script collect must has Imap params");
+        Validate.notNull(metrics, "Script collect must has Imap params");
         ScriptProtocol scriptProtocol = metrics.getScript();
-        Assert.notNull(scriptProtocol, "Script collect must has Imap params");
-        Assert.notNull(scriptProtocol.getCharset(), "Script charset is required");
-        Assert.notNull(scriptProtocol.getParseType(), "Script parse type is required");
-        Assert.notNull(scriptProtocol.getScriptTool(), "Script tool is required");
-        if (!(StringUtils.hasText(scriptProtocol.getScriptCommand()) || StringUtils.hasText(scriptProtocol.getScriptPath()))) {
+        Validate.notNull(scriptProtocol, "Script collect must has Imap params");
+        Validate.notNull(scriptProtocol.getCharset(), "Script charset is required");
+        Validate.notNull(scriptProtocol.getParseType(), "Script parse type is required");
+        Validate.notNull(scriptProtocol.getScriptTool(), "Script tool is required");
+        if (!(StringUtils.isNotBlank(scriptProtocol.getScriptCommand()) || StringUtils.isNotBlank(scriptProtocol.getScriptPath()))) {
             throw new IllegalArgumentException("At least one script command or script path is required.");
         }
     }
@@ -76,7 +76,7 @@ public class ScriptCollectImpl extends AbstractCollect {
         long startTime = System.currentTimeMillis();
         ProcessBuilder processBuilder;
         // use command
-        if (StringUtils.hasText(scriptProtocol.getScriptCommand())) {
+        if (StringUtils.isNotBlank(scriptProtocol.getScriptCommand())) {
             switch (scriptProtocol.getScriptTool()) {
                 case BASH -> processBuilder = new ProcessBuilder(BASH, BASH_C, scriptProtocol.getScriptCommand().trim());
                 case CMD -> processBuilder = new ProcessBuilder(CMD, CMD_C, scriptProtocol.getScriptCommand().trim());
@@ -88,7 +88,7 @@ public class ScriptCollectImpl extends AbstractCollect {
                 }
             }
         // use command file
-        } else if (StringUtils.hasText((scriptProtocol.getScriptPath()))) {
+        } else if (StringUtils.isNotBlank((scriptProtocol.getScriptPath()))) {
             switch (scriptProtocol.getScriptTool()) {
                 case BASH -> processBuilder = new ProcessBuilder(BASH, scriptProtocol.getScriptPath().trim());
                 case CMD -> processBuilder = new ProcessBuilder(CMD,  scriptProtocol.getScriptPath().trim());
@@ -106,7 +106,7 @@ public class ScriptCollectImpl extends AbstractCollect {
         }
         // set work directory
         String workDirectory = scriptProtocol.getWorkDirectory();
-        if (StringUtils.hasText(workDirectory)) {
+        if (StringUtils.isNotBlank(workDirectory)) {
             processBuilder.directory(new File(workDirectory));
         }
         // execute command
@@ -116,14 +116,14 @@ public class ScriptCollectImpl extends AbstractCollect {
             StringBuilder response = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
-                if (StringUtils.hasText(line)) {
+                if (StringUtils.isNotBlank(line)) {
                     response.append(line).append("\n");
                 }
             }
             process.waitFor();
             Long responseTime = System.currentTimeMillis() - startTime;
             String result = String.valueOf(response);
-            if (!StringUtils.hasText(result)) {
+            if (!StringUtils.isNotBlank(result)) {
                 builder.setCode(CollectRep.Code.FAIL);
                 builder.setMsg("Script response data is null");
                 return;

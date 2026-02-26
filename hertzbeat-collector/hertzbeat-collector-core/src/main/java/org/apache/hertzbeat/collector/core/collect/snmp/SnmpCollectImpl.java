@@ -64,8 +64,8 @@ import org.snmp4j.smi.VariableBinding;
 import org.snmp4j.util.DefaultPDUFactory;
 import org.snmp4j.util.TableEvent;
 import org.snmp4j.util.TableUtils;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Snmp protocol collection implementation
@@ -91,13 +91,11 @@ public class SnmpCollectImpl extends AbstractCollect {
 
     @Override
     public void preCheck(Metrics metrics) throws IllegalArgumentException {
-        if (metrics == null || metrics.getSnmp() == null) {
-            throw new IllegalArgumentException("Snmp collect must has snmp params");
-        }
+        Validate.isTrue(metrics != null && metrics.getSnmp() != null, "Snmp collect must has snmp params");
         SnmpProtocol snmpProtocol = metrics.getSnmp();
-        Assert.hasText(snmpProtocol.getHost(), "snmp host is required.");
-        Assert.hasText(snmpProtocol.getPort(), "snmp port is required.");
-        Assert.notNull(snmpProtocol.getVersion(), "snmp version is required.");
+        Validate.notBlank(snmpProtocol.getHost(), "snmp host is required.");
+        Validate.notBlank(snmpProtocol.getPort(), "snmp port is required.");
+        Validate.notNull(snmpProtocol.getVersion(), "snmp version is required.");
     }
 
     @Override
@@ -151,7 +149,7 @@ public class SnmpCollectImpl extends AbstractCollect {
                 target.setSecurityModel(SecurityModel.SECURITY_MODEL_SNMPv2c);
             }
             String operation = snmpProtocol.getOperation();
-            operation = StringUtils.hasText(operation) ? operation : OPERATION_GET;
+            operation = StringUtils.isNotBlank(operation) ? operation : OPERATION_GET;
             if (OPERATION_GET.equalsIgnoreCase(operation)) {
                 String contextName = getContextName(snmpProtocol.getContextName());
                 PDU pdu = targetBuilder.pdu().type(PDU.GET).oids(snmpProtocol.getOids().values().toArray(new String[0])).contextName(contextName).build();
@@ -185,11 +183,11 @@ public class SnmpCollectImpl extends AbstractCollect {
                 builder.addValueRow(valueRowBuilder.build());
             } else if (OPERATION_WALK.equalsIgnoreCase(operation)) {
                 Map<String, String> oidMap = snmpProtocol.getOids();
-                Assert.notEmpty(oidMap, "snmp oids is required when operation is walk.");
+                Validate.isTrue(!oidMap.isEmpty(), "snmp oids is required when operation is walk.");
                 TableUtils tableUtils = new TableUtils(snmpService, new DefaultPDUFactory(PDU.GETBULK));
                 OID[] oids = oidMap.values().stream().map(OID::new).toArray(OID[]::new);
                 List<TableEvent> tableEvents = tableUtils.getTable(target, oids, null, null);
-                Assert.notNull(tableEvents, "snmp walk response empty content.");
+                Validate.notNull(tableEvents, "snmp walk response empty content.");
                 long responseTime = System.currentTimeMillis() - startTime;
                 for (TableEvent tableEvent : tableEvents) {
                     if (tableEvent == null || tableEvent.isError()) {
@@ -281,7 +279,7 @@ public class SnmpCollectImpl extends AbstractCollect {
 
     private int getSnmpVersion(String snmpVersion) {
         int version = SnmpConstants.version2c;
-        if (!StringUtils.hasText(snmpVersion)) {
+        if (StringUtils.isBlank(snmpVersion)) {
             return version;
         }
         if (snmpVersion.equalsIgnoreCase(String.valueOf(SnmpConstants.version1))

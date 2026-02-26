@@ -18,7 +18,7 @@
 package org.apache.hertzbeat.collector.collect.redfish;
 
 import java.nio.charset.StandardCharsets;
-import org.apache.hertzbeat.collector.collect.common.http.CommonHttpClient;
+import org.apache.hertzbeat.collector.core.collect.common.http.CommonHttpClient;
 import org.apache.hertzbeat.common.constants.NetworkConstants;
 import org.apache.hertzbeat.common.constants.SignConstants;
 import org.apache.hertzbeat.common.util.IpDomainUtil;

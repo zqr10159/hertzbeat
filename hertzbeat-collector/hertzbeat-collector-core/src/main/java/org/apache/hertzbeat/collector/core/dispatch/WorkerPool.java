@@ -19,21 +19,18 @@ package org.apache.hertzbeat.collector.core.dispatch;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.DisposableBean;
-import org.springframework.stereotype.Component;
-
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+
 /**
  * Collection task worker thread pool
  */
-@Component
 @Slf4j
-public class WorkerPool implements DisposableBean {
+public class WorkerPool {
 
     private ThreadPoolExecutor workerExecutor;
 
@@ -72,8 +69,7 @@ public class WorkerPool implements DisposableBean {
         workerExecutor.execute(runnable);
     }
 
-    @Override
-    public void destroy() throws Exception {
+    public void close() {
         if (workerExecutor != null) {
             workerExecutor.shutdownNow();
         }

@@ -1,6 +1,7 @@
 package org.apache.hertzbeat.collector.core.engine;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hertzbeat.collector.core.api.CollectorEngine;
 import org.apache.hertzbeat.collector.core.dispatch.TimerDispatch;
 import org.apache.hertzbeat.collector.core.dispatch.WorkerPool;
 import org.apache.hertzbeat.collector.core.dispatch.CollectResponseEventListener;
@@ -16,7 +17,7 @@ import java.util.concurrent.TimeUnit;
  * Collection job management provides api interface
  */
 @Slf4j
-public class CollectJobService {
+public class CollectJobService implements CollectorEngine {
 
     private final TimerDispatch timerDispatch;
 
@@ -95,7 +96,29 @@ public class CollectJobService {
         }
     }
 
-    public String getCollectorIdentity() {
-        return collectorIdentity;
+    @Override
+    public void start() {
+        timerDispatch.goOnline();
+    }
+
+    @Override
+    public long submitAsync(Job job) {
+        addAsyncCollectJob(job);
+        return job.getId();
+    }
+
+    @Override
+    public List<CollectRep.MetricsData> collectOnce(Job job) {
+        return collectSyncJobData(job);
+    }
+
+    @Override
+    public void cancel(long jobId) {
+        cancelAsyncCollectJob(jobId);
+    }
+
+    @Override
+    public void shutdown() {
+        timerDispatch.goOffline();
     }
 }

@@ -20,7 +20,7 @@ package org.apache.hertzbeat.collector.collect.mqtt;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hertzbeat.collector.collect.AbstractCollect;
-import org.apache.hertzbeat.collector.constants.CollectorConstants;
+import org.apache.hertzbeat.collector.core.constants.CollectorConstants;
 import org.apache.hertzbeat.collector.dispatch.DispatchConstants;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.job.Metrics;

@@ -40,7 +40,6 @@ import org.apache.hertzbeat.common.entity.job.Metrics;
 import org.apache.hertzbeat.common.entity.job.protocol.DnsProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.hertzbeat.common.util.CommonUtil;
-import org.springframework.util.StopWatch;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Message;
 import org.xbill.DNS.Name;
@@ -154,8 +153,7 @@ public class DnsCollectImpl extends AbstractCollect {
      * run dig command
      */
     private DnsResolveResult dig(DnsProtocol dns) throws IOException {
-        StopWatch responseTimeStopWatch = new StopWatch("responseTime");
-        responseTimeStopWatch.start();
+        long startTime = System.currentTimeMillis();
 
         Name name = Name.fromString(dns.getAddress(), Name.root);
         Message query = Message.newQuery(Record.newRecord(name, Type.value(dns.getRecordType()), DClass.value(dns.getQueryClass())));
@@ -165,8 +163,8 @@ public class DnsCollectImpl extends AbstractCollect {
         res.setPort(Integer.parseInt(dns.getPort()));
 
         Message response = res.send(query);
-        responseTimeStopWatch.stop();
-        return resolve(response, responseTimeStopWatch.lastTaskInfo().getTimeMillis());
+        long responseTime = System.currentTimeMillis() - startTime;
+        return resolve(response, responseTime);
     }
 
     private DnsResolveResult resolve(Message message, Long responseTime) {

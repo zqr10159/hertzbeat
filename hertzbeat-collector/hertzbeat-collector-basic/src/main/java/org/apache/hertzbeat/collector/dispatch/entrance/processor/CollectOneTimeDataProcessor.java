@@ -18,7 +18,7 @@
 package org.apache.hertzbeat.collector.dispatch.entrance.processor;
 
 import io.netty.channel.ChannelHandlerContext;
-import org.apache.hertzbeat.collector.core.dispatch.entrance.CollectServer;
+import org.apache.hertzbeat.collector.dispatch.entrance.CollectServer;
 import org.apache.hertzbeat.common.entity.job.Job;
 import org.apache.hertzbeat.common.entity.message.ClusterMsg;
 import org.apache.hertzbeat.common.util.JsonUtil;

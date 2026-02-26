@@ -36,8 +36,8 @@ import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.job.Metrics;
 import org.apache.hertzbeat.common.entity.job.protocol.RedfishProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 
 /**
  * redfish collect impl
@@ -53,10 +53,10 @@ public class RedfishCollectImpl extends AbstractCollect {
             throw new IllegalArgumentException("Redfish collect must has redfish params");
         }
         RedfishProtocol redfishProtocol = metrics.getRedfish();
-        Assert.hasText(redfishProtocol.getHost(), "Redfish Protocol host is required.");
-        Assert.hasText(redfishProtocol.getPort(), "Redfish Protocol port is required.");
-        Assert.hasText(redfishProtocol.getUsername(), "Redfish Protocol username is required.");
-        Assert.hasText(redfishProtocol.getPassword(), "Redfish Protocol password is required.");
+        Validate.notBlank(redfishProtocol.getHost(), "Redfish Protocol host is required.");
+        Validate.notBlank(redfishProtocol.getPort(), "Redfish Protocol port is required.");
+        Validate.notBlank(redfishProtocol.getUsername(), "Redfish Protocol username is required.");
+        Validate.notBlank(redfishProtocol.getPassword(), "Redfish Protocol password is required.");
     }
 
     @Override
@@ -124,7 +124,7 @@ public class RedfishCollectImpl extends AbstractCollect {
         String name = metrics.getName();
         String collectionSchema = metrics.getRedfish().getSchema();
         String schema = (collectionSchema != null) ? collectionSchema : RedfishCollectionSchema.getSchema(name);
-        if (!StringUtils.hasText(schema)) {
+        if (!StringUtils.isNotBlank(schema)) {
             return null;
         }
         String pattern = "\\{\\w+\\}";
@@ -150,7 +150,7 @@ public class RedfishCollectImpl extends AbstractCollect {
     }
 
     private List<String> parseCollectionResource(String resp) {
-        if (!StringUtils.hasText(resp)) {
+        if (!StringUtils.isNotBlank(resp)) {
             return Collections.emptyList();
         }
         String resourceIdPath = "$.Members[*].['@odata.id']";
@@ -170,7 +170,7 @@ public class RedfishCollectImpl extends AbstractCollect {
     }
 
     private void parseRedfishResource(CollectRep.MetricsData.Builder builder, String resp, Metrics metrics) {
-        if (!StringUtils.hasText(resp)) {
+        if (!StringUtils.isNotBlank(resp)) {
             return;
         }
         List<String> jsonPaths = metrics.getRedfish().getJsonPath();

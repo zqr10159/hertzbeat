@@ -33,8 +33,9 @@ import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.job.Metrics;
 import org.apache.hertzbeat.common.entity.job.protocol.ImapProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
+
 import org.apache.hertzbeat.common.util.CommonUtil;
-import org.springframework.util.Assert;
+import org.apache.commons.lang3.Validate;
 
 /**
  * imap collect
@@ -56,13 +57,13 @@ public class ImapCollectImpl extends AbstractCollect {
     @Override
     public void preCheck(Metrics metrics) throws IllegalArgumentException {
         ImapProtocol imapProtocol = metrics.getImap();
-        Assert.notNull(metrics, "IMAP collect must has Imap params");
-        Assert.notNull(metrics.getImap(), "IMAP collect must has Imap params");
-        Assert.hasText(imapProtocol.getHost(), "IMAP host is required");
-        Assert.hasText(imapProtocol.getPort(), "IMAP port is required");
-        Assert.hasText(imapProtocol.getEmail(), "IMAP email is required");
-        Assert.hasText(imapProtocol.getAuthorize(), "IMAP authorize code is required");
-        Assert.hasText(imapProtocol.getFolderName(), "IMAP folder name is required");
+        Validate.notNull(metrics, "IMAP collect must has Imap params");
+        Validate.notNull(metrics.getImap(), "IMAP collect must has Imap params");
+        Validate.notBlank(imapProtocol.getHost(), "IMAP host is required");
+        Validate.notBlank(imapProtocol.getPort(), "IMAP port is required");
+        Validate.notBlank(imapProtocol.getEmail(), "IMAP email is required");
+        Validate.notBlank(imapProtocol.getAuthorize(), "IMAP authorize code is required");
+        Validate.notBlank(imapProtocol.getFolderName(), "IMAP folder name is required");
     }
 
     @Override

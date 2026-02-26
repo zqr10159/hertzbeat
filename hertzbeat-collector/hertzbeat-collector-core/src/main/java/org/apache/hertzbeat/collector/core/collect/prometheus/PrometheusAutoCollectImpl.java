@@ -65,9 +65,7 @@ import org.apache.http.impl.auth.DigestScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.protocol.HttpContext;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * prometheus auto collect
@@ -152,7 +150,7 @@ public class PrometheusAutoCollectImpl implements PrometheusCollect {
         }
         PrometheusProtocol protocol = metrics.getPrometheus();
         if (protocol.getPath() == null
-                    || !StringUtils.hasText(protocol.getPath())
+                    || !StringUtils.isNotBlank(protocol.getPath())
                     || !protocol.getPath().startsWith(RIGHT_DASH)) {
             protocol.setPath(protocol.getPath() == null ? RIGHT_DASH : RIGHT_DASH + protocol.getPath().trim());
         }
@@ -212,8 +210,8 @@ public class PrometheusAutoCollectImpl implements PrometheusCollect {
         PrometheusProtocol.Authorization auth = protocol.getAuthorization();
         if (auth != null && DispatchConstants.DIGEST_AUTH.equals(auth.getType())) {
             HttpClientContext clientContext = new HttpClientContext();
-            if (StringUtils.hasText(auth.getDigestAuthUsername())
-                        && StringUtils.hasText(auth.getDigestAuthPassword())) {
+            if (StringUtils.isNotBlank(auth.getDigestAuthUsername())
+                        && StringUtils.isNotBlank(auth.getDigestAuthPassword())) {
                 CredentialsProvider provider = new BasicCredentialsProvider();
                 UsernamePasswordCredentials credentials =
                         new UsernamePasswordCredentials(auth.getDigestAuthUsername(), auth.getDigestAuthPassword());
@@ -239,7 +237,7 @@ public class PrometheusAutoCollectImpl implements PrometheusCollect {
         Map<String, String> params = protocol.getParams();
         if (params != null && !params.isEmpty()) {
             for (Map.Entry<String, String> param : params.entrySet()) {
-                if (StringUtils.hasText(param.getValue())) {
+                if (StringUtils.isNotBlank(param.getValue())) {
                     requestBuilder.addParameter(param.getKey(), param.getValue());
                 }
             }
@@ -252,14 +250,14 @@ public class PrometheusAutoCollectImpl implements PrometheusCollect {
         Map<String, String> headers = protocol.getHeaders();
         if (headers != null && !headers.isEmpty()) {
             for (Map.Entry<String, String> header : headers.entrySet()) {
-                if (StringUtils.hasText(header.getValue())) {
+                if (StringUtils.isNotBlank(header.getValue())) {
                     requestBuilder.addHeader(CollectUtil.replaceUriSpecialChar(header.getKey()),
                             CollectUtil.replaceUriSpecialChar(header.getValue()));
                 }
             }
         }
         // add accept
-        requestBuilder.addHeader(HttpHeaders.ACCEPT, MediaType.TEXT_PLAIN_VALUE);
+        requestBuilder.addHeader(HttpHeaders.ACCEPT, "text/plain");
         
         if (protocol.getAuthorization() != null) {
             PrometheusProtocol.Authorization authorization = protocol.getAuthorization();
@@ -267,8 +265,8 @@ public class PrometheusAutoCollectImpl implements PrometheusCollect {
                 String value = DispatchConstants.BEARER + " " + authorization.getBearerTokenToken();
                 requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, value);
             } else if (DispatchConstants.BASIC_AUTH.equals(authorization.getType())) {
-                if (StringUtils.hasText(authorization.getBasicAuthUsername())
-                            && StringUtils.hasText(authorization.getBasicAuthPassword())) {
+                if (StringUtils.isNotBlank(authorization.getBasicAuthUsername())
+                            && StringUtils.isNotBlank(authorization.getBasicAuthPassword())) {
                     String authStr = authorization.getBasicAuthUsername() + ":" + authorization.getBasicAuthPassword();
                     String encodedAuth = Base64Util.encode(authStr);
                     requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, DispatchConstants.BASIC + " " + encodedAuth);
@@ -277,7 +275,7 @@ public class PrometheusAutoCollectImpl implements PrometheusCollect {
         }
 
         // if it has payload, would override post params
-        if (StringUtils.hasLength(protocol.getPayload()) && (HttpMethod.POST.matches(protocol.getMethod()) || HttpMethod.PUT.matches(protocol.getMethod()))) {
+        if (StringUtils.isNotEmpty(protocol.getPayload()) && ("POST".equalsIgnoreCase(protocol.getMethod()) || "PUT".equalsIgnoreCase(protocol.getMethod()))) {
             requestBuilder.setEntity(new StringEntity(protocol.getPayload(), StandardCharsets.UTF_8));
         }
         

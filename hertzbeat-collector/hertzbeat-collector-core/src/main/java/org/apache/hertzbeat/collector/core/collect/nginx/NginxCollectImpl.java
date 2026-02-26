@@ -54,7 +54,7 @@ import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.springframework.http.MediaType;
+
 
 /**
  * nginx collect
@@ -160,7 +160,7 @@ public class NginxCollectImpl extends AbstractCollect {
 
         requestBuilder.addHeader(HttpHeaders.CONNECTION, NetworkConstants.KEEP_ALIVE);
         requestBuilder.addHeader(HttpHeaders.USER_AGENT, NetworkConstants.USER_AGENT);
-        requestBuilder.addHeader(HttpHeaders.ACCEPT, MediaType.TEXT_PLAIN_VALUE);
+        requestBuilder.addHeader(HttpHeaders.ACCEPT, "text/plain");
 
         int timeout = Integer.parseInt(nginxProtocol.getTimeout());
         if (timeout > 0) {

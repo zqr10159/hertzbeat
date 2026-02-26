@@ -26,8 +26,8 @@ import org.apache.hertzbeat.common.entity.job.protocol.PlcProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.plc4x.java.api.PlcConnection;
 import org.apache.plc4x.java.api.messages.PlcReadRequest;
-import org.springframework.beans.BeanUtils;
-import org.springframework.util.StringUtils;
+
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 
@@ -42,15 +42,17 @@ public class ModbusCollectImpl extends AbstractPlcCollectImpl {
         ModbusProtocol modbus = metrics.getModbus();
         List<String> registerAddressList = modbus.getRegisterAddresses();
         // check slaveId
-        if (!StringUtils.hasText(modbus.getSlaveId())) {
+        if (!StringUtils.isNotBlank(modbus.getSlaveId())) {
             modbus.setSlaveId("1");
         }
-        if (!StringUtils.hasText(modbus.getTimeout())) {
+        if (!StringUtils.isNotBlank(modbus.getTimeout())) {
             modbus.setTimeout("5000");
         }
         PlcProtocol plc = metrics.getPlc() == null ? new PlcProtocol() : metrics.getPlc();
         plc.setRegisterAddresses(registerAddressList);
-        BeanUtils.copyProperties(modbus, plc);
+        plc.setHost(modbus.getHost());
+        plc.setPort(modbus.getPort());
+        plc.setTimeout(modbus.getTimeout());
         metrics.setPlc(plc);
         super.preCheck(metrics);
     }

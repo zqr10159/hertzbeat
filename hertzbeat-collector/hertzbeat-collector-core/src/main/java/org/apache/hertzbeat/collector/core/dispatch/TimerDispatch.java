@@ -41,4 +41,18 @@ public interface TimerDispatch {
      * @param metricsDataTemps collect data
      */
     void responseSyncJobData(long jobId, List<CollectRep.MetricsData> metricsDataTemps);
+
+    /**
+     * cyclic job
+     * @param timerTask timer task
+     */
+    void cyclicJob(org.apache.hertzbeat.collector.core.timer.WheelTimerTask timerTask);
+
+    /**
+     * cyclic job
+     * @param timerTask timer task
+     * @param interval interval
+     * @param timeUnit time unit
+     */
+    void cyclicJob(org.apache.hertzbeat.collector.core.timer.WheelTimerTask timerTask, long interval, java.util.concurrent.TimeUnit timeUnit);
 }

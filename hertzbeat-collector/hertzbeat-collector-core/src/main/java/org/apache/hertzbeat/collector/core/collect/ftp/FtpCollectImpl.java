@@ -35,8 +35,8 @@ import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.client.SftpClientFactory;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 
 /**
  * ftp protocol collection implementation
@@ -56,10 +56,10 @@ public class FtpCollectImpl extends AbstractCollect {
             throw new IllegalArgumentException("Ftp collect must has ftp params.");
         }
         FtpProtocol ftpProtocol = metrics.getFtp();
-        Assert.hasText(ftpProtocol.getHost(), "Ftp Protocol host is required.");
-        Assert.hasText(ftpProtocol.getPort(), "Ftp Protocol port is required.");
-        Assert.hasText(ftpProtocol.getDirection(), "Ftp Protocol direction is required.");
-        Assert.hasText(ftpProtocol.getTimeout(), "Ftp Protocol timeout is required.");
+        Validate.notBlank(ftpProtocol.getHost(), "Ftp Protocol host is required.");
+        Validate.notBlank(ftpProtocol.getPort(), "Ftp Protocol port is required.");
+        Validate.notBlank(ftpProtocol.getDirection(), "Ftp Protocol direction is required.");
+        Validate.notBlank(ftpProtocol.getTimeout(), "Ftp Protocol timeout is required.");
     }
 
     @Override
@@ -121,7 +121,7 @@ public class FtpCollectImpl extends AbstractCollect {
     private void login(FTPClient ftpClient, FtpProtocol ftpProtocol) {
         try {
             // username: not empty, password: not empty
-            if (StringUtils.hasText(ftpProtocol.getUsername()) && StringUtils.hasText(ftpProtocol.getPassword())) {
+            if (StringUtils.isNotBlank(ftpProtocol.getUsername()) && StringUtils.isNotBlank(ftpProtocol.getPassword())) {
                 if (!ftpClient.login(ftpProtocol.getUsername(), ftpProtocol.getPassword())) {
                     throw new IllegalArgumentException("The username or password may be wrong.");
                 }

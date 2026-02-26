@@ -32,7 +32,7 @@ import org.apache.sshd.client.config.hosts.HostConfigEntry;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -80,12 +80,12 @@ public class SshHelper {
 
         clientSession = sshClient.connect(username, host, Integer.parseInt(port))
                 .verify(timeout, TimeUnit.MILLISECONDS).getSession();
-        if (StringUtils.hasText(password)) {
+        if (StringUtils.isNotBlank(password)) {
             clientSession.addPasswordIdentity(password);
-        } else if (StringUtils.hasText(privateKey)) {
+        } else if (StringUtils.isNotBlank(privateKey)) {
             var resourceKey = PrivateKeyUtils.writePrivateKey(host, privateKey);
             FilePasswordProvider passwordProvider = (session, resource, index) -> {
-                if (StringUtils.hasText(privateKeyPassphrase)) {
+                if (StringUtils.isNotBlank(privateKeyPassphrase)) {
                     return privateKeyPassphrase;
                 }
                 return null;
@@ -138,7 +138,7 @@ public class SshHelper {
         }
         SshClient sshClient = CommonSshClient.getSshClient();
         HostConfigEntry proxyConfig = new HostConfigEntry();
-        if (useProxy && StringUtils.hasText(sshProtocol.getProxyHost())) {
+        if (useProxy && StringUtils.isNotBlank(sshProtocol.getProxyHost())) {
             String proxySpec = String.format("%s@%s:%d", sshProtocol.getProxyUsername(), sshProtocol.getProxyHost(), Integer.parseInt(sshProtocol.getProxyPort()));
             proxyConfig.setHostName(sshProtocol.getHost());
             proxyConfig.setHost(sshProtocol.getHost());
@@ -147,17 +147,17 @@ public class SshHelper {
             proxyConfig.setProxyJump(proxySpec);
 
             // Apache SSHD requires the password for the proxy to be preloaded into the sshClient instance before connecting
-            if (StringUtils.hasText(sshProtocol.getProxyPassword())) {
+            if (StringUtils.isNotBlank(sshProtocol.getProxyPassword())) {
                 sshClient.addPasswordIdentity(sshProtocol.getProxyPassword());
                 log.debug("Loaded proxy server password authentication: {}@{}", sshProtocol.getProxyUsername(), sshProtocol.getProxyHost());
             }
-            if (StringUtils.hasText(sshProtocol.getProxyPrivateKey())) {
+            if (StringUtils.isNotBlank(sshProtocol.getProxyPrivateKey())) {
                 proxyConfig.setIdentities(List.of(sshProtocol.getProxyPrivateKey()));
                 log.debug("Proxy private key loaded into HostConfigEntry");
             }
         }
 
-        if (useProxy && StringUtils.hasText(sshProtocol.getProxyHost())) {
+        if (useProxy && StringUtils.isNotBlank(sshProtocol.getProxyHost())) {
             try {
                 clientSession = sshClient.connect(proxyConfig)
                                          .verify(timeout, TimeUnit.MILLISECONDS).getSession();
@@ -170,13 +170,13 @@ public class SshHelper {
                                      .verify(timeout, TimeUnit.MILLISECONDS).getSession();
         }
 
-        if (StringUtils.hasText(sshProtocol.getPassword())) {
+        if (StringUtils.isNotBlank(sshProtocol.getPassword())) {
             clientSession.addPasswordIdentity(sshProtocol.getPassword());
-        } else if (StringUtils.hasText(sshProtocol.getPrivateKey())) {
+        } else if (StringUtils.isNotBlank(sshProtocol.getPrivateKey())) {
             var resourceKey = PrivateKeyUtils.writePrivateKey(sshProtocol.getHost(), sshProtocol.getPrivateKey());
             try (InputStream keyStream = new FileInputStream(resourceKey)) {
                 FilePasswordProvider passwordProvider = (session, resource, index) -> {
-                    if (StringUtils.hasText(sshProtocol.getPrivateKeyPassphrase())) {
+                    if (StringUtils.isNotBlank(sshProtocol.getPrivateKeyPassphrase())) {
                         return sshProtocol.getPrivateKeyPassphrase();
                     }
                     return null;

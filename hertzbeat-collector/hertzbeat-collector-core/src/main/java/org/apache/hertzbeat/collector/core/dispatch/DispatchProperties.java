@@ -17,18 +17,11 @@
 
 package org.apache.hertzbeat.collector.core.dispatch;
 
-import org.apache.hertzbeat.common.constants.ConfigConstants;
-import org.apache.hertzbeat.common.constants.SignConstants;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
+
 
 /**
  * Schedule Distribution Task Configuration Properties
  */
-@Component
-@ConfigurationProperties(prefix = ConfigConstants.FunctionModuleConstants.COLLECTOR
-        + SignConstants.DOT
-        + ConfigConstants.FunctionModuleConstants.DISPATCH)
 public class DispatchProperties {
 
     /**

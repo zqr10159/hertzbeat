@@ -50,7 +50,7 @@ import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.SshException;
 import org.apache.sshd.common.channel.exception.SshChannelOpenException;
 import org.apache.sshd.common.util.io.output.NoCloseOutputStream;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Ssh protocol collection implementation
@@ -108,7 +108,7 @@ public class SshCollectImpl extends AbstractCollect {
             }
             Long responseTime = System.currentTimeMillis() - startTime;
             String result = response.toString();
-            if (!StringUtils.hasText(result)) {
+            if (!StringUtils.isNotBlank(result)) {
                 builder.setCode(CollectRep.Code.FAIL);
                 builder.setMsg("ssh shell response data is null");
                 return;

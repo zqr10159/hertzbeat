@@ -18,7 +18,7 @@
 package org.apache.hertzbeat.collector.core.dispatch.unit.impl;
 
 import org.apache.hertzbeat.collector.core.dispatch.unit.TimeLengthUnit;
-import org.springframework.stereotype.Component;
+
 
 import java.util.Arrays;
 import java.util.Map;
@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 /**
  * the convert of time length
  */
-@Component
 public final class TimeLengthConvert extends AbstractUnitConvert {
 
 

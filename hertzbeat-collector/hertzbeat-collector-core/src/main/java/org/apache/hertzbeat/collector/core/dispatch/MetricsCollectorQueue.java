@@ -15,29 +15,30 @@
  * limitations under the License.
  */
 
-package org.apache.hertzbeat.collector.core.dispatch.unit.impl;
+package org.apache.hertzbeat.collector.core.dispatch;
 
-import org.apache.hertzbeat.collector.core.dispatch.unit.DataUnit;
+import lombok.extern.slf4j.Slf4j;
 
-
-import java.util.Arrays;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.concurrent.PriorityBlockingQueue;
 
 /**
- * the convert of data size
+ * queue of jobs to run
  */
-public final class DataSizeConvert extends AbstractUnitConvert {
+@Slf4j
+public class MetricsCollectorQueue {
 
+    private final PriorityBlockingQueue<MetricsCollect> jobQueue;
 
-    /**
-     * convert the enumeration of DataUnit to  map where the key is the unit and the value is the conversion coefficient.
-     */
-    @Override
-    Map<String, Long> convertUnitEnumToMap() {
-        return Arrays.stream(DataUnit.values()).collect(Collectors.toMap(DataUnit::getUnit, DataUnit::getScale));
+    public MetricsCollectorQueue() {
+        jobQueue = new PriorityBlockingQueue<>();
     }
 
+    public void addJob(MetricsCollect job) {
+        jobQueue.offer(job);
+    }
+
+    public MetricsCollect getJob() throws InterruptedException {
+        return jobQueue.take();
+    }
 
 }
-

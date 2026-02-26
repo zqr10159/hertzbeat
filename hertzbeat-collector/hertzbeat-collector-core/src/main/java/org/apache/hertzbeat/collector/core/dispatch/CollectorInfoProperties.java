@@ -17,18 +17,11 @@
 
 package org.apache.hertzbeat.collector.core.dispatch;
 
-import org.apache.hertzbeat.common.constants.ConfigConstants;
-import org.apache.hertzbeat.common.constants.SignConstants;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
+
 
 /**
  * Collector info configuration Properties
  */
-@Component
-@ConfigurationProperties(prefix = ConfigConstants.FunctionModuleConstants.COLLECTOR
-        + SignConstants.DOT
-        + ConfigConstants.FunctionModuleConstants.INFO)
 public class CollectorInfoProperties {
 
     private String version;

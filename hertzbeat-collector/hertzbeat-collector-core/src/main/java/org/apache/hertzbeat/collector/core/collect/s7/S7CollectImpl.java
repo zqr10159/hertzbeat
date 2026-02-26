@@ -26,8 +26,9 @@ import org.apache.hertzbeat.common.entity.job.protocol.S7Protocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.plc4x.java.api.PlcConnection;
 import org.apache.plc4x.java.api.messages.PlcReadRequest;
-import org.springframework.beans.BeanUtils;
-import org.springframework.util.StringUtils;
+
+import org.apache.commons.lang3.StringUtils;
+
 
 import java.util.List;
 
@@ -42,23 +43,25 @@ public class S7CollectImpl extends AbstractPlcCollectImpl {
         S7Protocol s7 = metrics.getS7();
         List<String> registerAddressList = s7.getRegisterAddresses();
         // check RackId
-        if (!StringUtils.hasText(s7.getRackId())) {
+        if (!StringUtils.isNotBlank(s7.getRackId())) {
             s7.setRackId("0");
         }
         // check SlotId
-        if (!StringUtils.hasText(s7.getSlotId())) {
+        if (!StringUtils.isNotBlank(s7.getSlotId())) {
             s7.setSlotId("0");
         }
         // check controllerType
-        if (!StringUtils.hasText(s7.getControllerType())) {
+        if (!StringUtils.isNotBlank(s7.getControllerType())) {
             s7.setControllerType("S7_1500");
         }
-        if (!StringUtils.hasText(s7.getTimeout())) {
+        if (!StringUtils.isNotBlank(s7.getTimeout())) {
             s7.setTimeout("5000");
         }
         PlcProtocol plc = metrics.getPlc() == null ? new PlcProtocol() : metrics.getPlc();
         plc.setRegisterAddresses(registerAddressList);
-        BeanUtils.copyProperties(s7, plc);
+        plc.setHost(s7.getHost());
+        plc.setPort(s7.getPort());
+        plc.setTimeout(s7.getTimeout());
         metrics.setPlc(plc);
         super.preCheck(metrics);
     }

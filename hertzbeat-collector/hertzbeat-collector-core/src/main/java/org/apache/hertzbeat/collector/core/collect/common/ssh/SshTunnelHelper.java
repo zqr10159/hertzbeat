@@ -29,8 +29,8 @@ import org.apache.hertzbeat.common.entity.job.SshTunnel;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.client.session.forward.ExplicitPortForwardingTracker;
 import org.apache.sshd.common.util.net.SshdSocketAddress;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -92,13 +92,13 @@ public class SshTunnelHelper {
         if (sshTunnel == null || !Boolean.parseBoolean(sshTunnel.getEnable())) {
             return;
         }
-        if (!StringUtils.hasText(sshTunnel.getHost())) {
+        if (!StringUtils.isNotBlank(sshTunnel.getHost())) {
             throw new IllegalArgumentException("ssh tunnel must has ssh host param");
         }
-        if (!StringUtils.hasText(sshTunnel.getPort())) {
+        if (!StringUtils.isNotBlank(sshTunnel.getPort())) {
             throw new IllegalArgumentException("ssh tunnel must has ssh port param");
         }
-        if (!StringUtils.hasText(sshTunnel.getUsername())) {
+        if (!StringUtils.isNotBlank(sshTunnel.getUsername())) {
             throw new IllegalArgumentException("ssh tunnel must has ssh username param");
         }
 

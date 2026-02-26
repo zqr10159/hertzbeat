@@ -22,9 +22,6 @@ import org.apache.hertzbeat.collector.core.dispatch.entrance.internal.CollectJob
 import org.apache.hertzbeat.common.entity.log.LogEntry;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.hertzbeat.common.queue.CommonDataQueue;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Configuration;
-
 import java.util.List;
 
 /**
@@ -32,12 +29,6 @@ import java.util.List;
  * send collect response data by netty
  */
 @Slf4j
-@Configuration
-@ConditionalOnProperty(
-        prefix = NettyDataQueue.NETTY_DATA_QUEUE_PREFIX,
-        name = NettyDataQueue.NAME,
-        havingValue = NettyDataQueue.NETTY
-)
 public class NettyDataQueue implements CommonDataQueue {
 
     /**

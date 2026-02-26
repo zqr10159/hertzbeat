@@ -56,8 +56,8 @@ import org.apache.hertzbeat.common.util.CommonUtil;
 import org.apache.hertzbeat.common.util.MapCapUtil;
 import org.apache.sshd.common.SshException;
 import org.apache.sshd.common.channel.exception.SshChannelOpenException;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 
 /**
  * Redis single cluster collector
@@ -82,10 +82,10 @@ public class RedisCommonCollectImpl extends AbstractCollect {
 
     @Override
     public void preCheck(Metrics metrics) throws IllegalArgumentException{
-        Assert.noNullElements(new Object[] {metrics, metrics.getRedis()}, "Redis collect must has redis params");
+        Validate.noNullElements(new Object[] {metrics, metrics.getRedis()}, "Redis collect must has redis params");
         RedisProtocol redisProtocol = metrics.getRedis();
-        Assert.hasText(redisProtocol.getHost(), "Redis Protocol host is required.");
-        Assert.hasText(redisProtocol.getPort(), "Redis Protocol port is required.");
+        Validate.notBlank(redisProtocol.getHost(), "Redis Protocol host is required.");
+        Validate.notBlank(redisProtocol.getPort(), "Redis Protocol port is required.");
         SshTunnelHelper.checkTunnelParam(metrics.getRedis().getSshTunnel());
     }
 
@@ -307,10 +307,10 @@ public class RedisCommonCollectImpl extends AbstractCollect {
 
     private RedisURI redisUri(RedisProtocol redisProtocol, String host, String port) {
         RedisURI.Builder redisUriBuilder = RedisURI.builder().withHost(host).withPort(Integer.parseInt(port));
-        if (StringUtils.hasText(redisProtocol.getUsername())) {
+        if (StringUtils.isNotBlank(redisProtocol.getUsername())) {
             redisUriBuilder.withClientName(redisProtocol.getUsername());
         }
-        if (StringUtils.hasText(redisProtocol.getPassword())) {
+        if (StringUtils.isNotBlank(redisProtocol.getPassword())) {
             redisUriBuilder.withPassword(redisProtocol.getPassword().toCharArray());
         }
         Duration timeout = Duration.ofMillis(CollectUtil.getTimeout(redisProtocol.getTimeout()));
@@ -343,7 +343,7 @@ public class RedisCommonCollectImpl extends AbstractCollect {
         Map<String, String> result = new HashMap<>(MapCapUtil.calInitMap(fieldTotalSize));
 
         Arrays.stream(lines)
-                .filter(it -> StringUtils.hasText(it) && !it.startsWith(SignConstants.WELL_NO) && it.contains(SignConstants.DOUBLE_MARK))
+                .filter(it -> StringUtils.isNotBlank(it) && !it.startsWith(SignConstants.WELL_NO) && it.contains(SignConstants.DOUBLE_MARK))
                 .map(this::removeCr)
                 .map(r -> r.split(SignConstants.DOUBLE_MARK))
                 .filter(t -> t.length > 1)

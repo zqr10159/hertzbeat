@@ -44,7 +44,7 @@ import org.apache.hertzbeat.common.entity.job.protocol.HttpProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.hertzbeat.common.util.CommonUtil;
 import org.apache.hertzbeat.common.util.IpDomainUtil;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * ssl Certificate
@@ -73,8 +73,8 @@ public class SslCertificateCollectImpl extends AbstractCollect {
 
         HttpProtocol httpProtocol = metrics.getHttp();
         String url = httpProtocol.getUrl();
-        if (!StringUtils.hasText(url) || !url.startsWith(RIGHT_DASH)) {
-            httpProtocol.setUrl(StringUtils.hasText(url) ? RIGHT_DASH + url.trim() : RIGHT_DASH);
+        if (!StringUtils.isNotBlank(url) || !url.startsWith(RIGHT_DASH)) {
+            httpProtocol.setUrl(StringUtils.isNotBlank(url) ? RIGHT_DASH + url.trim() : RIGHT_DASH);
         }
 
         HttpsURLConnection urlConnection = null;

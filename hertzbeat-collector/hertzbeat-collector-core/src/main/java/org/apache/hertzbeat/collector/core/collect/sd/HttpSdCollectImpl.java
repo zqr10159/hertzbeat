@@ -53,9 +53,9 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.springframework.http.MediaType;
-import org.springframework.util.CollectionUtils;
-import org.springframework.web.util.UriUtils;
+
+import org.apache.commons.collections4.CollectionUtils;
+
 
 
 /**
@@ -143,8 +143,8 @@ public class HttpSdCollectImpl extends AbstractCollect {
         HttpProtocol.Authorization auth = httpSdProtocol.getAuthorization();
         if (auth != null && DispatchConstants.DIGEST_AUTH.equals(auth.getType())) {
             HttpClientContext clientContext = new HttpClientContext();
-            if (org.springframework.util.StringUtils.hasText(auth.getDigestAuthUsername())
-                    && org.springframework.util.StringUtils.hasText(auth.getDigestAuthPassword())) {
+            if (StringUtils.isNotBlank(auth.getDigestAuthUsername())
+                    && StringUtils.isNotBlank(auth.getDigestAuthPassword())) {
                 CredentialsProvider provider = new BasicCredentialsProvider();
                 UsernamePasswordCredentials credentials = new UsernamePasswordCredentials(auth.getDigestAuthUsername(),
                         auth.getDigestAuthPassword());
@@ -182,13 +182,13 @@ public class HttpSdCollectImpl extends AbstractCollect {
         Map<String, String> headers = httpSdProtocol.getHeaders();
         if (headers != null && !headers.isEmpty()) {
             for (Map.Entry<String, String> header : headers.entrySet()) {
-                if (org.springframework.util.StringUtils.hasText(header.getValue())) {
+                if (StringUtils.isNotBlank(header.getValue())) {
                     requestBuilder.addHeader(header.getKey(), header.getValue());
                 }
             }
         }
         // add accept
-        requestBuilder.addHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        requestBuilder.addHeader(HttpHeaders.ACCEPT, "application/json");
 
         // add authorization
         if (httpSdProtocol.getAuthorization() != null) {
@@ -197,8 +197,8 @@ public class HttpSdCollectImpl extends AbstractCollect {
                 String value = DispatchConstants.BEARER + SignConstants.BLANK + authorization.getBearerTokenToken();
                 requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, value);
             } else if (DispatchConstants.BASIC_AUTH.equals(authorization.getType())) {
-                if (org.springframework.util.StringUtils.hasText(authorization.getBasicAuthUsername())
-                        && org.springframework.util.StringUtils.hasText(authorization.getBasicAuthPassword())) {
+                if (StringUtils.isNotBlank(authorization.getBasicAuthUsername())
+                        && StringUtils.isNotBlank(authorization.getBasicAuthPassword())) {
                     String authStr = authorization.getBasicAuthUsername() + SignConstants.DOUBLE_MARK + authorization.getBasicAuthPassword();
                     String encodedAuth = Base64Util.encode(authStr);
                     requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, DispatchConstants.BASIC + SignConstants.BLANK + encodedAuth);
@@ -211,11 +211,25 @@ public class HttpSdCollectImpl extends AbstractCollect {
         if (enableUrlEncoding) {
             // if the url contains parameters directly
             if (httpSdProtocol.getUrl().contains("?")) {
-                String path = httpSdProtocol.getUrl().substring(0, httpSdProtocol.getUrl().indexOf("?"));
-                String query = httpSdProtocol.getUrl().substring(httpSdProtocol.getUrl().indexOf("?") + 1);
-                httpSdProtocol.setUrl(UriUtils.encodePath(path, "UTF-8") + "?" + UriUtils.encodeQuery(query, "UTF-8"));
+                String[] urlSplits = httpSdProtocol.getUrl().split("\\?");
+                String path = urlSplits[0];
+                String query = urlSplits.length > 1 ? urlSplits[1] : "";
+                try {
+                    String encodedPath = java.net.URLEncoder.encode(path, StandardCharsets.UTF_8.name())
+                            .replace("+", "%20");
+                    String encodedQuery = java.net.URLEncoder.encode(query, StandardCharsets.UTF_8.name());
+                    httpSdProtocol.setUrl(encodedPath + "?" + encodedQuery);
+                } catch (java.io.UnsupportedEncodingException e) {
+                    log.warn("Failed to encode url: {}", httpSdProtocol.getUrl());
+                }
             } else {
-                httpSdProtocol.setUrl(UriUtils.encodePath(httpSdProtocol.getUrl(), "UTF-8"));
+                try {
+                    String encodedPath = java.net.URLEncoder.encode(httpSdProtocol.getUrl(), StandardCharsets.UTF_8.name())
+                            .replace("+", "%20");
+                    httpSdProtocol.setUrl(encodedPath);
+                } catch (java.io.UnsupportedEncodingException e) {
+                    log.warn("Failed to encode url: {}", httpSdProtocol.getUrl());
+                }
             }
         }
 

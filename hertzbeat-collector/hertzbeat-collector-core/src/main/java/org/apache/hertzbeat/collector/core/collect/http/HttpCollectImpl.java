@@ -144,8 +144,8 @@ public class HttpCollectImpl extends AbstractCollect {
 
         HttpProtocol httpProtocol = metrics.getHttp();
         String url = httpProtocol.getUrl();
-        if (!StringUtils.hasText(url) || !url.startsWith(RIGHT_DASH)) {
-            httpProtocol.setUrl(StringUtils.hasText(url) ? RIGHT_DASH + url.trim() : RIGHT_DASH);
+        if (StringUtils.isBlank(url) || !url.startsWith(RIGHT_DASH)) {
+            httpProtocol.setUrl(StringUtils.isNotBlank(url) ? RIGHT_DASH + url.trim() : RIGHT_DASH);
         }
         if (CollectionUtils.isEmpty(httpProtocol.getSuccessCodes())) {
             httpProtocol.setSuccessCodes(List.of(HttpStatus.SC_OK + ""));
@@ -183,7 +183,7 @@ public class HttpCollectImpl extends AbstractCollect {
                      Option 2: Manually trigger garbage collection, similar to how it's done in Dubbo for large inputs.
                      */
                     String resp = entity == null ? "" : EntityUtils.toString(entity, StandardCharsets.UTF_8);
-                    if (!StringUtils.hasText(resp)) {
+                    if (StringUtils.isBlank(resp)) {
                         log.info("http response entity is empty, status: {}.", statusCode);
                     }
                     switch (parseType) {
@@ -243,7 +243,7 @@ public class HttpCollectImpl extends AbstractCollect {
     private void parseResponseByHeader(CollectRep.MetricsData.Builder builder, List<String> aliases, CloseableHttpResponse response) {
         CollectRep.ValueRow.Builder valueRowBuilder = CollectRep.ValueRow.newBuilder();
         for (String alias : aliases) {
-            if (!StringUtils.hasText(alias)) {
+            if (StringUtils.isBlank(alias)) {
                 valueRowBuilder.addColumn(CommonConstants.NULL_VALUE);
                 continue;
             }
@@ -383,7 +383,7 @@ public class HttpCollectImpl extends AbstractCollect {
      * @throws IllegalArgumentException if the expression contains dangerous patterns
      */
     private void validateXpathExpression(String xpathExpression) throws IllegalArgumentException {
-        if (!StringUtils.hasText(xpathExpression)) {
+        if (StringUtils.isBlank(xpathExpression)) {
             return;
         }
 
@@ -417,7 +417,7 @@ public class HttpCollectImpl extends AbstractCollect {
         String xpathExpression = http.getParseScript();
 
         // Layer 1: Validate Xpath expression is not empty
-        if (!StringUtils.hasText(xpathExpression)) {
+        if (StringUtils.isBlank(xpathExpression)) {
             log.warn("Http collect parse type is xmlPath, but the xpath expression is empty.");
             builder.setCode(CollectRep.Code.FAIL);
             builder.setMsg("Xpath expression is empty");
@@ -508,7 +508,7 @@ public class HttpCollectImpl extends AbstractCollect {
                     } else {
                         try {
                             String value = (String) xpath.evaluate(alias, node, XPathConstants.STRING);
-                            valueRowBuilder.addColumn(StringUtils.hasText(value) ? value : CommonConstants.NULL_VALUE);
+                            valueRowBuilder.addColumn(StringUtils.isNotBlank(value) ? value : CommonConstants.NULL_VALUE);
                         } catch (XPathExpressionException e) {
                             log.warn("Failed to evaluate Xpath '{}' for node [{}]: {}", alias, node.getNodeName(), e.getMessage());
                             valueRowBuilder.addColumn(CommonConstants.NULL_VALUE);
@@ -545,7 +545,7 @@ public class HttpCollectImpl extends AbstractCollect {
      */
     private void parseResponseByConfig(String resp, List<String> aliasFields, HttpProtocol http,
                                        CollectRep.MetricsData.Builder builder, Long responseTime) {
-        if (!StringUtils.hasText(resp)) {
+        if (StringUtils.isBlank(resp)) {
             log.warn("Http collect parse type is config, but response body is empty.");
             builder.setCode(CollectRep.Code.FAIL);
             builder.setMsg("Response body is empty");
@@ -564,7 +564,7 @@ public class HttpCollectImpl extends AbstractCollect {
         String arrayBasePath = http.getParseScript();
         int keywordNum = CollectUtil.countMatchKeyword(resp, http.getKeyword());
 
-        if (!StringUtils.hasText(arrayBasePath)) {
+        if (!StringUtils.isNotBlank(arrayBasePath)) {
             CollectRep.ValueRow.Builder valueRowBuilder = CollectRep.ValueRow.newBuilder();
             for (String alias : aliasFields) {
                 if (NetworkConstants.RESPONSE_TIME.equalsIgnoreCase(alias)) {
@@ -785,8 +785,8 @@ public class HttpCollectImpl extends AbstractCollect {
         HttpProtocol.Authorization auth = httpProtocol.getAuthorization();
         if (auth != null && DispatchConstants.DIGEST_AUTH.equals(auth.getType())) {
             HttpClientContext clientContext = new HttpClientContext();
-            if (StringUtils.hasText(auth.getDigestAuthUsername())
-                    && StringUtils.hasText(auth.getDigestAuthPassword())) {
+            if (StringUtils.isNotBlank(auth.getDigestAuthUsername())
+                    && StringUtils.isNotBlank(auth.getDigestAuthPassword())) {
                 CredentialsProvider provider = new BasicCredentialsProvider();
                 UsernamePasswordCredentials credentials = new UsernamePasswordCredentials(auth.getDigestAuthUsername(),
                         auth.getDigestAuthPassword());
@@ -834,7 +834,7 @@ public class HttpCollectImpl extends AbstractCollect {
                 String key = param.getKey();
                 String value = param.getValue();
 
-                if (!StringUtils.hasText(key)) {
+                if (!StringUtils.isNotBlank(key)) {
                     continue;
                 }
 
@@ -847,7 +847,7 @@ public class HttpCollectImpl extends AbstractCollect {
                 }
                 queryParams.append(key);
 
-                if (StringUtils.hasText(value)) {
+                if (StringUtils.isNotBlank(value)) {
                     String calculatedValue = TimeExpressionUtil.calculate(value);
                     if (enableUrlEncoding) {
                         calculatedValue = URLEncoder.encode(calculatedValue, StandardCharsets.UTF_8);
@@ -865,7 +865,7 @@ public class HttpCollectImpl extends AbstractCollect {
         Map<String, String> headers = httpProtocol.getHeaders();
         if (headers != null && !headers.isEmpty()) {
             for (Map.Entry<String, String> header : headers.entrySet()) {
-                if (StringUtils.hasText(header.getValue())) {
+                if (StringUtils.isNotBlank(header.getValue())) {
                     requestBuilder.addHeader(header.getKey(), header.getValue());
                 }
             }
@@ -886,8 +886,8 @@ public class HttpCollectImpl extends AbstractCollect {
                 String value = DispatchConstants.BEARER + " " + authorization.getBearerTokenToken();
                 requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, value);
             } else if (DispatchConstants.BASIC_AUTH.equals(authorization.getType())) {
-                if (StringUtils.hasText(authorization.getBasicAuthUsername())
-                        && StringUtils.hasText(authorization.getBasicAuthPassword())) {
+                if (StringUtils.isNotBlank(authorization.getBasicAuthUsername())
+                        && StringUtils.isNotBlank(authorization.getBasicAuthPassword())) {
                     String authStr = authorization.getBasicAuthUsername() + SignConstants.DOUBLE_MARK + authorization.getBasicAuthPassword();
                     String encodedAuth = Base64Util.encode(authStr);
                     requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, DispatchConstants.BASIC + SignConstants.BLANK + encodedAuth);

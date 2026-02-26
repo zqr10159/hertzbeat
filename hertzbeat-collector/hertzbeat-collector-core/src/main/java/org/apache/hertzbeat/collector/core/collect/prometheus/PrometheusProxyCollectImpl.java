@@ -49,8 +49,8 @@ import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.springframework.http.MediaType;
-import org.springframework.util.StringUtils;
+
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -161,12 +161,12 @@ public class PrometheusProxyCollectImpl implements PrometheusCollect {
             throw new Exception("Prometheus collect must has prometheus params");
         }
         PrometheusProtocol protocol = metrics.getPrometheus();
-        if (!StringUtils.hasText(protocol.getHost())
-            || !StringUtils.hasText(protocol.getPort())) {
+        if (!StringUtils.isNotBlank(protocol.getHost())
+            || !StringUtils.isNotBlank(protocol.getPort())) {
             throw new Exception("Prometheus collect must has host and port params");
         }
         if (protocol.getPath() == null
-                || !StringUtils.hasText(protocol.getPath())
+                || !StringUtils.isNotBlank(protocol.getPath())
                 || !protocol.getPath().startsWith(RIGHT_DASH)) {
             protocol.setPath(protocol.getPath() == null ? RIGHT_DASH : RIGHT_DASH + protocol.getPath().trim());
         }
@@ -182,8 +182,8 @@ public class PrometheusProxyCollectImpl implements PrometheusCollect {
         PrometheusProtocol.Authorization auth = protocol.getAuthorization();
         if (auth != null && DispatchConstants.DIGEST_AUTH.equals(auth.getType())) {
             HttpClientContext clientContext = new HttpClientContext();
-            if (StringUtils.hasText(auth.getDigestAuthUsername())
-                        && StringUtils.hasText(auth.getDigestAuthPassword())) {
+            if (StringUtils.isNotBlank(auth.getDigestAuthUsername())
+                        && StringUtils.isNotBlank(auth.getDigestAuthPassword())) {
                 CredentialsProvider provider = new BasicCredentialsProvider();
                 UsernamePasswordCredentials credentials =
                         new UsernamePasswordCredentials(auth.getDigestAuthUsername(), auth.getDigestAuthPassword());
@@ -211,7 +211,7 @@ public class PrometheusProxyCollectImpl implements PrometheusCollect {
         Map<String, String> params = protocol.getParams();
         if (params != null && !params.isEmpty()) {
             for (Map.Entry<String, String> param : params.entrySet()) {
-                if (StringUtils.hasText(param.getValue())) {
+                if (StringUtils.isNotBlank(param.getValue())) {
                     requestBuilder.addParameter(param.getKey(), param.getValue());
                 }
             }
@@ -222,26 +222,26 @@ public class PrometheusProxyCollectImpl implements PrometheusCollect {
         Map<String, String> headers = protocol.getHeaders();
         if (headers != null && !headers.isEmpty()) {
             for (Map.Entry<String, String> header : headers.entrySet()) {
-                if (StringUtils.hasText(header.getValue())) {
+                if (StringUtils.isNotBlank(header.getValue())) {
                     requestBuilder.addHeader(CollectUtil.replaceUriSpecialChar(header.getKey()),
                             CollectUtil.replaceUriSpecialChar(header.getValue()));
                 }
             }
         }
         if (headers == null || headers.keySet().stream().noneMatch(HttpHeaders.ACCEPT::equalsIgnoreCase)) {
-            requestBuilder.addHeader(HttpHeaders.ACCEPT, MediaType.TEXT_PLAIN_VALUE + ";version=0.0.4,*/*;q=0.1");
+            requestBuilder.addHeader(HttpHeaders.ACCEPT, "text/plain;version=0.0.4,*/*;q=0.1");
         }
         
         if (protocol.getAuthorization() != null) {
             PrometheusProtocol.Authorization authorization = protocol.getAuthorization();
             if (DispatchConstants.BEARER_TOKEN.equalsIgnoreCase(authorization.getType())) {
-                if (StringUtils.hasText(authorization.getBearerTokenToken())) {
+                if (StringUtils.isNotBlank(authorization.getBearerTokenToken())) {
                     String value = DispatchConstants.BEARER + " " + authorization.getBearerTokenToken();
                     requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, value);
                 }
             } else if (DispatchConstants.BASIC_AUTH.equals(authorization.getType())) {
-                if (StringUtils.hasText(authorization.getBasicAuthUsername())
-                            && StringUtils.hasText(authorization.getBasicAuthPassword())) {
+                if (StringUtils.isNotBlank(authorization.getBasicAuthUsername())
+                            && StringUtils.isNotBlank(authorization.getBasicAuthPassword())) {
                     String authStr = authorization.getBasicAuthUsername() + ":" + authorization.getBasicAuthPassword();
                     String encodedAuth = Base64Util.encode(authStr);
                     requestBuilder.addHeader(HttpHeaders.AUTHORIZATION, DispatchConstants.BASIC + " " + encodedAuth);
@@ -249,10 +249,10 @@ public class PrometheusProxyCollectImpl implements PrometheusCollect {
             }
         }
 
-        if (StringUtils.hasLength(protocol.getPayload())) {
+        if (StringUtils.isNotEmpty(protocol.getPayload())) {
             requestBuilder.setEntity(new StringEntity(protocol.getPayload(), StandardCharsets.UTF_8));
             if (headers == null || headers.keySet().stream().noneMatch(HttpHeaders.CONTENT_TYPE::equalsIgnoreCase)) {
-                requestBuilder.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_PLAIN_VALUE);
+                requestBuilder.setHeader(HttpHeaders.CONTENT_TYPE, "text/plain");
             }
         }
         

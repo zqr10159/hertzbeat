@@ -45,7 +45,7 @@ import org.apache.hertzbeat.common.entity.job.Metrics;
 import org.apache.hertzbeat.common.entity.job.protocol.WebsocketProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.hertzbeat.common.util.CommonUtil;
-import org.springframework.util.Assert;
+
 
 /**
  * Websocket Collect
@@ -183,9 +183,15 @@ public class WebsocketCollectImpl extends AbstractCollect {
     }
 
     private void checkParam(WebsocketProtocol protocol) {
-        Assert.hasText(protocol.getHost(), "Websocket Protocol host is required.");
-        Assert.hasText(protocol.getPort(), "Websocket Protocol port is required.");
-        Assert.hasText(protocol.getPath(), "Websocket Protocol path is required.");
+        if (StringUtils.isBlank(protocol.getHost())) {
+            throw new IllegalArgumentException("Websocket Protocol host is required.");
+        }
+        if (StringUtils.isBlank(protocol.getPort())) {
+            throw new IllegalArgumentException("Websocket Protocol port is required.");
+        }
+        if (StringUtils.isBlank(protocol.getPath())) {
+            throw new IllegalArgumentException("Websocket Protocol path is required.");
+        }
     }
     
     private String base64Encode(byte[] data) {
