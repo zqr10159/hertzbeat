@@ -19,7 +19,7 @@ package org.apache.hertzbeat.collector.dispatch.export;
 
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import org.apache.hertzbeat.collector.dispatch.entrance.internal.CollectJobService;
+import org.apache.hertzbeat.collector.core.dispatch.entrance.internal.CollectJobService;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

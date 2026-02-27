@@ -26,7 +26,7 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.collector.core.collect.AbstractCollect;
-import org.apache.hertzbeat.collector.core.constants.CollectorConstants;
+import org.apache.hertzbeat.collector.constants.CollectorConstants;
 import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.collector.core.util.CollectUtil;
 import org.apache.hertzbeat.common.constants.CommonConstants;

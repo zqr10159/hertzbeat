@@ -30,7 +30,7 @@ import org.apache.hertzbeat.collector.core.collect.AbstractCollect;
 import org.apache.hertzbeat.collector.core.collect.registry.discovery.DiscoveryClient;
 import org.apache.hertzbeat.collector.core.collect.registry.discovery.DiscoveryClientManagement;
 import org.apache.hertzbeat.collector.core.collect.registry.discovery.entity.ServerInfo;
-import org.apache.hertzbeat.collector.core.constants.CollectorConstants;
+import org.apache.hertzbeat.collector.constants.CollectorConstants;
 import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.job.Metrics;

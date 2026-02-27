@@ -28,8 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hertzbeat.collector.collect.prometheus.parser.MetricFamily;
-import org.apache.hertzbeat.collector.collect.prometheus.parser.OnlineParser;
+import org.apache.hertzbeat.collector.core.collect.prometheus.parser.MetricFamily;
+import org.apache.hertzbeat.collector.core.collect.prometheus.parser.OnlineParser;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.manager.Monitor;
 import org.apache.hertzbeat.common.entity.message.CollectRep;

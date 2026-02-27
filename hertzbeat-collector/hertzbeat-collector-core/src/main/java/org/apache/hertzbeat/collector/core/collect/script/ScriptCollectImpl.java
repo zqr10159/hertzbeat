@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.collector.core.collect.AbstractCollect;
-import org.apache.hertzbeat.collector.core.constants.CollectorConstants;
+import org.apache.hertzbeat.collector.constants.CollectorConstants;
 import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.job.Metrics;
@@ -38,7 +38,6 @@ import org.apache.hertzbeat.common.entity.job.protocol.ScriptProtocol;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.hertzbeat.common.util.CommonUtil;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
 
 /**
  * Script protocol collection implementation
@@ -59,12 +58,22 @@ public class ScriptCollectImpl extends AbstractCollect {
 
     @Override
     public void preCheck(Metrics metrics) throws IllegalArgumentException {
-        Validate.notNull(metrics, "Script collect must has Imap params");
+        if (metrics == null) {
+            throw new IllegalArgumentException("Script collect must has Imap params");
+        }
         ScriptProtocol scriptProtocol = metrics.getScript();
-        Validate.notNull(scriptProtocol, "Script collect must has Imap params");
-        Validate.notNull(scriptProtocol.getCharset(), "Script charset is required");
-        Validate.notNull(scriptProtocol.getParseType(), "Script parse type is required");
-        Validate.notNull(scriptProtocol.getScriptTool(), "Script tool is required");
+        if (scriptProtocol == null) {
+            throw new IllegalArgumentException("Script collect must has Imap params");
+        }
+        if (scriptProtocol.getCharset() == null) {
+            throw new IllegalArgumentException("Script charset is required");
+        }
+        if (scriptProtocol.getParseType() == null) {
+            throw new IllegalArgumentException("Script parse type is required");
+        }
+        if (scriptProtocol.getScriptTool() == null) {
+            throw new IllegalArgumentException("Script tool is required");
+        }
         if (!(StringUtils.isNotBlank(scriptProtocol.getScriptCommand()) || StringUtils.isNotBlank(scriptProtocol.getScriptPath()))) {
             throw new IllegalArgumentException("At least one script command or script path is required.");
         }

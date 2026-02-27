@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.collector.dispatch.CollectDataDispatch;
 import org.apache.hertzbeat.collector.dispatch.MetricsCollect;
 import org.apache.hertzbeat.common.timer.Timeout;
-import org.apache.hertzbeat.collector.timer.WheelTimerTask;
+import org.apache.hertzbeat.collector.core.dispatch.WheelTimerTask;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.job.Job;
 import org.apache.hertzbeat.common.entity.job.Metrics;

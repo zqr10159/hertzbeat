@@ -23,20 +23,26 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.StringReader;
 import java.net.ConnectException;
+import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import javax.xml.XMLConstants;
@@ -46,15 +52,16 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
-
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hertzbeat.collector.core.collect.AbstractCollect;
-import org.apache.hertzbeat.collector.core.collect.common.http.CommonHttpClient;
+import org.apache.hertzbeat.collector.collect.common.http.CommonHttpClient;
 import org.apache.hertzbeat.collector.core.collect.http.promethus.AbstractPrometheusParse;
 import org.apache.hertzbeat.collector.core.collect.http.promethus.PrometheusParseCreator;
 import org.apache.hertzbeat.collector.core.collect.prometheus.parser.MetricFamily;
 import org.apache.hertzbeat.collector.core.collect.prometheus.parser.OnlineParser;
-import org.apache.hertzbeat.collector.core.constants.CollectorConstants;
+import org.apache.hertzbeat.collector.constants.CollectorConstants;
 import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.collector.core.util.CollectUtil;
 import org.apache.hertzbeat.collector.core.util.JsonPathParser;
@@ -86,21 +93,10 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import java.net.URLEncoder;
-import org.xml.sax.InputSource;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.HashSet;
-import java.util.ArrayList;
-import java.util.Collections;
+import org.xml.sax.InputSource;
 
 /**
  * http https collect
@@ -564,7 +560,7 @@ public class HttpCollectImpl extends AbstractCollect {
         String arrayBasePath = http.getParseScript();
         int keywordNum = CollectUtil.countMatchKeyword(resp, http.getKeyword());
 
-        if (!StringUtils.isNotBlank(arrayBasePath)) {
+        if (StringUtils.isBlank(arrayBasePath)) {
             CollectRep.ValueRow.Builder valueRowBuilder = CollectRep.ValueRow.newBuilder();
             for (String alias : aliasFields) {
                 if (NetworkConstants.RESPONSE_TIME.equalsIgnoreCase(alias)) {
@@ -834,7 +830,7 @@ public class HttpCollectImpl extends AbstractCollect {
                 String key = param.getKey();
                 String value = param.getValue();
 
-                if (!StringUtils.isNotBlank(key)) {
+                if (StringUtils.isBlank(key)) {
                     continue;
                 }
 
@@ -875,7 +871,7 @@ public class HttpCollectImpl extends AbstractCollect {
                 || DispatchConstants.PARSE_JSON_PATH.equals(httpProtocol.getParseType())) {
             requestBuilder.addHeader(HttpHeaders.ACCEPT, "application/json");
         } else if (DispatchConstants.PARSE_XML_PATH.equals(httpProtocol.getParseType())) {
-            requestBuilder.addHeader(HttpHeaders.ACCEPT, "text/html" + "," + "application/xml");
+            requestBuilder.addHeader(HttpHeaders.ACCEPT, "text/html,application/xml");
         } else {
             requestBuilder.addHeader(HttpHeaders.ACCEPT, "*/*");
         }
@@ -907,9 +903,11 @@ public class HttpCollectImpl extends AbstractCollect {
             if (httpProtocol.getUrl().contains("?")) {
                 String path = httpProtocol.getUrl().substring(0, httpProtocol.getUrl().indexOf("?"));
                 String query = httpProtocol.getUrl().substring(httpProtocol.getUrl().indexOf("?") + 1);
-                uri = URLEncoder.encode(path, StandardCharsets.UTF_8) + "?" + URLEncoder.encode(query, StandardCharsets.UTF_8);
+                uri = path + "?" + query;
+                // uri = UriUtils.encodePath(path, "UTF-8") + "?" + UriUtils.encodeQuery(query, "UTF-8");
             } else {
-                uri = URLEncoder.encode(httpProtocol.getUrl(), StandardCharsets.UTF_8);
+                uri = httpProtocol.getUrl();
+                // uri = UriUtils.encodePath(httpProtocol.getUrl(), "UTF-8");
             }
         } else {
             uri = httpProtocol.getUrl();

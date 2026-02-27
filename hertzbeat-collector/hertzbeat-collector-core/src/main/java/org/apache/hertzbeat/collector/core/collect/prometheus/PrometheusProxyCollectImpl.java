@@ -18,7 +18,7 @@
 package org.apache.hertzbeat.collector.core.collect.prometheus;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hertzbeat.collector.core.collect.common.http.CommonHttpClient;
+import org.apache.hertzbeat.collector.collect.common.http.CommonHttpClient;
 import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.collector.core.util.CollectUtil;
 import org.apache.hertzbeat.common.constants.CommonConstants;

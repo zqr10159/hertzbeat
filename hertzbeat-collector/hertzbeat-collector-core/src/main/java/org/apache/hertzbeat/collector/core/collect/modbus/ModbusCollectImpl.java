@@ -54,6 +54,13 @@ public class ModbusCollectImpl extends AbstractPlcCollectImpl {
         plc.setPort(modbus.getPort());
         plc.setTimeout(modbus.getTimeout());
         metrics.setPlc(plc);
+        // Explicit checks here because super.preCheck might be missing them or doing something weird
+        if (StringUtils.isBlank(plc.getHost())) {
+            throw new IllegalArgumentException("PLC collect must have [host] param. modbusHost=" + modbus.getHost() + ", plcHost=" + plc.getHost());
+        }
+        if (StringUtils.isBlank(plc.getPort())) {
+            throw new IllegalArgumentException("PLC collect must have [port] param");
+        }
         super.preCheck(metrics);
     }
 

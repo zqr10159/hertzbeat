@@ -58,13 +58,8 @@
         <!-- collector -->
         <dependency>
             <groupId>org.apache.hertzbeat</groupId>
-            <artifactId>hertzbeat-collector-collector</artifactId>
-            <exclusions>
-                <exclusion>
-                    <artifactId>commons-logging</artifactId>
-                    <groupId>commons-logging</groupId>
-                </exclusion>
-            </exclusions>
+            <artifactId>hertzbeat-collector-runtime-embedded</artifactId>
+            <version>${hertzbeat.version}</version>
         </dependency>
         <!-- remoting -->
         <dependency>

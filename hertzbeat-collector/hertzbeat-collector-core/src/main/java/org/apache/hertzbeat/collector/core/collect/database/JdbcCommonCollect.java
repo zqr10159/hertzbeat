@@ -38,7 +38,7 @@ import org.apache.hertzbeat.collector.core.collect.common.cache.CacheIdentifier;
 import org.apache.hertzbeat.collector.core.collect.common.cache.GlobalConnectionCache;
 import org.apache.hertzbeat.collector.core.collect.common.cache.JdbcConnect;
 import org.apache.hertzbeat.collector.core.collect.common.ssh.SshTunnelHelper;
-import org.apache.hertzbeat.collector.core.constants.CollectorConstants;
+import org.apache.hertzbeat.collector.constants.CollectorConstants;
 import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.collector.core.util.CollectUtil;
 import org.apache.hertzbeat.common.constants.CommonConstants;

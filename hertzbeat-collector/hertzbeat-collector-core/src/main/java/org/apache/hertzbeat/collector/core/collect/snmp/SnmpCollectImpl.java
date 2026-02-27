@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.collector.core.collect.AbstractCollect;
-import org.apache.hertzbeat.collector.core.constants.CollectorConstants;
+import org.apache.hertzbeat.collector.constants.CollectorConstants;
 import org.apache.hertzbeat.collector.core.dispatch.DispatchConstants;
 import org.apache.hertzbeat.collector.core.util.CollectUtil;
 import org.apache.hertzbeat.common.constants.CommonConstants;
@@ -93,9 +93,15 @@ public class SnmpCollectImpl extends AbstractCollect {
     public void preCheck(Metrics metrics) throws IllegalArgumentException {
         Validate.isTrue(metrics != null && metrics.getSnmp() != null, "Snmp collect must has snmp params");
         SnmpProtocol snmpProtocol = metrics.getSnmp();
-        Validate.notBlank(snmpProtocol.getHost(), "snmp host is required.");
-        Validate.notBlank(snmpProtocol.getPort(), "snmp port is required.");
-        Validate.notNull(snmpProtocol.getVersion(), "snmp version is required.");
+        if (StringUtils.isBlank(snmpProtocol.getHost())) {
+            throw new IllegalArgumentException("snmp host is required.");
+        }
+        if (StringUtils.isBlank(snmpProtocol.getPort())) {
+            throw new IllegalArgumentException("snmp port is required.");
+        }
+        if (snmpProtocol.getVersion() == null) {
+            throw new IllegalArgumentException("snmp version is required.");
+        }
     }
 
     @Override

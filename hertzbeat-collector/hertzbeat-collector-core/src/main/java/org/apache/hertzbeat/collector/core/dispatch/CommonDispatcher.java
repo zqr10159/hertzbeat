@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.collector.core.dispatch.unit.UnitConvert;
 import org.apache.hertzbeat.collector.core.metrics.CollectorMetrics;
-import org.apache.hertzbeat.collector.core.timer.WheelTimerTask;
 import org.apache.hertzbeat.collector.core.util.CollectUtil;
 import org.apache.hertzbeat.common.entity.job.Configmap;
 import org.apache.hertzbeat.common.entity.job.Job;

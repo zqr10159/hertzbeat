@@ -46,7 +46,7 @@ public interface TimerDispatch {
      * cyclic job
      * @param timerTask timer task
      */
-    void cyclicJob(org.apache.hertzbeat.collector.core.timer.WheelTimerTask timerTask);
+    void cyclicJob(WheelTimerTask timerTask);
 
     /**
      * cyclic job
@@ -54,5 +54,5 @@ public interface TimerDispatch {
      * @param interval interval
      * @param timeUnit time unit
      */
-    void cyclicJob(org.apache.hertzbeat.collector.core.timer.WheelTimerTask timerTask, long interval, java.util.concurrent.TimeUnit timeUnit);
+    void cyclicJob(WheelTimerTask timerTask, long interval, java.util.concurrent.TimeUnit timeUnit);
 }

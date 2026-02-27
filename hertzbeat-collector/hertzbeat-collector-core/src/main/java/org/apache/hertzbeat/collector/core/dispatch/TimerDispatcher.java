@@ -6,7 +6,6 @@ import com.cronutils.model.time.ExecutionTime;
 import com.cronutils.parser.CronParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.collector.core.constants.ScheduleTypeEnum;
-import org.apache.hertzbeat.collector.core.timer.WheelTimerTask;
 import org.apache.hertzbeat.common.entity.job.Job;
 import org.apache.hertzbeat.common.entity.job.Metrics;
 import org.apache.hertzbeat.common.entity.message.CollectRep;

@@ -36,7 +36,6 @@ import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.client.SftpClientFactory;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
 
 /**
  * ftp protocol collection implementation
@@ -56,10 +55,18 @@ public class FtpCollectImpl extends AbstractCollect {
             throw new IllegalArgumentException("Ftp collect must has ftp params.");
         }
         FtpProtocol ftpProtocol = metrics.getFtp();
-        Validate.notBlank(ftpProtocol.getHost(), "Ftp Protocol host is required.");
-        Validate.notBlank(ftpProtocol.getPort(), "Ftp Protocol port is required.");
-        Validate.notBlank(ftpProtocol.getDirection(), "Ftp Protocol direction is required.");
-        Validate.notBlank(ftpProtocol.getTimeout(), "Ftp Protocol timeout is required.");
+        if (StringUtils.isBlank(ftpProtocol.getHost())) {
+            throw new IllegalArgumentException("Ftp Protocol host is required.");
+        }
+        if (StringUtils.isBlank(ftpProtocol.getPort())) {
+            throw new IllegalArgumentException("Ftp Protocol port is required.");
+        }
+        if (StringUtils.isBlank(ftpProtocol.getDirection())) {
+            throw new IllegalArgumentException("Ftp Protocol direction is required.");
+        }
+        if (StringUtils.isBlank(ftpProtocol.getTimeout())) {
+            throw new IllegalArgumentException("Ftp Protocol timeout is required.");
+        }
     }
 
     @Override

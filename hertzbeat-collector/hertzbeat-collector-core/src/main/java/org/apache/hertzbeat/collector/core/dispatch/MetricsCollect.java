@@ -7,7 +7,6 @@ import org.apache.hertzbeat.collector.core.collect.AbstractCollect;
 import org.apache.hertzbeat.collector.core.collect.prometheus.PrometheusAutoCollectImpl;
 import org.apache.hertzbeat.collector.core.collect.strategy.CollectStrategyFactory;
 import org.apache.hertzbeat.common.timer.Timeout;
-import org.apache.hertzbeat.collector.core.timer.WheelTimerTask;
 import org.apache.hertzbeat.collector.core.dispatch.unit.UnitConvert;
 import org.apache.hertzbeat.collector.core.util.CollectUtil;
 import org.apache.hertzbeat.common.constants.CommonConstants;
