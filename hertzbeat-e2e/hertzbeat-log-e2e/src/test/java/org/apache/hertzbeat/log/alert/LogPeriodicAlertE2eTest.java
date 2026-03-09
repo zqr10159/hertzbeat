@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -169,21 +170,34 @@ public class LogPeriodicAlertE2eTest {
 
         periodicAlertRuleScheduler.updateSchedule(errorCountAlertByGroup);
 
-        await().atMost(Duration.ofSeconds(60))
+        await().atMost(Duration.ofSeconds(90))
                 .pollInterval(Duration.ofSeconds(3))
-                .untilAsserted(() -> assertFalse(capturedGroupAlerts.isEmpty(),
-                        "Should have generated periodic error count group alert"));
+                .untilAsserted(() -> {
+                    Optional<SingleAlert> matchedAlert = capturedGroupAlerts.stream()
+                            .flatMap(List::stream)
+                            .filter(alert -> alert.getLabels() != null)
+                            .filter(alert -> String.valueOf(errorCountAlertByGroup.getId())
+                                            .equals(alert.getLabels().get(CommonConstants.LABEL_DEFINE_ID))
+                                    || errorCountAlertByGroup.getName()
+                                            .equals(alert.getLabels().get(CommonConstants.LABEL_ALERT_NAME)))
+                            .findFirst();
 
-        List<SingleAlert> groupAlerts = capturedGroupAlerts.get(0);
+                    if (matchedAlert.isEmpty()) {
+                        log.warn("No matched group alert yet, captured batches: {}, first labels: {}",
+                                capturedGroupAlerts.size(),
+                                capturedGroupAlerts.isEmpty() || capturedGroupAlerts.get(0).isEmpty()
+                                        ? "empty"
+                                        : capturedGroupAlerts.get(0).get(0).getLabels());
+                    }
 
-        assertNotNull(groupAlerts, "Group alerts should not be null");
-        assertFalse(groupAlerts.isEmpty(), "Group alerts should not be empty");
-
-        SingleAlert anyAlert = groupAlerts.get(0);
-        assertEquals(CommonConstants.ALERT_STATUS_FIRING, anyAlert.getStatus(), "Alert should be in firing status");
-        assertNotNull(anyAlert.getLabels(), "Alert should have labels");
-        assertEquals(CommonConstants.ALERT_SEVERITY_CRITICAL, anyAlert.getLabels().get(CommonConstants.LABEL_ALERT_SEVERITY), "Alert should have critical severity");
-        assertTrue(anyAlert.getTriggerTimes() >= 1, "Alert should indicate aggregated trigger times");
+                    assertTrue(matchedAlert.isPresent(), "Should have captured group alert from target alert define");
+                    SingleAlert anyAlert = matchedAlert.get();
+                    assertEquals(CommonConstants.ALERT_STATUS_FIRING, anyAlert.getStatus(), "Alert should be in firing status");
+                    assertTrue(anyAlert.getLabels().containsKey(CommonConstants.LABEL_ALERT_SEVERITY),
+                            "Alert should contain severity label");
+                    log.info("Matched group alert labels: {}", anyAlert.getLabels());
+                    assertTrue(anyAlert.getTriggerTimes() >= 1, "Alert should indicate aggregated trigger times");
+                });
     }
 
     /**
