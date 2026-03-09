@@ -38,6 +38,7 @@ import org.testcontainers.utility.MountableFile;
 import java.time.Duration;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
@@ -127,7 +128,7 @@ public class GreptimeLogStorageE2eTest {
         assertNotNull(storedLogs, "Greptime query result should not be null");
         if (storedLogs.isEmpty()) {
             log.warn("No logs found in GreptimeDB during test window. Vector or storage pipeline may be delayed in CI.");
-            return;
+            assumeFalse(true, "Skip in unstable CI env: no log persisted to GreptimeDB within polling window");
         }
 
         LogEntry latestLog = storedLogs.get(storedLogs.size() - 1);

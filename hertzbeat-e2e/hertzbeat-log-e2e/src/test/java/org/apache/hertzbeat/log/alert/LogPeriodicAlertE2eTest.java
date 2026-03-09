@@ -183,11 +183,16 @@ public class LogPeriodicAlertE2eTest {
                             .findFirst();
 
                     if (matchedAlert.isEmpty()) {
-                        log.warn("No matched group alert yet, captured batches: {}, first labels: {}",
+                        log.warn("No matched group alert yet, captured batches: {}, first labels: {}, sample alerts: {}",
                                 capturedGroupAlerts.size(),
                                 capturedGroupAlerts.isEmpty() || capturedGroupAlerts.get(0).isEmpty()
                                         ? "empty"
-                                        : capturedGroupAlerts.get(0).get(0).getLabels());
+                                        : capturedGroupAlerts.get(0).get(0).getLabels(),
+                                capturedGroupAlerts.stream()
+                                        .flatMap(List::stream)
+                                        .map(SingleAlert::getLabels)
+                                        .limit(5)
+                                        .toList());
                     }
 
                     assertTrue(matchedAlert.isPresent(), "Should have captured group alert from target alert define");
