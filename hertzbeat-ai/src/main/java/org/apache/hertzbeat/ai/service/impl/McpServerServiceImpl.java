@@ -25,6 +25,7 @@ import org.apache.hertzbeat.ai.tools.MetricsTools;
 import org.apache.hertzbeat.ai.tools.MonitorTools;
 import org.apache.hertzbeat.ai.tools.ScheduleTools;
 import org.apache.hertzbeat.ai.tools.SkillTools;
+import org.apache.hertzbeat.ai.tools.SshRecoveryTools;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.ai.tool.ToolCallbackProvider;
@@ -51,6 +52,8 @@ public class McpServerServiceImpl implements McpServerService {
     private SkillTools skillTools;
     @Autowired
     private ScheduleTools scheduleTools;
+    @Autowired
+    private SshRecoveryTools sshRecoveryTools;
 
     @Bean
     public ToolCallbackProvider hertzbeatTools() {
@@ -58,7 +61,7 @@ public class McpServerServiceImpl implements McpServerService {
         // AI should use Skills (via skillTools) to perform database diagnostics.
         return MethodToolCallbackProvider.builder()
                 .toolObjects(monitorTools, alertTools, alertDefineTools, metricsTools, 
-                             skillTools, scheduleTools)
+                             skillTools, scheduleTools, sshRecoveryTools)
                 .build();
     }
 }

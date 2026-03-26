@@ -27,6 +27,7 @@ If the user doesn't provide required parameters, ask them iteratively to provide
 ### Alert & Alarm Analysis Tools:
 - **query_alerts**: Query fired alerts with comprehensive filtering and pagination
 - **get_alerts_summary**: Get alert statistics and status distribution
+- **ssh_execute_recovery**: Execute a remote recovery command via SSH with result fields including exitCode/stdout/stderr/durationMs/executedAt (demo mode can bypass command allowlist by setting hertzbeat.ai.ssh.demoMode=true)
 
 ### Metrics Data Analysis Tools:
 - **query_realtime_metrics**: Get current real-time metrics data for monitors

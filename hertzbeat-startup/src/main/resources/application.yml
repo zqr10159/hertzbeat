@@ -343,6 +343,16 @@ hertzbeat:
       # jdbc  : always use JDBC
       # r2dbc : always use the built-in query engine
       query-engine: ${HERTZBEAT_COLLECTOR_MYSQL_QUERY_ENGINE:auto}
+  ai:
+    # SSH recovery tool demo mode switch, true means demo (no allowlist/blacklist restriction)
+    ssh:
+      demoMode: false
+      # Default command timeout in milliseconds when timeoutMs is not passed by tool input
+      timeoutMs: 10000
+      # Max chars for stdout/stderr in tool output, values above this will be truncated
+      maxOutputSize: 12000
+      # Optional command allowlist used when demoMode=false (comma-separated, lower-case)
+      commandAllowlist:
   # Optional virtual-thread overrides. Remove this whole block to use built-in defaults.
   vthreads:
     enabled: true
