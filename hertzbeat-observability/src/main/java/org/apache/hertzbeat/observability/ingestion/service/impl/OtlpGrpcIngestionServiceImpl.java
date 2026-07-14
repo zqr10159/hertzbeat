@@ -62,7 +62,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import lombok.extern.slf4j.Slf4j;
@@ -152,18 +151,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private static final String OTLP_METRIC_EXP_ZERO_THRESHOLD = "otlp.metric.exponential_histogram.zero_threshold";
     private static final String OTLP_METRIC_EXP_POSITIVE = "otlp.metric.exponential_histogram.positive";
     private static final String OTLP_METRIC_EXP_NEGATIVE = "otlp.metric.exponential_histogram.negative";
-    private static final Set<String> TRACE_NUMERIC_ATTRIBUTE_KEYS = Set.of(
-            "net.peer.port",
-            "net.host.port",
-            "network.peer.port",
-            "network.local.port",
-            "server.port",
-            "client.port",
-            "http.status_code",
-            "http.response.status_code",
-            "rpc.grpc.status_code"
-    );
-
     private final RestTemplate restTemplate;
     private final ObjectProvider<GreptimeProperties> greptimePropertiesProvider;
     private final OtlpLogProtocolAdapter otlpLogProtocolAdapter;
@@ -179,6 +166,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private final OtlpIngestionRedactionService redactionService = new OtlpIngestionRedactionService();
     private final OtlpIngestionRetryService retryService;
     private final OtlpRequestDecoder requestDecoder;
+    private final OtlpTraceRequestNormalizer traceRequestNormalizer = new OtlpTraceRequestNormalizer();
 
     public OtlpGrpcIngestionServiceImpl(RestTemplate restTemplate,
                                         ObjectProvider<GreptimeProperties> greptimePropertiesProvider,
@@ -911,7 +899,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         OtlpCorrelationContext safeContext = correlationContext == null
                 ? OtlpCorrelationContext.empty()
                 : correlationContext;
-        ExportTraceServiceRequest normalized = normalizeTraceRequest(request);
+        ExportTraceServiceRequest normalized = traceRequestNormalizer.normalize(request);
         ExportTraceServiceRequest resolved =
                 otlpEntityIdentityResolver.enrichTraces(normalized, safeContext.workspaceId());
         return redactTraceRequest(otlpCorrelationEnricher.enrichTraces(resolved, safeContext));
@@ -1470,68 +1458,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
 
     private long durationMillis(long startedAtNanos) {
         return Math.max(0L, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos));
-    }
-
-    private ExportTraceServiceRequest normalizeTraceRequest(ExportTraceServiceRequest request) {
-        if (request == null || request.getResourceSpansCount() == 0) {
-            return request;
-        }
-        ExportTraceServiceRequest.Builder requestBuilder = request.toBuilder().clearResourceSpans();
-        for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
-            ResourceSpans.Builder resourceBuilder = resourceSpans.toBuilder().clearScopeSpans();
-            for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
-                ScopeSpans.Builder scopeBuilder = scopeSpans.toBuilder().clearSpans();
-                for (Span span : scopeSpans.getSpansList()) {
-                    scopeBuilder.addSpans(normalizeTraceSpan(span));
-                }
-                resourceBuilder.addScopeSpans(scopeBuilder.build());
-            }
-            requestBuilder.addResourceSpans(resourceBuilder.build());
-        }
-        return requestBuilder.build();
-    }
-
-    private Span normalizeTraceSpan(Span span) {
-        if (span == null || span.getAttributesCount() == 0) {
-            return span;
-        }
-        Span.Builder spanBuilder = span.toBuilder().clearAttributes();
-        for (KeyValue attribute : span.getAttributesList()) {
-            spanBuilder.addAttributes(normalizeTraceAttribute(attribute));
-        }
-        return spanBuilder.build();
-    }
-
-    private KeyValue normalizeTraceAttribute(KeyValue attribute) {
-        if (attribute == null || !StringUtils.isNotBlank(attribute.getKey()) || !attribute.hasValue()) {
-            return attribute;
-        }
-        if (!shouldCoerceTraceAttributeToInt(attribute.getKey())) {
-            return attribute;
-        }
-        AnyValue value = attribute.getValue();
-        if (value.getValueCase() != AnyValue.ValueCase.STRING_VALUE) {
-            return attribute;
-        }
-        String normalized = StringUtils.trimToNull(value.getStringValue());
-        if (normalized == null || !normalized.matches("-?\\d+")) {
-            return attribute;
-        }
-        try {
-            long parsed = Long.parseLong(normalized);
-            return attribute.toBuilder()
-                    .setValue(AnyValue.newBuilder().setIntValue(parsed).build())
-                    .build();
-        } catch (NumberFormatException ex) {
-            return attribute;
-        }
-    }
-
-    private boolean shouldCoerceTraceAttributeToInt(String key) {
-        if (!StringUtils.isNotBlank(key)) {
-            return false;
-        }
-        return TRACE_NUMERIC_ATTRIBUTE_KEYS.contains(key) || StringUtils.endsWith(key, ".port");
     }
 
     private List<MetricObservation> extractMetricObservations(Metric metric) {
