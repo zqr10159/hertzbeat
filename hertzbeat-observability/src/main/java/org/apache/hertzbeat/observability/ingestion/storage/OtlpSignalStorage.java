@@ -28,6 +28,11 @@ import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
  * the application service on this OTLP boundary allows another backend to be
  * introduced without leaking vendor-specific headers or endpoints into the
  * ingestion workflow.</p>
+ *
+ * <p>Implementations return a non-null canonical OTLP Protobuf response body
+ * after the backend accepts the request. Backend failures must be reported as
+ * gRPC status exceptions so HTTP and gRPC entry points share the same error
+ * semantics.</p>
  */
 public interface OtlpSignalStorage {
 

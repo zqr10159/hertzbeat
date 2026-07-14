@@ -117,10 +117,9 @@ class OtlpLogControllerTest {
     private void rebuildControllerWithQuotaLimitsAndGovernance(long maxRequestBytes, long maxSignalItems,
                                                                String dropServiceNames) {
         this.otlpGrpcIngestionService = new OtlpGrpcIngestionServiceImpl(
-                org.mockito.Mockito.mock(org.springframework.web.client.RestTemplate.class),
-                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class),
                 otlpLogProtocolAdapter,
-                greptimeOtlpForwarder,
+                new org.apache.hertzbeat.observability.ingestion.forwarder.GreptimeOtlpSignalStorage(
+                        greptimeOtlpForwarder),
                 otlpCorrelationEnricher,
                 new OtlpIngestionErrorResponseFactory(),
                 new OtlpIngestionRequestContextResolver(),

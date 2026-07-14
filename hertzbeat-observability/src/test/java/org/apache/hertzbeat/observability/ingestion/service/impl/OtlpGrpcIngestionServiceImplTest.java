@@ -84,11 +84,14 @@ import org.apache.hertzbeat.observability.ingestion.enricher.OtlpCorrelationEnri
 import org.apache.hertzbeat.observability.ingestion.enricher.OtlpEntityIdentityResolver;
 import org.apache.hertzbeat.observability.ingestion.error.OtlpIngestionErrorResponseFactory;
 import org.apache.hertzbeat.observability.ingestion.forwarder.GreptimeOtlpForwarder;
+import org.apache.hertzbeat.observability.ingestion.forwarder.GreptimeOtlpSignalStorage;
 import org.apache.hertzbeat.observability.ingestion.governance.OtlpIngestionGovernanceService;
 import org.apache.hertzbeat.observability.ingestion.quota.OtlpIngestionQuotaService;
+import org.apache.hertzbeat.observability.ingestion.redaction.OtlpIngestionRedactionService;
 import org.apache.hertzbeat.observability.ingestion.retry.OtlpIngestionRetryService;
 import org.apache.hertzbeat.observability.ingestion.semantic.OtlpResourceSemanticAttributes;
 import org.apache.hertzbeat.observability.ingestion.security.OtlpIngestionRequestContextResolver;
+import org.apache.hertzbeat.observability.ingestion.storage.OtlpSignalStorage;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.greptime.GreptimeProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -172,31 +175,54 @@ class OtlpGrpcIngestionServiceImplTest {
 
     private OtlpGrpcIngestionServiceImpl serviceWithQuotaAndGovernance(long maxRequestBytes, long maxSignalItems,
                                                                        String dropServiceNames) {
-        return new OtlpGrpcIngestionServiceImpl(restTemplate, greptimePropertiesProvider, otlpLogProtocolAdapter,
-                greptimeOtlpForwarder, otlpCorrelationEnricher, new OtlpIngestionErrorResponseFactory(),
+        return new OtlpGrpcIngestionServiceImpl(otlpLogProtocolAdapter, signalStorage(new OtlpIngestionRetryService()),
+                otlpCorrelationEnricher, new OtlpIngestionErrorResponseFactory(),
                 new OtlpIngestionRequestContextResolver(), auditService,
                 new OtlpIngestionGovernanceService(dropServiceNames),
                 new OtlpIngestionQuotaService(maxRequestBytes, maxSignalItems), observabilitySignalIntakeGateway,
-                new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)));
+                new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)), new OtlpRequestDecoder());
     }
 
     private OtlpGrpcIngestionServiceImpl serviceWithMemoryPressure(double maxHeapUsageRatio, double heapUsageRatio) {
-        return new OtlpGrpcIngestionServiceImpl(restTemplate, greptimePropertiesProvider, otlpLogProtocolAdapter,
-                greptimeOtlpForwarder, otlpCorrelationEnricher, new OtlpIngestionErrorResponseFactory(),
+        return new OtlpGrpcIngestionServiceImpl(otlpLogProtocolAdapter, signalStorage(new OtlpIngestionRetryService()),
+                otlpCorrelationEnricher, new OtlpIngestionErrorResponseFactory(),
                 new OtlpIngestionRequestContextResolver(), auditService,
                 new OtlpIngestionGovernanceService(""),
                 new OtlpIngestionQuotaService(Long.MAX_VALUE, Long.MAX_VALUE, maxHeapUsageRatio, () -> heapUsageRatio),
-                observabilitySignalIntakeGateway, new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)));
+                observabilitySignalIntakeGateway, new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)),
+                new OtlpRequestDecoder());
     }
 
     private OtlpGrpcIngestionServiceImpl serviceWithRetryAttempts(int retryAttempts) {
-        return new OtlpGrpcIngestionServiceImpl(restTemplate, greptimePropertiesProvider, otlpLogProtocolAdapter,
-                greptimeOtlpForwarder, otlpCorrelationEnricher, new OtlpIngestionErrorResponseFactory(),
+        return new OtlpGrpcIngestionServiceImpl(otlpLogProtocolAdapter,
+                signalStorage(new OtlpIngestionRetryService(retryAttempts)), otlpCorrelationEnricher,
+                new OtlpIngestionErrorResponseFactory(),
                 new OtlpIngestionRequestContextResolver(), auditService,
                 new OtlpIngestionGovernanceService(""),
                 new OtlpIngestionQuotaService(Long.MAX_VALUE, Long.MAX_VALUE), observabilitySignalIntakeGateway,
-                new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)),
-                new OtlpIngestionRetryService(retryAttempts));
+                new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)), new OtlpRequestDecoder());
+    }
+
+    private OtlpSignalStorage signalStorage(OtlpIngestionRetryService retryService) {
+        GreptimeOtlpSignalStorage signalDelegate = new GreptimeOtlpSignalStorage(new GreptimeOtlpForwarder(
+                restTemplate, greptimePropertiesProvider, new OtlpIngestionRedactionService(), retryService));
+        GreptimeOtlpSignalStorage logDelegate = new GreptimeOtlpSignalStorage(greptimeOtlpForwarder);
+        return new OtlpSignalStorage() {
+            @Override
+            public byte[] writeMetrics(ExportMetricsServiceRequest request) {
+                return signalDelegate.writeMetrics(request);
+            }
+
+            @Override
+            public byte[] writeLogs(ExportLogsServiceRequest request) {
+                return logDelegate.writeLogs(request);
+            }
+
+            @Override
+            public byte[] writeTraces(ExportTraceServiceRequest request) {
+                return signalDelegate.writeTraces(request);
+            }
+        };
     }
 
     @Test
@@ -3228,12 +3254,12 @@ class OtlpGrpcIngestionServiceImplTest {
         ExportLogsServiceRequest enrichedRequest = ExportLogsServiceRequest.newBuilder().build();
         when(otlpCorrelationEnricher.enrichLogs(eq(request), eq(OtlpCorrelationContext.empty())))
                 .thenReturn(enrichedRequest);
-        when(greptimeOtlpForwarder.forwardLogsGrpc(enrichedRequest))
-                .thenReturn(ExportLogsServiceResponse.getDefaultInstance().toByteArray());
+        when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class)))
+                .thenReturn(ResponseEntity.ok(ExportLogsServiceResponse.getDefaultInstance().toByteArray()));
 
         ExportLogsServiceResponse response = service.ingestLogsGrpc(request);
 
-        verify(greptimeOtlpForwarder).forwardLogsGrpc(enrichedRequest);
+        verify(greptimeOtlpForwarder).forwardLogsProtobuf(any(byte[].class));
         verify(otlpLogProtocolAdapter).publishRealtimeSignals(enrichedRequest);
         assertEquals(ExportLogsServiceResponse.getDefaultInstance(), response);
         OtlpIngestionAuditEvent event = auditService.recentEvents().getFirst();
@@ -3249,8 +3275,8 @@ class OtlpGrpcIngestionServiceImplTest {
         ExportLogsServiceRequest enrichedRequest = ExportLogsServiceRequest.newBuilder().build();
         when(otlpCorrelationEnricher.enrichLogs(eq(request), eq(OtlpCorrelationContext.empty())))
                 .thenReturn(enrichedRequest);
-        when(greptimeOtlpForwarder.forwardLogsGrpc(enrichedRequest))
-                .thenReturn(ExportLogsServiceResponse.getDefaultInstance().toByteArray());
+        when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class)))
+                .thenReturn(ResponseEntity.ok(ExportLogsServiceResponse.getDefaultInstance().toByteArray()));
         doThrow(new IllegalStateException("realtime down"))
                 .when(otlpLogProtocolAdapter)
                 .publishRealtimeSignals(any(ExportLogsServiceRequest.class));
@@ -3274,7 +3300,7 @@ class OtlpGrpcIngestionServiceImplTest {
         ExportLogsServiceRequest enrichedRequest = ExportLogsServiceRequest.newBuilder().build();
         when(otlpCorrelationEnricher.enrichLogs(eq(request), eq(OtlpCorrelationContext.empty())))
                 .thenReturn(enrichedRequest);
-        when(greptimeOtlpForwarder.forwardLogsGrpc(enrichedRequest))
+        when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class)))
                 .thenThrow(io.grpc.Status.UNAVAILABLE.withDescription("greptime down").asRuntimeException());
 
         assertThrows(StatusRuntimeException.class, () -> service.ingestLogsGrpc(request));
@@ -3288,7 +3314,7 @@ class OtlpGrpcIngestionServiceImplTest {
         ExportLogsServiceRequest enrichedRequest = ExportLogsServiceRequest.newBuilder().build();
         when(otlpCorrelationEnricher.enrichLogs(eq(request), eq(OtlpCorrelationContext.empty())))
                 .thenReturn(enrichedRequest);
-        when(greptimeOtlpForwarder.forwardLogsGrpc(enrichedRequest)).thenReturn(null);
+        when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class))).thenReturn(null);
 
         StatusRuntimeException exception = assertThrows(StatusRuntimeException.class,
                 () -> service.ingestLogsGrpc(request));
@@ -3312,8 +3338,8 @@ class OtlpGrpcIngestionServiceImplTest {
         ExportLogsServiceRequest enrichedRequest = ExportLogsServiceRequest.newBuilder().build();
         when(otlpCorrelationEnricher.enrichLogs(eq(request), eq(OtlpCorrelationContext.empty())))
                 .thenReturn(enrichedRequest);
-        when(greptimeOtlpForwarder.forwardLogsGrpc(enrichedRequest))
-                .thenReturn(new byte[]{0x0a});
+        when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class)))
+                .thenReturn(ResponseEntity.ok(new byte[]{0x0a}));
 
         StatusRuntimeException exception = assertThrows(StatusRuntimeException.class,
                 () -> service.ingestLogsGrpc(request));
@@ -3340,12 +3366,12 @@ class OtlpGrpcIngestionServiceImplTest {
                     org.mockito.ArgumentMatchers.argThat(context ->
                             context != null && "prod-west".equals(context.workspaceId()))))
                     .thenReturn(enrichedRequest);
-            when(greptimeOtlpForwarder.forwardLogsGrpc(enrichedRequest))
-                    .thenReturn(ExportLogsServiceResponse.getDefaultInstance().toByteArray());
+            when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class)))
+                    .thenReturn(ResponseEntity.ok(ExportLogsServiceResponse.getDefaultInstance().toByteArray()));
 
             service.ingestLogsGrpc(request);
 
-            verify(greptimeOtlpForwarder).forwardLogsGrpc(enrichedRequest);
+            verify(greptimeOtlpForwarder).forwardLogsProtobuf(any(byte[].class));
         } finally {
             AuthTokenRequestContext.clear();
         }
@@ -3379,16 +3405,18 @@ class OtlpGrpcIngestionServiceImplTest {
                                     .build())
                             .build())
                     .build();
-            when(greptimeOtlpForwarder.forwardLogsGrpc(any(ExportLogsServiceRequest.class)))
-                    .thenReturn(ExportLogsServiceResponse.getDefaultInstance().toByteArray());
+            when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class)))
+                    .thenReturn(ResponseEntity.ok(ExportLogsServiceResponse.getDefaultInstance().toByteArray()));
 
             service.ingestLogsGrpc(request);
 
-            verify(greptimeOtlpForwarder).forwardLogsGrpc(org.mockito.ArgumentMatchers.argThat(forwarded ->
-                    "42".equals(logResourceAttributes(forwarded).get("hertzbeat.entity_id"))
-                            && "service".equals(logResourceAttributes(forwarded).get("hertzbeat.entity_type"))
-                            && "checkout".equals(logResourceAttributes(forwarded).get("hertzbeat.entity_name"))
-                            && "prod-west".equals(logResourceAttributes(forwarded).get("hertzbeat.workspace_id"))));
+            verify(greptimeOtlpForwarder).forwardLogsProtobuf(org.mockito.ArgumentMatchers.argThat(payload ->
+                    forwardedLogsMatch(payload, forwarded ->
+                            "42".equals(logResourceAttributes(forwarded).get("hertzbeat.entity_id"))
+                                    && "service".equals(logResourceAttributes(forwarded).get("hertzbeat.entity_type"))
+                                    && "checkout".equals(logResourceAttributes(forwarded).get("hertzbeat.entity_name"))
+                                    && "prod-west".equals(logResourceAttributes(forwarded)
+                                    .get("hertzbeat.workspace_id")))));
             verify(otlpLogProtocolAdapter).publishRealtimeSignals(org.mockito.ArgumentMatchers.argThat(published ->
                     "42".equals(logResourceAttributes(published).get("hertzbeat.entity_id"))
                             && "service".equals(logResourceAttributes(published).get("hertzbeat.entity_type"))
@@ -3446,12 +3474,13 @@ class OtlpGrpcIngestionServiceImplTest {
                                 .build())
                         .build())
                 .build();
-        when(greptimeOtlpForwarder.forwardLogsGrpc(any(ExportLogsServiceRequest.class)))
-                .thenReturn(ExportLogsServiceResponse.getDefaultInstance().toByteArray());
+        when(greptimeOtlpForwarder.forwardLogsProtobuf(any(byte[].class)))
+                .thenReturn(ResponseEntity.ok(ExportLogsServiceResponse.getDefaultInstance().toByteArray()));
 
         service.ingestLogsGrpc(request);
 
-        verify(greptimeOtlpForwarder).forwardLogsGrpc(org.mockito.ArgumentMatchers.argThat(this::logRequestRedacted));
+        verify(greptimeOtlpForwarder).forwardLogsProtobuf(org.mockito.ArgumentMatchers.argThat(payload ->
+                forwardedLogsMatch(payload, this::logRequestRedacted)));
         verify(otlpLogProtocolAdapter).publishRealtimeSignals(
                 org.mockito.ArgumentMatchers.argThat(this::logRequestRedacted));
     }
@@ -5214,6 +5243,15 @@ class OtlpGrpcIngestionServiceImplTest {
                         KeyValue::getKey,
                         attribute -> attribute.getValue().getStringValue(),
                         (left, right) -> right));
+    }
+
+    private boolean forwardedLogsMatch(byte[] payload,
+                                       java.util.function.Predicate<ExportLogsServiceRequest> predicate) {
+        try {
+            return predicate.test(ExportLogsServiceRequest.parseFrom(payload));
+        } catch (com.google.protobuf.InvalidProtocolBufferException ex) {
+            return false;
+        }
     }
 
     private boolean logRequestRedacted(ExportLogsServiceRequest request) {

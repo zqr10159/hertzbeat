@@ -17,7 +17,6 @@
 
 package org.apache.hertzbeat.observability.ingestion.forwarder;
 
-import io.grpc.Status;
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
@@ -26,7 +25,6 @@ import org.apache.hertzbeat.observability.ingestion.semantic.OtlpResourceSemanti
 import org.apache.hertzbeat.observability.ingestion.storage.OtlpSignalStorage;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 /**
@@ -58,7 +56,8 @@ public class GreptimeOtlpSignalStorage implements OtlpSignalStorage {
         ExportMetricsServiceRequest safeRequest = request == null
                 ? ExportMetricsServiceRequest.getDefaultInstance()
                 : request;
-        return responseBody(forwarder.forwardProtobuf(METRICS_PATH, safeRequest.toByteArray(), metricHeaders()));
+        return GreptimeOtlpForwarder.responseBody(
+                forwarder.forwardProtobuf(METRICS_PATH, safeRequest.toByteArray(), metricHeaders()));
     }
 
     @Override
@@ -66,7 +65,7 @@ public class GreptimeOtlpSignalStorage implements OtlpSignalStorage {
         ExportLogsServiceRequest safeRequest = request == null
                 ? ExportLogsServiceRequest.getDefaultInstance()
                 : request;
-        return responseBody(forwarder.forwardLogsProtobuf(safeRequest.toByteArray()));
+        return GreptimeOtlpForwarder.responseBody(forwarder.forwardLogsProtobuf(safeRequest.toByteArray()));
     }
 
     @Override
@@ -74,7 +73,8 @@ public class GreptimeOtlpSignalStorage implements OtlpSignalStorage {
         ExportTraceServiceRequest safeRequest = request == null
                 ? ExportTraceServiceRequest.getDefaultInstance()
                 : request;
-        return responseBody(forwarder.forwardProtobuf(TRACES_PATH, safeRequest.toByteArray(), traceHeaders()));
+        return GreptimeOtlpForwarder.responseBody(
+                forwarder.forwardProtobuf(TRACES_PATH, safeRequest.toByteArray(), traceHeaders()));
     }
 
     private HttpHeaders metricHeaders() {
@@ -100,10 +100,4 @@ public class GreptimeOtlpSignalStorage implements OtlpSignalStorage {
         return headers;
     }
 
-    private byte[] responseBody(ResponseEntity<byte[]> response) {
-        if (response == null) {
-            throw Status.UNAVAILABLE.withDescription("OTLP backend returned no response.").asRuntimeException();
-        }
-        return response.getBody() == null ? new byte[0] : response.getBody();
-    }
 }

@@ -39,11 +39,9 @@ import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
 import io.opentelemetry.proto.trace.v1.Span;
-import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,31 +58,20 @@ import org.apache.hertzbeat.observability.ingestion.audit.OtlpIngestionAuditServ
 import org.apache.hertzbeat.observability.ingestion.enricher.OtlpCorrelationContext;
 import org.apache.hertzbeat.observability.ingestion.enricher.OtlpCorrelationEnricher;
 import org.apache.hertzbeat.observability.ingestion.enricher.OtlpEntityIdentityResolver;
-import org.apache.hertzbeat.observability.ingestion.error.OtlpIngestionBackpressureHeaders;
 import org.apache.hertzbeat.observability.ingestion.error.OtlpIngestionErrorResponseFactory;
-import org.apache.hertzbeat.observability.ingestion.forwarder.GreptimeOtlpForwarder;
 import org.apache.hertzbeat.observability.ingestion.governance.OtlpIngestionGovernanceService;
 import org.apache.hertzbeat.observability.ingestion.quota.OtlpIngestionQuotaService;
 import org.apache.hertzbeat.observability.ingestion.redaction.OtlpIngestionRedactionService;
 import org.apache.hertzbeat.observability.ingestion.redaction.OtlpProtobufRedactor;
-import org.apache.hertzbeat.observability.ingestion.retry.OtlpIngestionRetryService;
-import org.apache.hertzbeat.observability.ingestion.semantic.OtlpResourceSemanticAttributes;
 import org.apache.hertzbeat.observability.ingestion.security.OtlpIngestionRequestContextResolver;
-import org.apache.hertzbeat.warehouse.store.history.tsdb.greptime.GreptimeProperties;
+import org.apache.hertzbeat.observability.ingestion.storage.OtlpSignalStorage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 
 /**
  * Unified OTLP ingestion implementation for HTTP and gRPC.
@@ -96,20 +83,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private static final String CONTENT_ENCODING = "Content-Encoding";
     private static final String CONTENT_ENCODING_GZIP = "gzip";
     private static final int GZIP_DECOMPRESSION_BUFFER_BYTES = 8192;
-    private static final String GREPTIME_DB_NAME_HEADER = "X-Greptime-DB-Name";
-    private static final String GREPTIME_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER =
-            "X-Greptime-OTLP-Metric-Promote-All-Resource-Attrs";
-    private static final String GREPTIME_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER =
-            "X-Greptime-OTLP-Metric-Promote-Resource-Attrs";
-    private static final String GREPTIME_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER =
-            "X-Greptime-OTLP-Metric-Promote-Scope-Attrs";
-    private static final String GREPTIME_TRACE_TABLE_NAME_HEADER = "X-Greptime-Trace-Table-Name";
-    private static final String GREPTIME_PIPELINE_NAME_HEADER = "X-Greptime-Pipeline-Name";
-    private static final String DEFAULT_GREPTIME_DB_NAME = "public";
-    private static final String DEFAULT_TRACES_TABLE_NAME = "hzb_traces";
-    private static final String DEFAULT_TRACE_PIPELINE = "greptime_trace_v1";
-    private static final String DEFAULT_METRIC_PROMOTED_RESOURCE_ATTRS =
-            String.join(";", OtlpResourceSemanticAttributes.GREPTIME_METRIC_PROMOTED_RESOURCE_KEYS);
     private static final int OTLP_TRACE_ID_BYTES = 16;
     private static final int OTLP_SPAN_ID_BYTES = 8;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -136,10 +109,8 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private static final String OTLP_METRIC_EXP_ZERO_THRESHOLD = "otlp.metric.exponential_histogram.zero_threshold";
     private static final String OTLP_METRIC_EXP_POSITIVE = "otlp.metric.exponential_histogram.positive";
     private static final String OTLP_METRIC_EXP_NEGATIVE = "otlp.metric.exponential_histogram.negative";
-    private final RestTemplate restTemplate;
-    private final ObjectProvider<GreptimeProperties> greptimePropertiesProvider;
     private final OtlpLogProtocolAdapter otlpLogProtocolAdapter;
-    private final GreptimeOtlpForwarder greptimeOtlpForwarder;
+    private final OtlpSignalStorage signalStorage;
     private final OtlpCorrelationEnricher otlpCorrelationEnricher;
     private final OtlpIngestionErrorResponseFactory errorResponseFactory;
     private final OtlpIngestionRequestContextResolver requestContextResolver;
@@ -150,15 +121,13 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private final OtlpEntityIdentityResolver otlpEntityIdentityResolver;
     private final OtlpProtobufRedactor protobufRedactor =
             new OtlpProtobufRedactor(new OtlpIngestionRedactionService());
-    private final OtlpIngestionRetryService retryService;
     private final OtlpRequestDecoder requestDecoder;
     private final OtlpTraceRequestNormalizer traceRequestNormalizer = new OtlpTraceRequestNormalizer();
     private final OtlpHttpContentCodec httpContentCodec = new OtlpHttpContentCodec();
 
-    public OtlpGrpcIngestionServiceImpl(RestTemplate restTemplate,
-                                        ObjectProvider<GreptimeProperties> greptimePropertiesProvider,
-                                        OtlpLogProtocolAdapter otlpLogProtocolAdapter,
-                                        GreptimeOtlpForwarder greptimeOtlpForwarder,
+    @Autowired
+    public OtlpGrpcIngestionServiceImpl(OtlpLogProtocolAdapter otlpLogProtocolAdapter,
+                                        OtlpSignalStorage signalStorage,
                                         OtlpCorrelationEnricher otlpCorrelationEnricher,
                                         OtlpIngestionErrorResponseFactory errorResponseFactory,
                                         OtlpIngestionRequestContextResolver requestContextResolver,
@@ -168,52 +137,24 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                                         @Qualifier("telemetryIntakeServiceImpl")
                                         ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway,
                                         OtlpEntityIdentityResolver otlpEntityIdentityResolver) {
-        this(restTemplate, greptimePropertiesProvider, otlpLogProtocolAdapter, greptimeOtlpForwarder,
-                otlpCorrelationEnricher, errorResponseFactory, requestContextResolver, auditService, governanceService,
-                quotaService, observabilitySignalIntakeGateway, otlpEntityIdentityResolver,
-                new OtlpIngestionRetryService(), new OtlpRequestDecoder());
+        this(otlpLogProtocolAdapter, signalStorage, otlpCorrelationEnricher, errorResponseFactory,
+                requestContextResolver, auditService, governanceService, quotaService,
+                observabilitySignalIntakeGateway, otlpEntityIdentityResolver, new OtlpRequestDecoder());
     }
 
-    public OtlpGrpcIngestionServiceImpl(RestTemplate restTemplate,
-                                        ObjectProvider<GreptimeProperties> greptimePropertiesProvider,
-                                        OtlpLogProtocolAdapter otlpLogProtocolAdapter,
-                                        GreptimeOtlpForwarder greptimeOtlpForwarder,
-                                        OtlpCorrelationEnricher otlpCorrelationEnricher,
-                                        OtlpIngestionErrorResponseFactory errorResponseFactory,
-                                        OtlpIngestionRequestContextResolver requestContextResolver,
-                                        OtlpIngestionAuditService auditService,
-                                        OtlpIngestionGovernanceService governanceService,
-                                        OtlpIngestionQuotaService quotaService,
-                                        @Qualifier("telemetryIntakeServiceImpl")
-                                        ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway,
-                                        OtlpEntityIdentityResolver otlpEntityIdentityResolver,
-                                        OtlpIngestionRetryService retryService) {
-        this(restTemplate, greptimePropertiesProvider, otlpLogProtocolAdapter, greptimeOtlpForwarder,
-                otlpCorrelationEnricher, errorResponseFactory, requestContextResolver, auditService, governanceService,
-                quotaService, observabilitySignalIntakeGateway, otlpEntityIdentityResolver, retryService,
-                new OtlpRequestDecoder());
-    }
-
-    @Autowired
-    public OtlpGrpcIngestionServiceImpl(RestTemplate restTemplate,
-                                        ObjectProvider<GreptimeProperties> greptimePropertiesProvider,
-                                        OtlpLogProtocolAdapter otlpLogProtocolAdapter,
-                                        GreptimeOtlpForwarder greptimeOtlpForwarder,
-                                        OtlpCorrelationEnricher otlpCorrelationEnricher,
-                                        OtlpIngestionErrorResponseFactory errorResponseFactory,
-                                        OtlpIngestionRequestContextResolver requestContextResolver,
-                                        OtlpIngestionAuditService auditService,
-                                        OtlpIngestionGovernanceService governanceService,
-                                        OtlpIngestionQuotaService quotaService,
-                                        @Qualifier("telemetryIntakeServiceImpl")
-                                        ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway,
-                                        OtlpEntityIdentityResolver otlpEntityIdentityResolver,
-                                        OtlpIngestionRetryService retryService,
-                                        OtlpRequestDecoder requestDecoder) {
-        this.restTemplate = restTemplate;
-        this.greptimePropertiesProvider = greptimePropertiesProvider;
+    OtlpGrpcIngestionServiceImpl(OtlpLogProtocolAdapter otlpLogProtocolAdapter,
+                                 OtlpSignalStorage signalStorage,
+                                 OtlpCorrelationEnricher otlpCorrelationEnricher,
+                                 OtlpIngestionErrorResponseFactory errorResponseFactory,
+                                 OtlpIngestionRequestContextResolver requestContextResolver,
+                                 OtlpIngestionAuditService auditService,
+                                 OtlpIngestionGovernanceService governanceService,
+                                 OtlpIngestionQuotaService quotaService,
+                                 ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway,
+                                 OtlpEntityIdentityResolver otlpEntityIdentityResolver,
+                                 OtlpRequestDecoder requestDecoder) {
         this.otlpLogProtocolAdapter = otlpLogProtocolAdapter;
-        this.greptimeOtlpForwarder = greptimeOtlpForwarder;
+        this.signalStorage = signalStorage;
         this.otlpCorrelationEnricher = otlpCorrelationEnricher;
         this.errorResponseFactory = errorResponseFactory;
         this.requestContextResolver = requestContextResolver;
@@ -222,7 +163,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         this.quotaService = quotaService;
         this.observabilitySignalIntakeGateway = observabilitySignalIntakeGateway;
         this.otlpEntityIdentityResolver = otlpEntityIdentityResolver;
-        this.retryService = retryService == null ? new OtlpIngestionRetryService() : retryService;
         this.requestDecoder = requestDecoder;
     }
 
@@ -249,8 +189,8 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                         governanceDecision.reason(), durationMillis(startedAtNanos));
                 return emptySignalHttpSuccess(contentType, safeRequestHeaders.getAccept(), false);
             }
-            ResponseEntity<byte[]> response = proxySignalHttp(
-                    safeContent, safeRequestHeaders, "/v1/otlp/v1/metrics", false, correlationContext);
+            ResponseEntity<byte[]> response = signalHttpSuccess(
+                    signalStorage.writeMetrics(request), contentType, safeRequestHeaders.getAccept(), false);
             if (response.getStatusCode().is2xxSuccessful()) {
                 recordMetricIntake(request);
                 auditService.recordAccepted("metrics", "http", correlationContext, requestBytes, signalItems,
@@ -283,7 +223,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
             ExportLogsServiceRequest resolvedRequest = otlpEntityIdentityResolver.enrichLogs(
                     enrichedRequest, correlationContext.workspaceId());
             ExportLogsServiceRequest redactedRequest = protobufRedactor.redactLogs(resolvedRequest);
-            byte[] redactedContent = redactedRequest.toByteArray();
             signalItems = quotaService.countLogItems(redactedRequest);
             quotaService.checkLogItems("http", signalItems);
             OtlpIngestionGovernanceService.Decision governanceDecision =
@@ -293,16 +232,9 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                         governanceDecision.reason(), durationMillis(startedAtNanos));
                 return emptyLogsHttpSuccess(contentType, safeRequestHeaders.getAccept());
             }
-            ResponseEntity<byte[]> forwardResponse = greptimeOtlpForwarder.forwardLogsProtobuf(redactedContent);
-            if (forwardResponse == null) {
-                throw io.grpc.Status.UNAVAILABLE.withDescription("OTLP backend returned no response.")
-                        .asRuntimeException();
-            }
-            if (!forwardResponse.getStatusCode().is2xxSuccessful()) {
-                throw backendStatusException(forwardResponse.getStatusCode(), forwardResponse.getHeaders());
-            }
+            byte[] storageResponse = signalStorage.writeLogs(redactedRequest);
             ResponseEntity<byte[]> successResponse =
-                    logsHttpSuccess(contentType, safeRequestHeaders.getAccept(), forwardResponse.getBody());
+                    logsHttpSuccess(contentType, safeRequestHeaders.getAccept(), storageResponse);
             publishRealtimeSignalsBestEffort(redactedRequest);
             auditService.recordAccepted("logs", "http", correlationContext, requestBytes, signalItems,
                     durationMillis(startedAtNanos));
@@ -358,8 +290,8 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                         governanceDecision.reason(), durationMillis(startedAtNanos));
                 return emptySignalHttpSuccess(contentType, safeRequestHeaders.getAccept(), true);
             }
-            ResponseEntity<byte[]> response = proxySignalHttp(
-                    safeContent, safeRequestHeaders, "/v1/otlp/v1/traces", true, correlationContext);
+            ResponseEntity<byte[]> response = signalHttpSuccess(
+                    signalStorage.writeTraces(request), contentType, safeRequestHeaders.getAccept(), true);
             if (response.getStatusCode().is2xxSuccessful()) {
                 recordTraceIntake(request);
                 auditService.recordAccepted("traces", "http", correlationContext, requestBytes, signalItems,
@@ -391,8 +323,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                         governanceDecision.reason(), durationMillis(startedAtNanos));
                 return ExportMetricsServiceResponse.getDefaultInstance();
             }
-            byte[] response = proxySignalBinary(redactedRequest.toByteArray(), "/v1/otlp/v1/metrics", false,
-                    correlationContext);
+            byte[] response = signalStorage.writeMetrics(redactedRequest);
             ExportMetricsServiceResponse parsedResponse = response.length == 0
                     ? ExportMetricsServiceResponse.getDefaultInstance()
                     : ExportMetricsServiceResponse.parseFrom(response);
@@ -435,7 +366,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                         governanceDecision.reason(), durationMillis(startedAtNanos));
                 return ExportLogsServiceResponse.getDefaultInstance();
             }
-            byte[] response = greptimeOtlpForwarder.forwardLogsGrpc(redactedRequest);
+            byte[] response = signalStorage.writeLogs(redactedRequest);
             if (response == null) {
                 throw io.grpc.Status.UNAVAILABLE.withDescription("OTLP backend returned no response.")
                         .asRuntimeException();
@@ -490,8 +421,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                         governanceDecision.reason(), durationMillis(startedAtNanos));
                 return ExportTraceServiceResponse.getDefaultInstance();
             }
-            byte[] response = proxySignalBinary(
-                    enrichedRequest.toByteArray(), "/v1/otlp/v1/traces", true, correlationContext);
+            byte[] response = signalStorage.writeTraces(enrichedRequest);
             ExportTraceServiceResponse parsedResponse = response.length == 0
                     ? ExportTraceServiceResponse.getDefaultInstance()
                     : ExportTraceServiceResponse.parseFrom(response);
@@ -705,20 +635,13 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         }
     }
 
-    private ResponseEntity<byte[]> proxySignalHttp(byte[] content, HttpHeaders requestHeaders, String path,
-                                                   boolean traceSignal) {
-        return proxySignalHttp(
-                content, requestHeaders, path, traceSignal, requestContextResolver.currentCorrelationContext());
-    }
-
-    private ResponseEntity<byte[]> proxySignalHttp(byte[] content, HttpHeaders requestHeaders, String path,
-                                                   boolean traceSignal, OtlpCorrelationContext correlationContext) {
-        MediaType contentType = requestHeaders.getContentType();
-        byte[] responseBody = proxySignalInternal(content, path, traceSignal, contentType,
-                requestHeaders.getAccept(), requestHeaders, correlationContext);
+    private ResponseEntity<byte[]> signalHttpSuccess(byte[] protobufBody, MediaType requestContentType,
+                                                     List<MediaType> acceptTypes, boolean traceSignal) {
+        MediaType responseContentType = httpContentCodec.resolveResponseContentType(requestContentType, acceptTypes);
+        byte[] responseBody = httpContentCodec.responseBodyForClient(
+                protobufBody, signal(traceSignal), responseContentType);
         return ResponseEntity.ok()
-                .contentType(httpContentCodec.resolveResponseContentType(
-                        contentType, requestHeaders.getAccept()))
+                .contentType(responseContentType)
                 .body(responseBody);
     }
 
@@ -746,111 +669,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         return traceSignal ? OtlpHttpContentCodec.Signal.TRACES : OtlpHttpContentCodec.Signal.METRICS;
     }
 
-    private byte[] proxySignalBinary(byte[] content, String path, boolean traceSignal) {
-        return proxySignalBinary(content, path, traceSignal, requestContextResolver.currentCorrelationContext());
-    }
-
-    private byte[] proxySignalBinary(byte[] content, String path, boolean traceSignal,
-                                     OtlpCorrelationContext correlationContext) {
-        return proxySignalInternal(content, path, traceSignal,
-                OtlpHttpContentCodec.PROTOBUF_MEDIA_TYPE,
-                List.of(OtlpHttpContentCodec.PROTOBUF_MEDIA_TYPE),
-                null,
-                correlationContext);
-    }
-
-    private byte[] proxySignalInternal(byte[] content, String path, boolean traceSignal,
-                                       MediaType contentType, List<MediaType> acceptTypes,
-                                       HttpHeaders requestHeaders, OtlpCorrelationContext correlationContext) {
-        GreptimeProperties greptimeProperties = greptimePropertiesOrUnavailable();
-        if (greptimeProperties == null || !greptimeProperties.enabled()
-                || !StringUtils.isNotBlank(greptimeProperties.httpEndpoint())) {
-            throw io.grpc.Status.UNAVAILABLE.withDescription("OTLP backend is not configured.")
-                    .asRuntimeException();
-        }
-        try {
-            boolean clientExpectsJson = httpContentCodec.prefersJsonResponse(contentType, acceptTypes);
-            byte[] upstreamContent = normalizeRequestBodyForUpstream(
-                    content, contentType, traceSignal, requestHeaders, correlationContext);
-            HttpHeaders upstreamHeaders = new HttpHeaders();
-            upstreamHeaders.setContentType(httpContentCodec.resolveUpstreamContentType(contentType));
-            if (clientExpectsJson) {
-                upstreamHeaders.setAccept(List.of(OtlpHttpContentCodec.PROTOBUF_MEDIA_TYPE));
-            } else {
-                List<MediaType> upstreamAcceptTypes = httpContentCodec.resolveUpstreamAcceptTypes(acceptTypes);
-                if (!upstreamAcceptTypes.isEmpty()) {
-                    upstreamHeaders.setAccept(upstreamAcceptTypes);
-                }
-            }
-            upstreamHeaders.set(GREPTIME_DB_NAME_HEADER, database(greptimeProperties.database()));
-            if (traceSignal) {
-                upstreamHeaders.set(GREPTIME_TRACE_TABLE_NAME_HEADER, DEFAULT_TRACES_TABLE_NAME);
-                upstreamHeaders.set(GREPTIME_PIPELINE_NAME_HEADER, DEFAULT_TRACE_PIPELINE);
-            } else {
-                // Follow Greptime's Prom-compatible OTLP metrics best practice:
-                // keep only the resource attrs that the workspace actually filters on,
-                // instead of promoting every attribute into high-cardinality tag columns.
-                upstreamHeaders.set(GREPTIME_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER, "false");
-                upstreamHeaders.set(GREPTIME_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER,
-                        DEFAULT_METRIC_PROMOTED_RESOURCE_ATTRS);
-                upstreamHeaders.set(GREPTIME_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER, "false");
-            }
-            addAuthenticationHeader(upstreamHeaders, greptimeProperties);
-
-            ResponseEntity<byte[]> response = retryService.execute(() -> restTemplate.exchange(
-                    endpoint(greptimeProperties.httpEndpoint(), path),
-                    HttpMethod.POST,
-                    new HttpEntity<>(upstreamContent, upstreamHeaders),
-                    byte[].class
-            ), retryableResponse -> retryableResponse == null
-                    || retryService.isRetryableStatus(retryableResponse.getStatusCode()));
-            if (response == null) {
-                throw io.grpc.Status.UNAVAILABLE.withDescription("OTLP backend returned no response.")
-                        .asRuntimeException();
-            }
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                throw backendStatusException(response.getStatusCode(), response.getHeaders());
-            }
-            byte[] responseBody = response.getBody() == null ? new byte[0] : response.getBody();
-            httpContentCodec.validateResponseBody(responseBody, signal(traceSignal));
-            if (!clientExpectsJson) {
-                return responseBody;
-            }
-            return httpContentCodec.responseBodyForClient(
-                    responseBody, signal(traceSignal), MediaType.APPLICATION_JSON);
-        } catch (HttpStatusCodeException ex) {
-            log.error("Failed to proxy OTLP signal {}: {}", traceSignal ? "traces" : "metrics", ex.getMessage(), ex);
-            throw backendStatusException(ex.getStatusCode(), ex.getResponseHeaders());
-        } catch (RestClientException ex) {
-            log.error("Failed to proxy OTLP signal {}: {}", traceSignal ? "traces" : "metrics", ex.getMessage(), ex);
-            throw io.grpc.Status.UNAVAILABLE.withDescription(defaultErrorMessage(ex)).withCause(ex)
-                    .asRuntimeException();
-        }
-    }
-
-    private GreptimeProperties greptimePropertiesOrUnavailable() {
-        try {
-            return greptimePropertiesProvider.getIfAvailable();
-        } catch (RuntimeException ex) {
-            log.warn("Failed to resolve Greptime OTLP backend properties: {}", ex.toString());
-            throw io.grpc.Status.UNAVAILABLE.withDescription("OTLP backend is not configured.")
-                    .withCause(ex)
-                    .asRuntimeException();
-        }
-    }
-
-    private byte[] normalizeRequestBodyForUpstream(byte[] content, MediaType contentType, boolean traceSignal,
-                                                   HttpHeaders requestHeaders,
-                                                   OtlpCorrelationContext correlationContext) {
-        byte[] normalizedContent = maybeDecompress(content, requestHeaders);
-        if (traceSignal) {
-            return normalizeAndEnrichTraceRequest(
-                    requestDecoder.decodeTraces(normalizedContent, contentType), correlationContext).toByteArray();
-        }
-        return normalizeAndEnrichMetricRequest(
-                requestDecoder.decodeMetrics(normalizedContent, contentType), correlationContext).toByteArray();
-    }
-
     private ExportMetricsServiceRequest normalizeAndEnrichMetricRequest(ExportMetricsServiceRequest request,
                                                                         OtlpCorrelationContext correlationContext) {
         OtlpCorrelationContext safeContext = correlationContext == null
@@ -870,113 +688,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         ExportTraceServiceRequest resolved =
                 otlpEntityIdentityResolver.enrichTraces(normalized, safeContext.workspaceId());
         return protobufRedactor.redactTraces(otlpCorrelationEnricher.enrichTraces(resolved, safeContext));
-    }
-
-    private void addAuthenticationHeader(HttpHeaders headers, GreptimeProperties greptimeProperties) {
-        String username = StringUtils.trimToNull(greptimeProperties.username());
-        String password = StringUtils.trimToNull(greptimeProperties.password());
-        if (username == null || password == null) {
-            return;
-        }
-        String credentials = username + ":" + password;
-        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-        headers.set(HttpHeaders.AUTHORIZATION, "Basic " + encodedCredentials);
-    }
-
-    private String endpoint(String baseEndpoint, String path) {
-        return StringUtils.stripEnd(StringUtils.trim(baseEndpoint), "/") + path;
-    }
-
-    private StatusRuntimeException backendStatusException(HttpStatusCode statusCode) {
-        return backendStatusException(statusCode, null);
-    }
-
-    private StatusRuntimeException backendStatusException(HttpStatusCode statusCode, HttpHeaders responseHeaders) {
-        io.grpc.Status status = backendGrpcStatus(statusCode);
-        return OtlpIngestionBackpressureHeaders.statusRuntimeException(
-                status, "OTLP backend returned " + statusCode, responseHeaders);
-    }
-
-    private io.grpc.Status backendGrpcStatus(HttpStatusCode statusCode) {
-        if (statusCode == null) {
-            return io.grpc.Status.UNAVAILABLE;
-        }
-        if (statusCode.value() == HttpStatus.UNAUTHORIZED.value()) {
-            return io.grpc.Status.UNAUTHENTICATED;
-        }
-        if (statusCode.value() == HttpStatus.FORBIDDEN.value()) {
-            return io.grpc.Status.PERMISSION_DENIED;
-        }
-        if (statusCode.value() == HttpStatus.BAD_REQUEST.value()) {
-            return io.grpc.Status.INVALID_ARGUMENT;
-        }
-        if (statusCode.value() == HttpStatus.NOT_ACCEPTABLE.value()) {
-            return io.grpc.Status.INVALID_ARGUMENT;
-        }
-        if (statusCode.value() == HttpStatus.UNSUPPORTED_MEDIA_TYPE.value()) {
-            return io.grpc.Status.INVALID_ARGUMENT;
-        }
-        if (statusCode.value() == HttpStatus.UNPROCESSABLE_ENTITY.value()) {
-            return io.grpc.Status.INVALID_ARGUMENT;
-        }
-        if (statusCode.value() == HttpStatus.NOT_FOUND.value()) {
-            return io.grpc.Status.NOT_FOUND;
-        }
-        if (statusCode.value() == HttpStatus.CONFLICT.value()) {
-            return io.grpc.Status.ABORTED;
-        }
-        if (statusCode.value() == HttpStatus.LOCKED.value()) {
-            return io.grpc.Status.ABORTED;
-        }
-        if (statusCode.value() == HttpStatus.PRECONDITION_FAILED.value()) {
-            return io.grpc.Status.FAILED_PRECONDITION;
-        }
-        if (statusCode.value() == HttpStatus.PRECONDITION_REQUIRED.value()) {
-            return io.grpc.Status.FAILED_PRECONDITION;
-        }
-        if (statusCode.value() == HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value()) {
-            return io.grpc.Status.OUT_OF_RANGE;
-        }
-        if (statusCode.value() == HttpStatus.METHOD_NOT_ALLOWED.value()) {
-            return io.grpc.Status.UNIMPLEMENTED;
-        }
-        if (statusCode.value() == HttpStatus.NOT_IMPLEMENTED.value()) {
-            return io.grpc.Status.UNIMPLEMENTED;
-        }
-        if (statusCode.value() == HttpStatus.PAYLOAD_TOO_LARGE.value()) {
-            return io.grpc.Status.RESOURCE_EXHAUSTED;
-        }
-        if (statusCode.value() == HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE.value()) {
-            return io.grpc.Status.RESOURCE_EXHAUSTED;
-        }
-        if (statusCode.value() == HttpStatus.INSUFFICIENT_STORAGE.value()) {
-            return io.grpc.Status.RESOURCE_EXHAUSTED;
-        }
-        if (statusCode.value() == HttpStatus.TOO_MANY_REQUESTS.value()) {
-            return io.grpc.Status.RESOURCE_EXHAUSTED;
-        }
-        if (statusCode.value() == HttpStatus.TOO_EARLY.value()) {
-            return io.grpc.Status.UNAVAILABLE;
-        }
-        if (statusCode.value() == HttpStatus.REQUEST_TIMEOUT.value()
-                || statusCode.value() == HttpStatus.GATEWAY_TIMEOUT.value()) {
-            return io.grpc.Status.DEADLINE_EXCEEDED;
-        }
-        if (statusCode.value() == HttpStatus.BAD_GATEWAY.value()
-                || statusCode.value() == HttpStatus.SERVICE_UNAVAILABLE.value()) {
-            return io.grpc.Status.UNAVAILABLE;
-        }
-        if (statusCode.is4xxClientError()) {
-            return io.grpc.Status.INTERNAL;
-        }
-        if (statusCode.is5xxServerError()) {
-            return io.grpc.Status.INTERNAL;
-        }
-        return io.grpc.Status.UNAVAILABLE;
-    }
-
-    private String database(String configuredDatabase) {
-        return StringUtils.defaultIfBlank(StringUtils.trim(configuredDatabase), DEFAULT_GREPTIME_DB_NAME);
     }
 
     private String defaultErrorMessage(Exception ex) {

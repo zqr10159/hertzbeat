@@ -156,6 +156,17 @@ public class GreptimeOtlpForwarder {
         }
     }
 
+    static byte[] responseBody(ResponseEntity<byte[]> response) {
+        if (response == null) {
+            throw io.grpc.Status.UNAVAILABLE.withDescription("OTLP backend returned no response.")
+                    .asRuntimeException();
+        }
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw backendStatusException(response.getStatusCode(), response.getHeaders());
+        }
+        return response.getBody() == null ? new byte[0] : response.getBody();
+    }
+
     private GreptimeProperties greptimePropertiesOrUnavailable() {
         try {
             return greptimePropertiesProvider.getIfAvailable();
@@ -191,17 +202,18 @@ public class GreptimeOtlpForwarder {
         headers.set(HttpHeaders.AUTHORIZATION, "Basic " + encodedCredentials);
     }
 
-    private StatusRuntimeException backendStatusException(HttpStatusCode statusCode) {
+    private static StatusRuntimeException backendStatusException(HttpStatusCode statusCode) {
         return backendStatusException(statusCode, null);
     }
 
-    private StatusRuntimeException backendStatusException(HttpStatusCode statusCode, HttpHeaders responseHeaders) {
+    private static StatusRuntimeException backendStatusException(HttpStatusCode statusCode,
+                                                                 HttpHeaders responseHeaders) {
         Status status = backendGrpcStatus(statusCode);
         return OtlpIngestionBackpressureHeaders.statusRuntimeException(
                 status, "OTLP backend returned " + statusCode, responseHeaders);
     }
 
-    private Status backendGrpcStatus(HttpStatusCode statusCode) {
+    private static Status backendGrpcStatus(HttpStatusCode statusCode) {
         if (statusCode == null) {
             return Status.UNAVAILABLE;
         }
