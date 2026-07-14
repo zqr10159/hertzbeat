@@ -33,8 +33,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.common.entity.dto.query.DatasourceQueryData;
 import org.apache.hertzbeat.common.entity.log.LogEntry;
@@ -77,33 +75,9 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
     private static final long LOOKBACK_MILLIS = Duration.ofHours(24).toMillis();
     private static final long DEFAULT_CONSOLE_LOOKBACK_MILLIS = Duration.ofHours(1).toMillis();
     private static final int SAMPLE_LIMIT = 20;
-    private static final List<String> METRICS_ENTITY_CONTEXT_GROUP_LABELS = List.of(
-            "__name__",
-            "service_name",
-            "service_namespace",
-            "deployment_environment_name",
-            "hertzbeat_entity_id",
-            "hertzbeat_entity_type",
-            "hertzbeat_entity_name"
-    );
-    private static final String DEFAULT_METRICS_GROUP_BY = String.join(", ", METRICS_ENTITY_CONTEXT_GROUP_LABELS);
-    private static final String DEFAULT_METRICS_AGGREGATION = "sum";
     private static final String METRICS_CONSOLE_REF_ID = "otlp-metrics-console";
     private static final String RELATED_METRICS_REF_ID = "otlp-related-metrics";
     private static final String RELATED_METRICS_INVENTORY_REF_ID = "otlp-related-metrics-inventory";
-    private static final Pattern METRICS_FILTER_MATCHER = Pattern.compile(
-            "\\s*([A-Za-z_:][A-Za-z0-9_.:-]*)\\s*(=~|!~|!=|=)\\s*(?:\"((?:\\\\.|[^\"\\\\])*)\"|'((?:\\\\.|[^'\\\\])*)'|([^,\\s]+))\\s*"
-    );
-    private static final Pattern METRICS_FILTER_LIST_OPERATOR_PATTERN = Pattern.compile(
-            "\\s*([A-Za-z_:][A-Za-z0-9_.:-]*)\\s+(NOT\\s+IN|IN)\\s*(\\(.+\\))\\s*",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern METRICS_FILTER_TEXT_OPERATOR_PATTERN = Pattern.compile(
-            "\\s*([A-Za-z_:][A-Za-z0-9_.:-]*)\\s+(NOT\\s+CONTAINS|CONTAINS)\\s+(.+)\\s*",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern METRICS_FILTER_PRESENCE_OPERATOR_PATTERN = Pattern.compile(
-            "\\s*([A-Za-z_:][A-Za-z0-9_.:-]*)\\s+(NOT\\s+EXISTS|EXISTS)\\s*",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern SIMPLE_METRIC_NAME = Pattern.compile("[A-Za-z_:][A-Za-z0-9_:.-]*");
     private static final int DEFAULT_RECENT_SERVICE_LIMIT = 6;
     private static final int DEFAULT_RECENT_UNBOUND_CANDIDATE_LIMIT = 6;
     private static final int DEFAULT_RECENT_METRIC_NAME_LIMIT = 64;
@@ -127,6 +101,7 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
     private final ObservabilityWorkspaceQueryGateway workspaceQueryGateway;
     private final ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway;
     private final OtlpIngestionGuideFactory guideFactory;
+    private final OtlpMetricsQueryCompiler metricsQueryCompiler;
     private final LogQueryRepository logQueryRepository;
     private final MetricQueryRepository metricQueryRepository;
     private final List<HistoryDataReader> historyDataReaders;
@@ -138,6 +113,7 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
                                              @Qualifier("telemetryIntakeServiceImpl")
                                              ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway,
                                              OtlpIngestionGuideFactory guideFactory,
+                                             OtlpMetricsQueryCompiler metricsQueryCompiler,
                                              LogQueryRepository logQueryRepository,
                                              MetricQueryRepository metricQueryRepository,
                                              List<HistoryDataReader> historyDataReaders,
@@ -147,6 +123,7 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
         this.workspaceQueryGateway = workspaceQueryGateway;
         this.observabilitySignalIntakeGateway = observabilitySignalIntakeGateway;
         this.guideFactory = guideFactory;
+        this.metricsQueryCompiler = metricsQueryCompiler;
         this.logQueryRepository = logQueryRepository;
         this.metricQueryRepository = metricQueryRepository;
         this.historyDataReaders = safeBeanList(historyDataReaders);
@@ -1062,32 +1039,10 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
     }
 
     private List<OtlpRelatedMetricsDto.ResourceMatcher> parseRelatedMetricResourceMatchers(String filter) {
-        String normalized = trimToNull(filter);
-        if (!StringUtils.hasText(normalized)) {
-            return List.of();
-        }
-        List<OtlpRelatedMetricsDto.ResourceMatcher> matchers = new ArrayList<>();
-        for (String rawClause : splitMetricsFilterClauses(normalized)) {
-            String clause = trimToNull(rawClause);
-            if (!StringUtils.hasText(clause)) {
-                continue;
-            }
-            String parsedMatcher = parseMetricsFriendlyFilterMatcher(clause, Set.of());
-            Matcher matcher = METRICS_FILTER_MATCHER.matcher(StringUtils.hasText(parsedMatcher) ? parsedMatcher : clause);
-            if (!matcher.matches()) {
-                continue;
-            }
-            String labelName = normalizePromqlLabelName(matcher.group(1));
-            if (!isPromqlLabelName(labelName)) {
-                continue;
-            }
-            String labelValue = firstText(matcher.group(3), matcher.group(4), matcher.group(5));
-            if (!StringUtils.hasText(labelValue)) {
-                continue;
-            }
-            matchers.add(new OtlpRelatedMetricsDto.ResourceMatcher(labelName, matcher.group(2), labelValue));
-        }
-        return matchers;
+        return metricsQueryCompiler.parseResourceMatchers(filter).stream()
+                .map(matcher -> new OtlpRelatedMetricsDto.ResourceMatcher(
+                        matcher.label(), matcher.operator(), matcher.value()))
+                .toList();
     }
 
     private Map<String, String> resourceMatcherValueMap(List<OtlpRelatedMetricsDto.ResourceMatcher> matchers) {
@@ -1176,10 +1131,6 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
             values.put("http_route", normalizedOperationName);
         }
         return values;
-    }
-
-    private List<String> metricsOperationLabels(String operationName) {
-        return StringUtils.hasText(trimToNull(operationName)) ? List.of("operation_name", "http_route") : List.of();
     }
 
     private String relatedMetricFamily(String metricName) {
@@ -1743,16 +1694,6 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
         return null;
     }
 
-    private String buildDefaultMetricsQuery(OtlpMetricsConsoleDto.Context context,
-                                            String filter,
-                                            String groupBy,
-                                            String aggregation,
-                                            String temporalAggregation) {
-        return buildDefaultMetricsQueries(context, filter, groupBy, aggregation, temporalAggregation, null).stream()
-                .findFirst()
-                .orElse(null);
-    }
-
     private List<String> buildDefaultMetricsQueries(OtlpMetricsConsoleDto.Context context,
                                                     String filter,
                                                     String groupBy,
@@ -1820,18 +1761,6 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
                 .toList();
     }
 
-    private String buildMetricsQueryForMetric(OtlpMetricsConsoleDto.Context context,
-                                              String metricName,
-                                              String filter,
-                                              String groupBy,
-                                              String aggregation,
-                                              String temporalAggregation) {
-        return buildMetricsQueriesForMetric(context, metricName, filter, groupBy, aggregation, temporalAggregation, null)
-                .stream()
-                .findFirst()
-                .orElse(null);
-    }
-
     private List<String> buildMetricsQueriesForMetric(OtlpMetricsConsoleDto.Context context,
                                                       String metricName,
                                                       String filter,
@@ -1839,117 +1768,8 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
                                                       String aggregation,
                                                       String temporalAggregation,
                                                       String operationName) {
-        List<String> operationLabels = metricsOperationLabels(operationName);
-        if (operationLabels.isEmpty()) {
-            String query = buildMetricsQueryForMetric(context, metricName, filter, groupBy, aggregation,
-                    temporalAggregation, null, null);
-            return StringUtils.hasText(query) ? List.of(query) : List.of();
-        }
-        List<String> queries = new ArrayList<>();
-        for (String operationLabel : operationLabels) {
-            String query = buildMetricsQueryForMetric(context, metricName, filter, groupBy, aggregation,
-                    temporalAggregation, operationLabel, operationName);
-            if (StringUtils.hasText(query)) {
-                queries.add(query);
-            }
-        }
-        return queries;
-    }
-
-    private String buildMetricsQueryForMetric(OtlpMetricsConsoleDto.Context context,
-                                              String metricName,
-                                              String filter,
-                                              String groupBy,
-                                              String aggregation,
-                                              String temporalAggregation,
-                                              String operationLabel,
-                                              String operationName) {
-        if (context == null || !StringUtils.hasText(context.getServiceName())) {
-            return null;
-        }
-        String normalizedMetricName = normalizePromqlMetricName(metricName);
-        if (!StringUtils.hasText(normalizedMetricName)) {
-            return null;
-        }
-        List<String> matchers = new ArrayList<>();
-        Set<String> scopedLabels = new LinkedHashSet<>();
-        matchers.add("__name__=\"" + escapePromqlLabelValue(normalizedMetricName) + "\"");
-        scopedLabels.add("__name__");
-        matchers.add("service_name=\"" + escapePromqlLabelValue(context.getServiceName()) + "\"");
-        scopedLabels.add("service_name");
-        if (StringUtils.hasText(context.getServiceNamespace())) {
-            matchers.add("service_namespace=\"" + escapePromqlLabelValue(context.getServiceNamespace()) + "\"");
-            scopedLabels.add("service_namespace");
-        }
-        if (StringUtils.hasText(context.getEnvironment())) {
-            matchers.add("deployment_environment_name=\"" + escapePromqlLabelValue(context.getEnvironment()) + "\"");
-            scopedLabels.add("deployment_environment_name");
-        }
-        if (context.getEntityId() != null) {
-            matchers.add("hertzbeat_entity_id=\"" + escapePromqlLabelValue(String.valueOf(context.getEntityId())) + "\"");
-            scopedLabels.add("hertzbeat_entity_id");
-        }
-        if (StringUtils.hasText(context.getEntityType())) {
-            matchers.add("hertzbeat_entity_type=\"" + escapePromqlLabelValue(context.getEntityType()) + "\"");
-            scopedLabels.add("hertzbeat_entity_type");
-        }
-        String normalizedOperationName = trimToNull(operationName);
-        if (StringUtils.hasText(operationLabel) && StringUtils.hasText(normalizedOperationName)) {
-            matchers.add(operationLabel + "=\"" + escapePromqlLabelValue(normalizedOperationName) + "\"");
-            scopedLabels.add(operationLabel);
-        }
-        matchers.addAll(parseMetricsFilterMatchers(filter, scopedLabels));
-        String selector = "{" + String.join(", ", matchers) + "}";
-        return normalizeAggregation(aggregation)
-                + " by (" + normalizeGroupBy(groupBy) + ") ("
-                + wrapMetricSelectorForTemporalAggregation(selector, temporalAggregation) + ")";
-    }
-
-    private String buildMetricsQueryForContext(OtlpMetricsConsoleDto.Context context,
-                                               String filter,
-                                               String groupBy,
-                                               String aggregation,
-                                               String temporalAggregation) {
-        if (context == null || !StringUtils.hasText(context.getServiceName())) {
-            return null;
-        }
-        List<String> matchers = new ArrayList<>();
-        Set<String> scopedLabels = new LinkedHashSet<>();
-        matchers.add("service_name=\"" + escapePromqlLabelValue(context.getServiceName()) + "\"");
-        scopedLabels.add("service_name");
-        if (StringUtils.hasText(context.getServiceNamespace())) {
-            matchers.add("service_namespace=\"" + escapePromqlLabelValue(context.getServiceNamespace()) + "\"");
-            scopedLabels.add("service_namespace");
-        }
-        if (StringUtils.hasText(context.getEnvironment())) {
-            matchers.add("deployment_environment_name=\"" + escapePromqlLabelValue(context.getEnvironment()) + "\"");
-            scopedLabels.add("deployment_environment_name");
-        }
-        if (context.getEntityId() != null) {
-            matchers.add("hertzbeat_entity_id=\"" + escapePromqlLabelValue(String.valueOf(context.getEntityId())) + "\"");
-            scopedLabels.add("hertzbeat_entity_id");
-        }
-        if (StringUtils.hasText(context.getEntityType())) {
-            matchers.add("hertzbeat_entity_type=\"" + escapePromqlLabelValue(context.getEntityType()) + "\"");
-            scopedLabels.add("hertzbeat_entity_type");
-        }
-        matchers.addAll(parseMetricsFilterMatchers(filter, scopedLabels));
-        String selector = "{" + String.join(", ", matchers) + "}";
-        return normalizeAggregation(aggregation)
-                + " by (" + normalizeGroupBy(groupBy) + ") ("
-                + wrapMetricSelectorForTemporalAggregation(selector, temporalAggregation) + ")";
-    }
-
-    private String buildMetricsQueryForExplicitMetric(OtlpMetricsConsoleDto.Context context,
-                                                      String query,
-                                                      String filter,
-                                                      String groupBy,
-                                                      String aggregation,
-                                                      String temporalAggregation) {
-        return buildMetricsQueriesForExplicitMetric(context, query, filter, groupBy, aggregation, temporalAggregation, null)
-                .stream()
-                .findFirst()
-                .orElse(null);
+        return metricsQueryCompiler.compileMetricQueries(
+                context, metricName, filter, groupBy, aggregation, temporalAggregation, operationName);
     }
 
     private List<String> buildMetricsQueriesForExplicitMetric(OtlpMetricsConsoleDto.Context context,
@@ -1959,258 +1779,8 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
                                                               String aggregation,
                                                               String temporalAggregation,
                                                               String operationName) {
-        String normalizedQuery = trimToNull(query);
-        if (!StringUtils.hasText(normalizedQuery) || !SIMPLE_METRIC_NAME.matcher(normalizedQuery).matches()) {
-            return StringUtils.hasText(normalizedQuery) ? List.of(normalizedQuery) : List.of();
-        }
-        List<String> generatedQueries = buildMetricsQueriesForMetric(context, normalizedQuery, filter, groupBy, aggregation,
-                temporalAggregation, operationName);
-        return generatedQueries.isEmpty() ? List.of(normalizedQuery) : generatedQueries;
-    }
-
-    private List<String> parseMetricsFilterMatchers(String filter) {
-        return parseMetricsFilterMatchers(filter, Set.of());
-    }
-
-    private List<String> parseMetricsFilterMatchers(String filter, Set<String> excludedLabels) {
-        String normalized = trimToNull(filter);
-        if (!StringUtils.hasText(normalized)) {
-            return List.of();
-        }
-        List<String> matchers = new ArrayList<>();
-        for (String rawClause : splitMetricsFilterClauses(normalized)) {
-            String clause = trimToNull(rawClause);
-            if (!StringUtils.hasText(clause)) {
-                continue;
-            }
-            String parsedMatcher = parseMetricsFriendlyFilterMatcher(clause, excludedLabels);
-            if (StringUtils.hasText(parsedMatcher)) {
-                matchers.add(parsedMatcher);
-                continue;
-            }
-            Matcher matcher = METRICS_FILTER_MATCHER.matcher(clause);
-            if (!matcher.matches()) {
-                continue;
-            }
-            String labelName = normalizePromqlLabelName(matcher.group(1));
-            if (!isPromqlLabelName(labelName)) {
-                continue;
-            }
-            if (excludedLabels.contains(labelName)) {
-                continue;
-            }
-            String labelValue = firstText(matcher.group(3), matcher.group(4), matcher.group(5));
-            if (!StringUtils.hasText(labelValue)) {
-                continue;
-            }
-            matchers.add(labelName + matcher.group(2) + "\"" + escapePromqlLabelValue(labelValue) + "\"");
-        }
-        return matchers;
-    }
-
-    private String parseMetricsFriendlyFilterMatcher(String clause, Set<String> excludedLabels) {
-        String listMatcher = parseMetricsListFilterMatcher(clause, excludedLabels);
-        if (StringUtils.hasText(listMatcher)) {
-            return listMatcher;
-        }
-        String textMatcher = parseMetricsTextFilterMatcher(clause, excludedLabels);
-        if (StringUtils.hasText(textMatcher)) {
-            return textMatcher;
-        }
-        return parseMetricsPresenceFilterMatcher(clause, excludedLabels);
-    }
-
-    private String parseMetricsListFilterMatcher(String clause, Set<String> excludedLabels) {
-        Matcher matcher = METRICS_FILTER_LIST_OPERATOR_PATTERN.matcher(clause);
-        if (!matcher.matches()) {
-            return null;
-        }
-        String labelName = normalizePromqlLabelName(matcher.group(1));
-        if (!isPromqlLabelName(labelName) || excludedLabels.contains(labelName)) {
-            return null;
-        }
-        String valueList = trimToNull(matcher.group(3));
-        if (!StringUtils.hasText(valueList) || valueList.length() < 2
-                || !valueList.startsWith("(") || !valueList.endsWith(")")) {
-            return null;
-        }
-        List<String> values = splitMetricsFilterListValues(valueList.substring(1, valueList.length() - 1)).stream()
-                .map(value -> stripMetricsFilterQuotes(trimToNull(value)))
-                .filter(StringUtils::hasText)
-                .toList();
-        if (values.isEmpty()) {
-            return null;
-        }
-        String regex = "^(?:" + values.stream()
-                .map(this::escapePromqlRegexValue)
-                .collect(java.util.stream.Collectors.joining("|")) + ")$";
-        String operator = trimToNull(matcher.group(2));
-        String promqlOperator = operator != null && operator.replaceAll("\\s+", " ").equalsIgnoreCase("not in")
-                ? "!~"
-                : "=~";
-        return labelName + promqlOperator + "\"" + escapePromqlLabelValue(regex) + "\"";
-    }
-
-    private String parseMetricsTextFilterMatcher(String clause, Set<String> excludedLabels) {
-        Matcher matcher = METRICS_FILTER_TEXT_OPERATOR_PATTERN.matcher(clause);
-        if (!matcher.matches()) {
-            return null;
-        }
-        String labelName = normalizePromqlLabelName(matcher.group(1));
-        if (!isPromqlLabelName(labelName) || excludedLabels.contains(labelName)) {
-            return null;
-        }
-        String value = stripMetricsFilterQuotes(trimToNull(matcher.group(3)));
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String regex = ".*" + escapePromqlRegexValue(value) + ".*";
-        String operator = trimToNull(matcher.group(2));
-        String promqlOperator = operator != null && operator.replaceAll("\\s+", " ").equalsIgnoreCase("not contains")
-                ? "!~"
-                : "=~";
-        return labelName + promqlOperator + "\"" + escapePromqlLabelValue(regex) + "\"";
-    }
-
-    private String parseMetricsPresenceFilterMatcher(String clause, Set<String> excludedLabels) {
-        Matcher matcher = METRICS_FILTER_PRESENCE_OPERATOR_PATTERN.matcher(clause);
-        if (!matcher.matches()) {
-            return null;
-        }
-        String labelName = normalizePromqlLabelName(matcher.group(1));
-        if (!isPromqlLabelName(labelName) || excludedLabels.contains(labelName)) {
-            return null;
-        }
-        String operator = trimToNull(matcher.group(2));
-        String promqlOperator = operator != null && operator.replaceAll("\\s+", " ").equalsIgnoreCase("not exists")
-                ? "!~"
-                : "=~";
-        return labelName + promqlOperator + "\".+\"";
-    }
-
-    private List<String> splitMetricsFilterClauses(String filter) {
-        List<String> clauses = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        int depth = 0;
-        char quote = 0;
-        for (int index = 0; index < filter.length(); index++) {
-            char character = filter.charAt(index);
-            if (quote != 0) {
-                current.append(character);
-                if (character == quote) {
-                    quote = 0;
-                }
-                continue;
-            }
-            if (character == '\'' || character == '"') {
-                quote = character;
-                current.append(character);
-                continue;
-            }
-            if (character == '(') {
-                depth++;
-                current.append(character);
-                continue;
-            }
-            if (character == ')') {
-                depth = Math.max(0, depth - 1);
-                current.append(character);
-                continue;
-            }
-            if (depth == 0 && character == ',') {
-                addMetricsFilterClause(clauses, current);
-                continue;
-            }
-            if (depth == 0 && isMetricsFilterAndDelimiter(filter, index)) {
-                addMetricsFilterClause(clauses, current);
-                index += 4;
-                continue;
-            }
-            current.append(character);
-        }
-        addMetricsFilterClause(clauses, current);
-        return clauses;
-    }
-
-    private List<String> splitMetricsFilterListValues(String values) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        char quote = 0;
-        for (int index = 0; index < values.length(); index++) {
-            char character = values.charAt(index);
-            if (quote != 0) {
-                current.append(character);
-                if (character == quote) {
-                    quote = 0;
-                }
-                continue;
-            }
-            if (character == '\'' || character == '"') {
-                quote = character;
-                current.append(character);
-                continue;
-            }
-            if (character == ',') {
-                addMetricsFilterClause(result, current);
-                continue;
-            }
-            current.append(character);
-        }
-        addMetricsFilterClause(result, current);
-        return result;
-    }
-
-    private void addMetricsFilterClause(List<String> clauses, StringBuilder current) {
-        String clause = trimToNull(current.toString());
-        if (StringUtils.hasText(clause)) {
-            clauses.add(clause);
-        }
-        current.setLength(0);
-    }
-
-    private boolean isMetricsFilterAndDelimiter(String value, int index) {
-        return index + 5 <= value.length() && value.regionMatches(true, index, " and ", 0, 5);
-    }
-
-    private String stripMetricsFilterQuotes(String value) {
-        if (value == null || value.length() < 2) {
-            return value;
-        }
-        char first = value.charAt(0);
-        char last = value.charAt(value.length() - 1);
-        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-            return trimToNull(value.substring(1, value.length() - 1));
-        }
-        return value;
-    }
-
-    private String escapePromqlRegexValue(String value) {
-        String normalized = trimToNull(value);
-        if (!StringUtils.hasText(normalized)) {
-            return "";
-        }
-        StringBuilder escaped = new StringBuilder();
-        for (int index = 0; index < normalized.length(); index++) {
-            char character = normalized.charAt(index);
-            if ("\\.^$|?*+()[]{}".indexOf(character) >= 0) {
-                escaped.append('\\');
-            }
-            escaped.append(character);
-        }
-        return escaped.toString();
-    }
-
-    private String normalizePromqlLabelName(String label) {
-        String normalized = trimToNull(label);
-        if (!StringUtils.hasText(normalized)) {
-            return null;
-        }
-        normalized = normalized.replaceAll("[^A-Za-z0-9_:]", "_");
-        normalized = normalized.replaceAll("_+", "_");
-        if (!normalized.isEmpty() && Character.isDigit(normalized.charAt(0))) {
-            normalized = "_" + normalized;
-        }
-        return normalized;
+        return metricsQueryCompiler.compileExplicitQueries(
+                context, query, filter, groupBy, aggregation, temporalAggregation, operationName);
     }
 
     private void addCandidateMetricsContext(List<OtlpMetricsConsoleDto.Context> contexts,
@@ -2338,16 +1908,7 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
     }
 
     private String normalizePromqlMetricName(String metricName) {
-        String normalized = trimToNull(metricName);
-        if (!StringUtils.hasText(normalized)) {
-            return null;
-        }
-        normalized = normalized.replaceAll("[^A-Za-z0-9_:]", "_");
-        normalized = normalized.replaceAll("_+", "_");
-        if (!normalized.isEmpty() && Character.isDigit(normalized.charAt(0))) {
-            normalized = "_" + normalized;
-        }
-        return normalized;
+        return metricsQueryCompiler.normalizeMetricName(metricName);
     }
 
     private boolean isWorkspaceNoiseMetric(String metricName) {
@@ -2364,43 +1925,6 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
                 || lower.contains("exporter_send_")
                 || lower.contains("receiver_accepted_")
                 || lower.contains("receiver_refused_");
-    }
-
-    private String normalizeAggregation(String aggregation) {
-        String normalized = trimToNull(aggregation);
-        return StringUtils.hasText(normalized) ? normalized : DEFAULT_METRICS_AGGREGATION;
-    }
-
-    private String wrapMetricSelectorForTemporalAggregation(String selector, String temporalAggregation) {
-        String normalized = trimToNull(temporalAggregation);
-        if (!StringUtils.hasText(normalized) || "raw".equalsIgnoreCase(normalized)) {
-            return selector;
-        }
-        String function = normalized.toLowerCase(Locale.ROOT);
-        if (!List.of("rate", "increase", "delta").contains(function)) {
-            return selector;
-        }
-        return function + "(" + selector + "[5m])";
-    }
-
-    private String normalizeGroupBy(String groupBy) {
-        String normalized = trimToNull(groupBy);
-        if (!StringUtils.hasText(normalized)) {
-            return DEFAULT_METRICS_GROUP_BY;
-        }
-        LinkedHashSet<String> groupLabels = new LinkedHashSet<>();
-        for (String label : normalized.split(",")) {
-            String trimmed = trimToNull(label);
-            if (!StringUtils.hasText(trimmed)) {
-                continue;
-            }
-            String resolvedLabel = normalizeMetricsGroupByLabel(trimmed);
-            if (StringUtils.hasText(resolvedLabel)) {
-                groupLabels.add(resolvedLabel);
-            }
-        }
-        groupLabels.addAll(METRICS_ENTITY_CONTEXT_GROUP_LABELS);
-        return String.join(", ", groupLabels);
     }
 
     private final class MetricInventoryAccumulator {
@@ -2442,31 +1966,16 @@ public class OtlpIngestionWorkspaceServiceImpl implements OtlpIngestionWorkspace
         }
     }
 
-    private String normalizeMetricsGroupByLabel(String label) {
-        String normalized = trimToNull(label);
-        if (!StringUtils.hasText(normalized)) {
-            return null;
-        }
-        String resourceKey = normalized.toLowerCase(Locale.ROOT);
-        if (resourceKey.startsWith("resource:")) {
-            resourceKey = resourceKey.substring("resource:".length());
-        }
-        if (EntityCanonicalIdentityRegistry.isCanonicalOtelResourceKey(resourceKey)
-                || resourceKey.startsWith("hertzbeat.")) {
-            return resourceKey.replace('.', '_').replace('-', '_');
-        }
-        return isPromqlLabelName(normalized) ? normalized : null;
-    }
-
     private boolean isPromqlLabelName(String label) {
         return label != null && label.matches("[A-Za-z_:][A-Za-z0-9_:]*");
     }
 
+    private String normalizePromqlLabelName(String label) {
+        return metricsQueryCompiler.normalizeLabelName(label);
+    }
+
     private String escapePromqlLabelValue(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+        return metricsQueryCompiler.escapeLabelValue(value);
     }
 
     private String resolvePromqlStep(long start, long end, String requestedStep) {
