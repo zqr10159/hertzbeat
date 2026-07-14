@@ -105,6 +105,7 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
             + "hertzbeat_ingest_id, hertzbeat_entity_id, hertzbeat_workspace_id, service_name";
     private static final String LABEL_KEY_START_TIME = "start";
     private static final String LABEL_KEY_END_TIME = "end";
+    private static final String LABEL_KEY_TS = "ts";
     private static final int LOG_BATCH_SIZE = 500;
     private static final Pattern DAY_PATTERN = Pattern.compile("^(\\d+)[dD]$");
 
@@ -202,6 +203,8 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
         tableSchemaBuilder.addTag("instance", DataType.String)
                 .addTimestamp("ts", DataType.TimestampMillisecond);
         List<CollectRep.Field> fields = metricsData.getFields();
+        Map<String, String> customLabels = metricsData.getLabels();
+        List<String> fieldNames = fields.stream().map(CollectRep.Field::getName).collect(Collectors.toList());
         fields.forEach(field -> {
             if (field.getLabel()) {
                 tableSchemaBuilder.addTag(field.getName(), DataType.String);
@@ -213,9 +216,19 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
                 }
             }
         });
+        List<String> labelKeys = new LinkedList<>();
+        if (!Objects.isNull(customLabels) && !customLabels.isEmpty()) {
+            for (Map.Entry<String, String> label : customLabels.entrySet()) {
+                String key = label.getKey();
+                if (!LABEL_KEY_INSTANCE.equals(key) && !LABEL_KEY_TS.equals(key) && !fieldNames.contains(key)) {
+                    tableSchemaBuilder.addTag(key, DataType.String);
+                    labelKeys.add(key);
+                }
+            }
+        }
         Table table = Table.from(tableSchemaBuilder.build());
         long now = System.currentTimeMillis();
-        Object[] values = new Object[2 + fields.size()];
+        Object[] values = new Object[2 + fields.size() + labelKeys.size()];
         values[0] = instance;
         values[1] = now;
         RowWrapper rowWrapper = metricsData.readRow();
@@ -244,6 +257,10 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
                     }
                 }
             });
+
+            for (int i = 0; i < labelKeys.size(); i++) {
+                values[2 + fields.size() + i] = customLabels.get(labelKeys.get(i));
+            }
 
             table.addRow(values);
         }

@@ -1,6 +1,6 @@
 ---
 id: starrocks_be
-title: Monitoring StarRocks Database BE Monitoring
+title: Monitoring StarRocks Database BE
 sidebar_label: StarRocks Database BE
 keywords: [Open Source Monitoring System, Open Source Database Monitoring, StarRocks Database BE Monitoring]
 ---
@@ -9,7 +9,7 @@ keywords: [Open Source Monitoring System, Open Source Database Monitoring, StarR
 
 **Protocol: HTTP**
 
-### Pre-monitoring Operations
+## Pre-monitoring Operations
 
 Check the `be/conf/be.conf` file to obtain the value of the `http_port` configuration item, which is used for monitoring.
 

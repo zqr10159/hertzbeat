@@ -39,14 +39,14 @@ This website is compiled using node, using Docusaurus framework components
 
 1. Download and install nodejs (version 18.8.0)
 2. Clone the code to the local `git clone git@github.com:apache/hertzbeat.git`
-3. In `home` directory run `npm install` to install the required dependent libraries.
-4. In `home` directory run `npm run start`, you can visit [http://localhost:3000](http://localhost:3000) to view the English mode preview of the site
-5. In `home` directory run `npm run start-zh-cn`, you can visit [http://localhost:3000](http://localhost:3000) to view the Chinese mode preview of the site
-6. To generate static website resource files, run `npm run build`. The static resources of the build are in the build directory.
+3. In `home` directory run `pnpm install` to install the required dependent libraries.
+4. In `home` directory run `pnpm start`, you can visit [http://localhost:3000](http://localhost:3000) to view the English mode preview of the site
+5. In `home` directory run `pnpm start-zh-cn`, you can visit [http://localhost:3000](http://localhost:3000) to view the Chinese mode preview of the site
+6. To generate static website resource files, run `pnpm build`. The static resources of the build are in the build directory.
 
 ## Document Format Inspection
 
-In Apache Hertzbeat, all MD articles have to pass MD's [CI](https://github.com/apache/hertzbeat/blob/master/.github/workflows/doc-build-test.yml) inspection before they can be merged. The purpose is to keep the website looking nice and the formatting of the articles consistent.
+In Apache HertzBeat, all MD articles have to pass MD's [CI](https://github.com/apache/hertzbeat/blob/master/.github/workflows/doc-build-test.yml) inspection before they can be merged. The purpose is to keep the website looking nice and the formatting of the articles consistent.
 
 After you have written an MD article, you can execute the following command locally to check whether the content of the MD article meets the requirements, so as to reduce the workload of review and save your time:
 

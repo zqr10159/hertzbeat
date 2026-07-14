@@ -1,13 +1,13 @@
 ---
-id: airflow  
-title: Monitoring Apache Airflow Monitoring  
+id: airflow
+title: Monitoring Apache Airflow
 sidebar_label: Apache Airflow
 keywords: [open source monitoring system, open source database monitoring, Apache Airflow monitoring]
 ---
 
 > Collect and monitor general performance metrics for the Apache Airflow.
 
-### Configuration Parameters
+## Configuration Parameters
 
 | Parameter Name      | Parameter Description                                                                                                           |
 |---------------------|---------------------------------------------------------------------------------------------------------------------------------|

@@ -1,13 +1,13 @@
 ---
 id: doris_be
-title: Monitoring DORIS Database BE Monitoring
+title: Monitoring DORIS Database BE
 sidebar_label: DORIS Database BE
 keywords: [Open Source Monitoring System, Open Source Database Monitoring, DORIS Database BE Monitoring]
 ---
 
 > Collect and monitor general performance metrics for DORIS database BE. Supports DORIS 2.0.0.
 
-### Pre-monitoring operations
+## Pre-monitoring operations
 
 |  Parameter Name  |                        Parameter Description                       |
 |--------|-----------------------------------------------------|

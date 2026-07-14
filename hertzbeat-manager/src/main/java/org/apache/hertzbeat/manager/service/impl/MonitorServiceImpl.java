@@ -187,6 +187,8 @@ public class MonitorServiceImpl implements MonitorService {
         appDefine.setDefaultInterval(monitor.getIntervals());
         appDefine.setCyclic(true);
         appDefine.setTimestamp(System.currentTimeMillis());
+        appDefine.setScheduleType(monitor.getScheduleType());
+        appDefine.setCronExpression(monitor.getCronExpression());
 
         String instance = monitor.getInstance();
         // The port field may be null
@@ -433,6 +435,8 @@ public class MonitorServiceImpl implements MonitorService {
             // force update gmtUpdate time, due the case: monitor not change, param change.
             // we also think monitor change
             monitor.setGmtUpdate(LocalDateTime.now());
+            // preserve the live status owned by the real-time collection path; the modify request must not overwrite it
+            monitor.setStatus(preMonitor.getStatus());
             // update or open grafana dashboard
             if (monitor.getApp().equals(CommonConstants.PROMETHEUS) && grafanaDashboard != null) {
                 if (grafanaDashboard.isEnabled()) {
@@ -700,6 +704,8 @@ public class MonitorServiceImpl implements MonitorService {
                 appDefine.setDefaultInterval(monitor.getIntervals());
                 appDefine.setCyclic(true);
                 appDefine.setTimestamp(System.currentTimeMillis());
+                appDefine.setScheduleType(monitor.getScheduleType());
+                appDefine.setCronExpression(monitor.getCronExpression());
                 Map<String, String> metadata = Map.of(CommonConstants.LABEL_INSTANCE_NAME, monitor.getName(),
                         CommonConstants.LABEL_INSTANCE, monitor.getInstance());
                 appDefine.setMetadata(metadata);

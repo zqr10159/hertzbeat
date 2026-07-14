@@ -76,6 +76,7 @@
             "start/victoria-metrics-init",
             "start/iotdb-init",
             "start/influxdb-init",
+            "start/questdb-init",
             "start/postgresql-change",
             "start/mysql-change"
           ]

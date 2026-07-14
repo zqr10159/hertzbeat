@@ -102,7 +102,7 @@ class PluginServiceTest {
         metadata.setItems(pluginItems);
         metadata.setParamCount(0);
         PluginServiceImpl service = spy(pluginService);
-        doReturn(metadata).when(service).validateJarFile(any());
+        doReturn(metadata).when(service).validateJarFile(any(), any());
         File pluginLibDir = new File(tempDir, "plugin-lib");
         String previousPluginLib = System.getProperty("hertzbeat.plugin.lib.dir");
         System.setProperty("hertzbeat.plugin.lib.dir", pluginLibDir.getAbsolutePath());
@@ -126,7 +126,7 @@ class PluginServiceTest {
         }
         ArgumentCaptor<File> uploadedJarCaptor = ArgumentCaptor.forClass(File.class);
         ArgumentCaptor<PluginMetadata> metadataCaptor = ArgumentCaptor.forClass(PluginMetadata.class);
-        verify(service).validateJarFile(uploadedJarCaptor.capture());
+        verify(service).validateJarFile(uploadedJarCaptor.capture(), any());
         verify(metadataDao, times(1)).save(metadataCaptor.capture());
         verify(itemDao, times(1)).saveAll(anyList());
         assertTrue(uploadedJarCaptor.getValue().getCanonicalPath().startsWith(pluginLibDir.getCanonicalPath() + File.separator));

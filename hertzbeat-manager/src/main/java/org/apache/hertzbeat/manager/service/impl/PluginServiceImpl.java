@@ -222,12 +222,12 @@ public class PluginServiceImpl implements PluginService {
      * @param jarFile jar file
      * @return return the result of jar package parsed
      */
-    public PluginMetadata validateJarFile(File jarFile) {
+    public PluginMetadata validateJarFile(File jarFile, String extLibPath) {
         PluginMetadata metadata = new PluginMetadata();
         List<PluginItem> pluginItems = new ArrayList<>();
         AtomicInteger pluginImplementationCount = new AtomicInteger(0);
         try {
-            validateFilePath(jarFile);
+            validateFilePath(jarFile, extLibPath);
             URL jarUrl = new URL("file:" + jarFile.getAbsolutePath());
             validateJarUrl(jarUrl);
             try (URLClassLoader classLoader = new URLClassLoader(new URL[]{jarUrl}, this.getClass().getClassLoader());
@@ -282,7 +282,7 @@ public class PluginServiceImpl implements PluginService {
      *
      * @param file the file to validate
      */
-    private void validateFilePath(File file) {
+    private void validateFilePath(File file, String extLibPath) {
         try {
             String canonicalPath = file.getCanonicalPath();
             String expectedDir = resolvePluginLibDir().getCanonicalPath();
@@ -326,7 +326,7 @@ public class PluginServiceImpl implements PluginService {
         List<PluginItem> pluginItems;
         PluginMetadata pluginMetadata;
         try {
-            PluginMetadata parsed = validateJarFile(destFile);
+            PluginMetadata parsed = validateJarFile(destFile, extLibDir.getAbsolutePath());
             pluginItems = parsed.getItems();
             pluginMetadata = PluginMetadata.builder()
                 .name(pluginUpload.getName())

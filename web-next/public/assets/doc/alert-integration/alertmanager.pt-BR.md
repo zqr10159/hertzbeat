@@ -1,4 +1,4 @@
-> Envie alarmes do Prometheus AlertManager para a plataforma de alarme HertzBeat。 
+> Envie alarmes do Prometheus AlertManager para a plataforma de alarme HertzBeat.
 
 ### Webhook de configuração do Alertmanager
 
@@ -11,7 +11,7 @@ receivers:
       - url: 'http://{hertzbeat_host}:1157/api/alerts/report/alertmanager'
         send_resolved: true
         http_config:
-          authorization: 
+          authorization:
             type: 'Bearer'
             credentials: '{token}'
 ```

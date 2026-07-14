@@ -8,7 +8,7 @@ sidebar_label: 系统默认解析方式
 
 **此需接口响应数据结构符合HertzBeat指定的数据结构规则**
 
-### HertzBeat数据格式规范
+## HertzBeat数据格式规范
 
 注意⚠️ 响应数据为JSON
 
@@ -43,7 +43,7 @@ sidebar_label: 系统默认解析方式
 ```
 
 样例：
-查询自定义系统的CPU信息，其暴露接口为 `/metrics/cpu`，我们需要其中的`hostname,core,useage`指标
+查询自定义系统的CPU信息，其暴露接口为 `/metrics/cpu`，我们需要其中的`hostname,core,usage`指标
 若只有一台虚拟机，其单层格式为:
 
 ```json

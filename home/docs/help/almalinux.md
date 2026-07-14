@@ -1,13 +1,13 @@
 ---
 id: almalinux
-title: Monitoring AlmaLinux Operating System Monitoring
+title: Monitoring AlmaLinux Operating System
 sidebar_label: AlmaLinux Operating System
 keywords: [open-source monitoring system, open-source operating system monitoring, AlmaLinux operating system monitoring]
 ---
 
 > Collect and monitor common performance metrics of the AlmaLinux operating system.
 
-### Configuration Parameters
+## Configuration Parameters
 
 | Parameter Name        | Parameter Help Description                                                                                                                                                            |
 |-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

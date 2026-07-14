@@ -1,11 +1,11 @@
 ---
 id: hdfs_datanode
-title: Monitoring Apache HDFS DataNode Monitoring
+title: Monitoring Apache HDFS DataNode
 sidebar_label: Apache HDFS DataNode
 keywords: [big data monitoring system, distributed file system monitoring, Apache HDFS DataNode monitoring]
 ---
 
-> Hertzbeat monitors metrics for Apache HDFS DataNode nodes.
+> HertzBeat monitors metrics for Apache HDFS DataNode nodes.
 
 **Protocol Used: HTTP**
 

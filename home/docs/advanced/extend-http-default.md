@@ -8,7 +8,7 @@ sidebar_label: Default Parsing Method
 
 **The interface response data structure must be consistent with the data structure rules specified by hertzbeat**
 
-### HertzBeat data format specification
+## HertzBeat data format specification
 
 Note⚠️ The response data is JSON format.
 
@@ -43,7 +43,7 @@ Multilayer format：Set key value in the array
 ```
 
 eg：
-Query the CPU information of the custom system. The exposed interface is `/metrics/cpu`. We need `hostname,core,useage` Metric.
+Query the CPU information of the custom system. The exposed interface is `/metrics/cpu`. We need `hostname,core,usage` Metric.
 If there is only one virtual machine, its single-layer format is :
 
 ```json

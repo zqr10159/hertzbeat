@@ -1,13 +1,13 @@
 ---
-id: clickhouse  
-title: Monitoring ClickHouse Database Monitoring  
-sidebar_label: ClickHouse Database  
+id: clickhouse
+title: Monitoring ClickHouse Database
+sidebar_label: ClickHouse Database
 keywords: [open source monitoring system, open source database monitoring, ClickHouse database monitoring]
 ---
 
 > Collect and monitor general performance metrics for the ClickHouse database.
 
-### Configuration Parameters
+## Configuration Parameters
 
 |   Parameter Name    |                                                     Parameter Description                                                      |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------|

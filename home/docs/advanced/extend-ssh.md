@@ -7,7 +7,7 @@ sidebar_label: SSH Protocol Custom Monitoring
 > From [Custom Monitoring](extend-point), you are familiar with how to customize types, Metrics, protocols, etc. Here we will introduce in detail how to use SSH protocol to customize Metric monitoring.
 > SSH protocol custom monitoring allows us to easily monitor and collect the Linux Metrics we want by writing sh command script.
 
-### SSH protocol collection process
+## SSH protocol collection process
 
 【**System directly connected to Linux**】->【**Run shell command script statement**】->【**parse response data: oneRow, multiRow**】->【**Metric data extraction**】
 
@@ -54,7 +54,7 @@ Mem:           7962        4065         333           1        3562        3593
 Swap:          8191          33        8158
 ```
 
-In hertzbeat multiRow format parsing requires a one-to-one mapping between the column name of the response data  and the indicaotr value, so the corresponding query SHELL script is:
+In hertzbeat multiRow format parsing requires a one-to-one mapping between the column name of the response data  and the indicator value, so the corresponding query SHELL script is:
 `free -m | grep Mem | awk 'BEGIN{print "total used free buff_cache available"} {print $2,$3,$4,$6,$7}'`
 Console response is：
 
@@ -147,7 +147,7 @@ metrics:
       username: ^_^username^_^
       password: ^_^password^_^
       script: (uname -r ; hostname ; uptime | awk -F "," '{print $1}' | sed  "s/ //g") | sed ":a;N;s/\n/^/g;ta" | awk -F '^' 'BEGIN{print "version hostname uptime"} {print $1, $2, $3}'
-      # parsing method for reponse data：oneRow, multiRow
+      # parsing method for response data：oneRow, multiRow
       parseType: multiRow
 
   - name: cpu

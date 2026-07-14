@@ -7,9 +7,9 @@ sidebar_label: JDBC Protocol Custom Monitoring
 > From [Custom Monitoring](extend-point), you are familiar with how to customize types, Metrics, protocols, etc. Here we will introduce in detail how to use JDBC(support mysql,mariadb,postgresql,sqlserver at present) to customize Metric monitoring.
 > JDBC protocol custom monitoring allows us to easily monitor Metrics we want by writing SQL query statement.
 
-### JDBC protocol collection process
+## JDBC protocol collection process
 
-【**System directly connected to MYSQL**】->【**Run SQL query statement**】->【**parse reponse data: oneRow, multiRow, columns**】->【**Metric data extraction**】
+【**System directly connected to MYSQL**】->【**Run SQL query statement**】->【**parse response data: oneRow, multiRow, columns**】->【**Metric data extraction**】
 
 It can be seen from the process that we define a monitoring type of JDBC protocol. We need to configure SSH request parameters, configure which Metrics to obtain, and configure query SQL statements.
 

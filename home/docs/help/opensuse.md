@@ -1,13 +1,13 @@
 ---
 id: opensuse
-title: Monitoring OpenSUSE Operating System Monitoring    
-sidebar_label: OpenSUSE OS    
+title: Monitoring OpenSUSE Operating System
+sidebar_label: OpenSUSE OS
 keywords: [open source monitoring system, open source operating system monitoring, OpenSUSE OS monitoring]
 ---
 
 > Collect and monitor general performance metrics of the OpenSUSE operating system.
 
-### Configuration Parameters
+## Configuration Parameters
 
 | Parameter Name        | Parameter Help Description                                                                                                                                                            |
 |-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

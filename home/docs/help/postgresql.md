@@ -1,13 +1,13 @@
 ---
-id: postgresql  
-title: Monitoring：PostgreSQL database monitoring      
-sidebar_label: PostgreSQL database   
+id: postgresql
+title: Monitoring：PostgreSQL database monitoring
+sidebar_label: PostgreSQL database
 keywords: [open source monitoring tool, open source database monitoring tool, monitoring postgresql database metrics]
 ---
 
 > Collect and monitor the general performance Metrics of PostgreSQL database. Support PostgreSQL 10+.
 
-### Configuration parameter
+## Configuration parameter
 
 |   Parameter name    |                                                                        Parameter help description                                                                         |
 |---------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -53,3 +53,15 @@ keywords: [open source monitoring tool, open source database monitoring tool, mo
 | Metric name | Metric unit |       Metric help description        |
 |-------------|-------------|--------------------------------------|
 | running     | connections | Number of current client connections |
+
+#### Metric set：users
+
+|    Metric name    | Metric unit |                  Metric help description                   |
+|-------------------|-------------|------------------------------------------------------------|
+| usename           | none        | Database user name                                         |
+| usesysid          | none        | User system ID                                             |
+| usecreatedb       | none        | Whether user can create databases (Y/N)                    |
+| usesuper          | none        | Whether user is a superuser (Y/N)                          |
+| valuntil          | none        | Password expiration time (timestamp)                       |
+| days_left         | days        | Days remaining until password expires                      |
+| account_status    | none        | Account status (OPEN/EXPIRED)                              |

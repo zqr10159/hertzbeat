@@ -15,26 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.hertzbeat.collector.collect.common.ssh;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+package org.apache.hertzbeat.collector.mysql.r2dbc;
 
 /**
- * Test case for {@link CommonSshClient}
+ * Internal collector-side MySQL query executor.
  */
-class CommonSshClientTest {
+public interface MysqlQueryExecutor {
 
-    @BeforeEach
-    void setUp() {
-    }
-
-    @AfterEach
-    void tearDown() {
-    }
-
-    @Test
-    void getSshClient() {
-    }
+    /**
+     * Execute a single read-only SQL statement.
+     *
+     * @param sql SQL to execute
+     * @param options execution options and target connection settings
+     * @return normalized query result
+     */
+    QueryResult execute(String sql, QueryOptions options);
 }

@@ -1,11 +1,11 @@
 ---
 id: yarn
-title: Monitoring Apache Yarn Monitoring
+title: Monitoring Apache Yarn
 sidebar_label: Apache Yarn
 keywords: [Big Data Monitoring System, Apache Yarn Monitoring, ResourceManager Monitoring]
 ---
 
-> Hertzbeat monitors Apache Yarn node monitoring metrics.
+> HertzBeat monitors Apache Yarn node monitoring metrics.
 
 **Protocol Used: HTTP**
 

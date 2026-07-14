@@ -32,6 +32,10 @@ on:
       - 'web-next/**'
       - '.github/workflows/frontend-build-test.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   web-next-scope:
     runs-on: ubuntu-latest

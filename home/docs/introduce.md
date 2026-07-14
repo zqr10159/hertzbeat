@@ -156,7 +156,7 @@ In an isolated network where multiple networks are not connected, we need to dep
 
 ### Easy to Use
 
-- Set **Monitoring+Alarm+Notification*- All in one, no need to deploy multiple component services separately.
+- Set **Monitoring+Alarm+Notification** - All in one, no need to deploy multiple component services separately.
 - Full UI interface operation, no matter adding new monitor, modifying monitor template, or alarm threshold notification, all can be done in WEB interface, no need to modify files or scripts or reboot.
 - No Agent is needed, we only need to fill in the required IP, port, account, password and other parameters in the WEB interface.
 - Customization friendly, only need a monitoring template YML, automatically generate monitoring management page, data chart page, threshold configuration for corresponding monitoring types.
@@ -365,11 +365,12 @@ No. HertzBeat uses agentless monitoring via native protocols (HTTP, SNMP, JMX, S
 
 Run this single Docker command: `docker run -d -p 1157:1157 -p 1158:1158 --name hertzbeat apache/hertzbeat`
 
-Access http://localhost:1157 with default credentials admin/hertzbeat.
+Access `http://localhost:1157` with default credentials admin/hertzbeat.
 
 ### What systems can HertzBeat monitor?
 
 HertzBeat monitors 200+ services including:
+
 - Databases: MySQL, PostgreSQL, MongoDB, Redis, Oracle, SQL Server
 - Operating Systems: Linux, Windows, Unix variants
 - Middleware: Tomcat, Kafka, Zookeeper, RabbitMQ, Nginx
@@ -403,7 +404,7 @@ Apache License 2.0. HertzBeat is completely open source with no monitoring limit
 ## Quick Start Summary
 
 1. **Install:** `docker run -d -p 1157:1157 -p 1158:1158 --name hertzbeat apache/hertzbeat`
-2. **Access:** http://localhost:1157 (admin/hertzbeat)
+2. **Access:** `http://localhost:1157` (admin/hertzbeat)
 3. **Monitor:** Add services via web UI by providing IP, port, credentials
 4. **Alert:** Configure threshold rules and notification channels
 5. **Scale:** Deploy collector clusters as needed

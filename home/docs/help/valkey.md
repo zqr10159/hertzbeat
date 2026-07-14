@@ -1,13 +1,13 @@
 ---
-id: valkey  
-title: Monitorin Valkey database 
-sidebar_label: Valkey   
+id: valkey
+title: Monitoring Valkey database
+sidebar_label: Valkey
 keywords: [ open source monitoring tool, open source valkey monitoring tool, monitoring valkey metrics ]
 ---
 
 > Collect and monitor the general performance Metrics of Valkey database. Support Valkey 7.0+.
 
-### Configuration parameter
+## Configuration parameter
 
 |  Parameter name  |                        Parameter help description                        |
 |--------|------------------------------------------------------|

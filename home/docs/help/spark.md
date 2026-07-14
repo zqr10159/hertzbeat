@@ -9,13 +9,13 @@ keywords: [open source monitoring tool, open source java spark monitoring tool, 
 
 **Protocol Use：JMX**
 
-### Spark App Enable JMX Protocol
+## Spark App Enable JMX Protocol
 
 1. Add Spark `VM options` When Start Server ⚠️ customIP
 
 Refer: [https://spark.apache.org/docs/latest/spark-standalone.html](https://spark.apache.org/docs/latest/spark-standalone.html)
 
-**Monitoring configuration spark can be monitored by Master, Worker, driver, and executor. The Master and Worker can be monitored when the spark cluster is running, while the Driver and Excutor need to be monitored for an app.**
+**Monitoring configuration spark can be monitored by Master, Worker, driver, and executor. The Master and Worker can be monitored when the spark cluster is running, while the Driver and Executor need to be monitored for an app.**
 **If you want to monitor them, perform the following steps to configure them**
 
 ## First step

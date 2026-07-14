@@ -18,10 +18,7 @@
 
 package org.apache.hertzbeat.ai.config;
 
-import com.openai.client.OpenAIClient;
 import jakarta.annotation.PostConstruct;
-import java.time.Duration;
-import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.common.support.event.AiProviderConfigChangeEvent;
 import org.apache.hertzbeat.common.entity.dto.ModelProviderConfig;
@@ -31,7 +28,6 @@ import org.apache.hertzbeat.common.util.JsonUtil;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.setup.OpenAiSetup;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -117,23 +113,10 @@ public class LlmConfig {
             }
         }
 
-        OpenAIClient openAiClient = OpenAiSetup.setupSyncClient(
-                modelProviderConfig.getBaseUrl(),
-                modelProviderConfig.getApiKey(),
-                null,
-                null,
-                null,
-                null,
-                false,
-                false,
-                null,
-                Duration.ofSeconds(60),
-                10,
-                null,
-                Map.of());
-
-        // Create Chat Options
+        // Create Chat Options with baseUrl and apiKey
         OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
+                .baseUrl(modelProviderConfig.getBaseUrl())
+                .apiKey(modelProviderConfig.getApiKey())
                 .model(modelProviderConfig.getModel())
                 .temperature(0.3)
                 .apiKey(modelProviderConfig.getApiKey())
@@ -141,7 +124,6 @@ public class LlmConfig {
 
         // Create Chat Model
         OpenAiChatModel openAiChatModel = OpenAiChatModel.builder()
-                .openAiClient(openAiClient)
                 .options(openAiChatOptions)
                 .build();
 

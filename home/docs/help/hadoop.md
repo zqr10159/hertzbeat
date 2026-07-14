@@ -1,7 +1,7 @@
 ---
 id: hadoop
 title: Monitoring Hadoop
-sidebar_label: Apache Hadoop 
+sidebar_label: Apache Hadoop
 keywords: [Open Source Monitoring System, Open Source Java Monitoring, Hadoop JVM Monitoring]
 ---
 
@@ -9,8 +9,8 @@ keywords: [Open Source Monitoring System, Open Source Java Monitoring, Hadoop JV
 
 **Protocol used: JMX**
 
-### Pre-monitoring steps
-
+## Pre-monitoring steps
+>
 > You need to enable JMX service in the Hadoop application before monitoring. HertzBeat uses the JMX protocol to collect performance metrics from Hadoop's JVM.
 
 ### Steps to enable JMX protocol in the Hadoop application
@@ -27,7 +27,7 @@ vi $HADOOP_HOME/etc/hadoop/hadoop-env.sh
 
 ```shell
 export HADOOP_OPTS= "$HADOOP_OPTS
--Djava.rmi.server.hostname=对外ip地址 
+-Djava.rmi.server.hostname=external-ip-address
 -Dcom.sun.management.jmxremote.port=9999
 -Dcom.sun.management.jmxremote.ssl=false
 -Dcom.sun.management.jmxremote.authenticate=false "

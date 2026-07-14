@@ -1,5 +1,5 @@
 ---
-id: quickstart  
+id: quickstart
 title: HertzBeat 快速开始 - 5分钟安装
 sidebar_label: 快速开始
 description: Apache HertzBeat 监控系统快速安装指南 - Docker、安装包、源码安装，支持 X86 和 ARM64 系统。
@@ -13,7 +13,7 @@ description: Apache HertzBeat 监控系统快速安装指南 - Docker、安装�
 
 ## 安装方式
 
-HertzBeat 提供四种安装选项：
+HertzBeat 提供多种安装选项：
 
 1. **Docker**（推荐）- 最快设置，生产就绪
 2. **二进制包** - 传统部署，手动配置
@@ -31,7 +31,7 @@ HertzBeat 提供四种安装选项：
 
 ## 安装说明
 
-#### 方式一：Docker方式快速安装
+### 方式一：Docker方式快速安装
 
 1. `docker` 环境仅需一条命令即可开始
 
@@ -58,12 +58,13 @@ HertzBeat 提供四种安装选项：
 
 #### 方式二：通过安装包安装
 
-1. 下载您系统环境对应的安装包`hertzbeat-xx.tar.gz` [Download Page](https://hertzbeat.apache.org/docs/download)
+1. 下载您系统环境对应的安装包 `apache-hertzbeat-xx-bin.tar.gz` [Download Page](https://hertzbeat.apache.org/docs/download)
 2. 配置 HertzBeat 的配置文件 `hertzbeat/config/application.yml`(可选)
 3. 部署启动 `$ ./bin/startup.sh` 或 `bin/startup.bat`
 4. 浏览器访问 `http://localhost:1157` 即可开始，默认账号密码 `admin/hertzbeat`
 5. 部署采集器集群(可选)
-   - 下载您系统环境对应采集器安装包`hertzbeat-collector-xx.tar.gz`到规划的另一台部署主机上 [Download Page](https://hertzbeat.apache.org/docs/download)
+   - 如果你不需要 `ext-lib` 外置 JDBC 驱动，优先选择 Native 采集器安装包，通常启动更快、内存更省。MySQL、MariaDB、OceanBase 在没有提供 `mysql-connector-j` 时可以直接使用内置查询引擎；TiDB 的 SQL 查询指标也遵循同样规则。详见 [Native 采集器指南](native-collector)。
+   - 下载您系统环境对应采集器安装包 `apache-hertzbeat-collector-xx-bin.tar.gz`（JVM 采集器）或匹配目标平台的 Native 采集器安装包，例如 `apache-hertzbeat-collector-native-xx-linux-amd64-bin.tar.gz`、`apache-hertzbeat-collector-native-xx-windows-amd64-bin.zip`，到规划的另一台部署主机上 [Download Page](https://hertzbeat.apache.org/docs/download)
    - 配置采集器的配置文件 `hertzbeat-collector/config/application.yml` 里面的连接主HertzBeat服务的对外IP，端口，当前采集器名称(需保证唯一性)等参数 `identity` `mode` (public or private) `manager-host` `manager-port`
 
      ```yaml
@@ -78,16 +79,18 @@ HertzBeat 提供四种安装选项：
              manager-port: ${MANAGER_PORT:1158}
      ```
 
-   - 启动 `$ ./bin/startup.sh` 或 `bin/startup.bat`
-   - 浏览器访问主HertzBeat服务 `http://localhost:1157` 查看概览页面即可看到注册上来的新采集器
+   - Native 采集器的代价是安装包按平台区分、不支持运行时 `ext-lib` JDBC 加载，也不适合依赖 JVM 风格运行时 classpath 扩展的场景。详见 [Native 采集器指南](native-collector)。
+   - 如果在 `ext-lib` 中放入了 `mysql-connector-j`，主程序内置采集器或 JVM 采集器会在重启后自动优先走 JDBC；这一点现在适用于 MySQL、MariaDB、OceanBase，TiDB 的 SQL 查询指标也遵循同样规则，而它的 HTTP 指标不受影响。Oracle、DB2 仍然必须使用 JVM 采集器安装包，因为它们依赖外置 JDBC 驱动
+   - JVM 采集器安装包使用 `$ ./bin/startup.sh` 或 `bin/startup.bat` 启动。Linux 或 macOS 的 Native 采集器安装包使用 `$ ./bin/startup.sh` 启动，Windows 的 Native 采集器安装包使用 `bin\\startup.bat` 启动
+   - 浏览器访问主 HertzBeat 服务 `http://localhost:1157` 查看概览页面即可看到注册上来的新采集器
 
 更多配置详细步骤参考 [通过安装包安装HertzBeat](package-deploy)
 
 #### 方式三：本地代码启动
 
 1. 此为前后端分离项目，本地代码调试需要分别启动后端工程`hertzbeat-startup`和前端工程`web-app`
-2. 后端：需要`maven3+`, `java21`和`lombok`环境，修改`YML`配置信息并启动`hertzbeat-startup`服务
-3. 前端：需要`nodejs npm angular-cli`环境，待本地后端启动后，在`web-app`目录下启动 `ng serve --open`
+2. 后端：需要`maven3+`, `java25`和`lombok`环境，修改`YML`配置信息并启动`hertzbeat-startup`服务
+3. 前端：需要`nodejs`和`pnpm`环境，先执行`pnpm install`，待本地后端启动后，在`web-app`目录下启动 `pnpm start`
 4. 浏览器访问 `http://localhost:4200` 即可开始，默认账号密码 `admin/hertzbeat`
 
 详细步骤参考 [参与贡献之本地代码启动](../community/contribution)
@@ -109,10 +112,11 @@ HertzBeat 提供四种安装选项：
 ### HertzBeat 的系统要求是什么？
 
 **最低要求：**
+
 - 2 CPU 核心
 - 4GB RAM
 - 10GB 磁盘空间
-- Docker 20.10+ 或 Java 21+
+- Docker 20.10+ 或 Java 25+
 
 **支持系统：** Linux、macOS、Windows（通过 Docker 或 WSL）
 
@@ -124,7 +128,7 @@ HertzBeat 提供四种安装选项：
 ### 如何验证 HertzBeat 是否运行？
 
 1. 检查容器状态：`docker ps | grep hertzbeat`
-2. 访问 Web UI：http://localhost:1157
+2. 访问 Web UI：`http://localhost:1157`
 3. 使用账号：admin/hertzbeat 登录
 
 ### 可以修改默认密码吗？
@@ -134,6 +138,7 @@ HertzBeat 提供四种安装选项：
 ### 如何升级 HertzBeat？
 
 **Docker 升级：**
+
 ```bash
 docker stop hertzbeat
 docker rm hertzbeat
@@ -144,6 +149,7 @@ docker run -d -p 1157:1157 -p 1158:1158 --name hertzbeat apache/hertzbeat
 ### HertzBeat 使用什么数据库？
 
 HertzBeat 默认使用 H2 嵌入式数据库。生产环境可配置外部数据库：
+
 - **元数据：** MySQL、PostgreSQL
 - **时序数据：** VictoriaMetrics、IoTDB、TDengine、InfluxDB
 
@@ -157,8 +163,8 @@ HertzBeat 默认使用 H2 嵌入式数据库。生产环境可配置外部数据
 
 ### 在哪里可以获得帮助？
 
-- **文档：** https://hertzbeat.apache.org/docs/
-- **GitHub Issues：** https://github.com/apache/hertzbeat/issues
-- **社区：** https://hertzbeat.apache.org/docs/community/contact
+- **文档：** [https://hertzbeat.apache.org/docs/](https://hertzbeat.apache.org/docs/)
+- **GitHub Issues：** [https://github.com/apache/hertzbeat/issues](https://github.com/apache/hertzbeat/issues)
+- **社区：** [https://hertzbeat.apache.org/docs/community/contact](https://hertzbeat.apache.org/docs/community/contact)
 
 **祝你使用愉快！**
