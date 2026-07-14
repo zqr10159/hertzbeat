@@ -623,21 +623,15 @@ public class LogQueryServiceImpl implements LogQueryService {
         String normalizedWorkspaceId = hasWorkspaceContext()
                 ? AuthTokenScopes.normalizeWorkspaceId(AuthTokenRequestContext.currentWorkspaceId())
                 : null;
-        for (HistoryDataReader historyDataReader : historyDataReaders) {
-            try {
-                Map<String, Long> aggregate = historyDataReader.countLogsByGroup(
+        return HistoryDataReaderFallback.firstMatching(
+                historyDataReaders,
+                historyDataReader -> historyDataReader.countLogsByGroup(
                         start, end, traceId, spanId, severityNumber, severityText, search,
                         hiddenServiceNames(hideInternal, hideNoise),
                         shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
-                        serviceName, serviceNamespace, environment, resourceFilters, attributeFilters, groupBy);
-                if (aggregate != null && !aggregate.isEmpty()) {
-                    return aggregate;
-                }
-            } catch (UnsupportedOperationException ex) {
-                // Fall back to row-based grouping for history stores without native group-by support.
-            }
-        }
-        return null;
+                        serviceName, serviceNamespace, environment, resourceFilters, attributeFilters, groupBy),
+                aggregate -> aggregate != null && !aggregate.isEmpty()
+        );
     }
 
     private Map<String, Long> readSeverityBuckets(Long start, Long end, String traceId, String spanId,
@@ -650,40 +644,33 @@ public class LogQueryServiceImpl implements LogQueryService {
                 ? AuthTokenScopes.normalizeWorkspaceId(AuthTokenRequestContext.currentWorkspaceId())
                 : null;
         boolean hasAttributeFilters = hasAttributeFilters(resourceFilters, attributeFilters);
-        for (HistoryDataReader historyDataReader : historyDataReaders) {
-            try {
-                Map<String, Long> aggregate;
-                if (hasAttributeFilters) {
-                    aggregate = historyDataReader.countLogsBySeverityBuckets(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
-                            serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
-                } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
-                    aggregate = historyDataReader.countLogsBySeverityBuckets(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
-                            serviceName, serviceNamespace, environment);
-                } else if (StringUtils.hasText(normalizedWorkspaceId)) {
-                    aggregate = historyDataReader.countLogsBySeverityBuckets(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId);
-                } else {
-                    aggregate = historyDataReader.countLogsBySeverityBuckets(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise));
-                }
-                if (aggregate != null && !aggregate.isEmpty()) {
-                    return aggregate;
-                }
-            } catch (UnsupportedOperationException ex) {
-                // Fall back to row-based aggregation for history stores without native aggregate support.
+        return HistoryDataReaderFallback.firstMatching(historyDataReaders, historyDataReader -> {
+            Map<String, Long> aggregate;
+            if (hasAttributeFilters) {
+                aggregate = historyDataReader.countLogsBySeverityBuckets(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
+                        serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
+            } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
+                aggregate = historyDataReader.countLogsBySeverityBuckets(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
+                        serviceName, serviceNamespace, environment);
+            } else if (StringUtils.hasText(normalizedWorkspaceId)) {
+                aggregate = historyDataReader.countLogsBySeverityBuckets(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId);
+            } else {
+                aggregate = historyDataReader.countLogsBySeverityBuckets(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise));
             }
-        }
-        return null;
+            return aggregate;
+        }, aggregate -> aggregate != null && !aggregate.isEmpty());
     }
 
     private Map<String, Long> readTraceCoverage(Long start, Long end, String traceId, String spanId,
@@ -696,40 +683,33 @@ public class LogQueryServiceImpl implements LogQueryService {
                 ? AuthTokenScopes.normalizeWorkspaceId(AuthTokenRequestContext.currentWorkspaceId())
                 : null;
         boolean hasAttributeFilters = hasAttributeFilters(resourceFilters, attributeFilters);
-        for (HistoryDataReader historyDataReader : historyDataReaders) {
-            try {
-                Map<String, Long> aggregate;
-                if (hasAttributeFilters) {
-                    aggregate = historyDataReader.countLogTraceCoverage(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
-                            serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
-                } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
-                    aggregate = historyDataReader.countLogTraceCoverage(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
-                            serviceName, serviceNamespace, environment);
-                } else if (StringUtils.hasText(normalizedWorkspaceId)) {
-                    aggregate = historyDataReader.countLogTraceCoverage(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId);
-                } else {
-                    aggregate = historyDataReader.countLogTraceCoverage(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise));
-                }
-                if (aggregate != null && !aggregate.isEmpty()) {
-                    return aggregate;
-                }
-            } catch (UnsupportedOperationException ex) {
-                // Fall back to row-based aggregation for history stores without native aggregate support.
+        return HistoryDataReaderFallback.firstMatching(historyDataReaders, historyDataReader -> {
+            Map<String, Long> aggregate;
+            if (hasAttributeFilters) {
+                aggregate = historyDataReader.countLogTraceCoverage(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
+                        serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
+            } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
+                aggregate = historyDataReader.countLogTraceCoverage(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
+                        serviceName, serviceNamespace, environment);
+            } else if (StringUtils.hasText(normalizedWorkspaceId)) {
+                aggregate = historyDataReader.countLogTraceCoverage(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId);
+            } else {
+                aggregate = historyDataReader.countLogTraceCoverage(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise));
             }
-        }
-        return null;
+            return aggregate;
+        }, aggregate -> aggregate != null && !aggregate.isEmpty());
     }
 
     private Map<String, Long> readHourlyStats(Long start, Long end, String traceId, String spanId,
@@ -742,40 +722,33 @@ public class LogQueryServiceImpl implements LogQueryService {
                 ? AuthTokenScopes.normalizeWorkspaceId(AuthTokenRequestContext.currentWorkspaceId())
                 : null;
         boolean hasAttributeFilters = hasAttributeFilters(resourceFilters, attributeFilters);
-        for (HistoryDataReader historyDataReader : historyDataReaders) {
-            try {
-                Map<String, Long> aggregate;
-                if (hasAttributeFilters) {
-                    aggregate = historyDataReader.countLogsByHour(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
-                            serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
-                } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
-                    aggregate = historyDataReader.countLogsByHour(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
-                            serviceName, serviceNamespace, environment);
-                } else if (StringUtils.hasText(normalizedWorkspaceId)) {
-                    aggregate = historyDataReader.countLogsByHour(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId);
-                } else {
-                    aggregate = historyDataReader.countLogsByHour(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise),
-                            shouldRequireServiceName(hideInternal, hideNoise));
-                }
-                if (aggregate != null && !aggregate.isEmpty()) {
-                    return aggregate;
-                }
-            } catch (UnsupportedOperationException ex) {
-                // Fall back to row-based aggregation for history stores without native aggregate support.
+        return HistoryDataReaderFallback.firstMatching(historyDataReaders, historyDataReader -> {
+            Map<String, Long> aggregate;
+            if (hasAttributeFilters) {
+                aggregate = historyDataReader.countLogsByHour(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
+                        serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
+            } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
+                aggregate = historyDataReader.countLogsByHour(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId,
+                        serviceName, serviceNamespace, environment);
+            } else if (StringUtils.hasText(normalizedWorkspaceId)) {
+                aggregate = historyDataReader.countLogsByHour(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise), normalizedWorkspaceId);
+            } else {
+                aggregate = historyDataReader.countLogsByHour(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise),
+                        shouldRequireServiceName(hideInternal, hideNoise));
             }
-        }
-        return null;
+            return aggregate;
+        }, aggregate -> aggregate != null && !aggregate.isEmpty());
     }
 
     private List<LogEntry> getFilteredLogs(Long start, Long end, String traceId, String spanId,
@@ -790,34 +763,34 @@ public class LogQueryServiceImpl implements LogQueryService {
                     serviceName, serviceNamespace, environment, resourceFilters, attributeFilters,
                     hideInternal, hideNoise);
         }
-        for (HistoryDataReader historyDataReader : historyDataReaders) {
-            try {
-                List<LogEntry> logs;
-                if (hasAttributeFilters) {
-                    logs = historyDataReader.queryLogsByMultipleConditions(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise),
-                            null, serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
-                } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
-                    logs = historyDataReader.queryLogsByMultipleConditions(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise),
-                            null, serviceName, serviceNamespace, environment);
-                } else if (hideInternal || hideNoise) {
-                    logs = historyDataReader.queryLogsByMultipleConditions(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise));
-                } else {
-                    logs = historyDataReader.queryLogsByMultipleConditions(
-                            start, end, traceId, spanId, severityNumber, severityText, search);
-                }
-                if (logs != null && !logs.isEmpty()) {
-                    return filterQueryLogs(logs, serviceName, serviceNamespace, environment,
-                            resourceFilters, attributeFilters, hideInternal, hideNoise);
-                }
-            } catch (UnsupportedOperationException ex) {
-                // Try the next reader. Not every history store supports log queries.
+        List<LogEntry> result = HistoryDataReaderFallback.firstMatching(historyDataReaders, historyDataReader -> {
+            List<LogEntry> logs;
+            if (hasAttributeFilters) {
+                logs = historyDataReader.queryLogsByMultipleConditions(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise),
+                        null, serviceName, serviceNamespace, environment, resourceFilters, attributeFilters);
+            } else if (hasServiceContext(serviceName, serviceNamespace, environment)) {
+                logs = historyDataReader.queryLogsByMultipleConditions(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise),
+                        null, serviceName, serviceNamespace, environment);
+            } else if (hideInternal || hideNoise) {
+                logs = historyDataReader.queryLogsByMultipleConditions(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise));
+            } else {
+                logs = historyDataReader.queryLogsByMultipleConditions(
+                        start, end, traceId, spanId, severityNumber, severityText, search);
             }
+            if (logs == null || logs.isEmpty()) {
+                return null;
+            }
+            return filterQueryLogs(logs, serviceName, serviceNamespace, environment,
+                    resourceFilters, attributeFilters, hideInternal, hideNoise);
+        }, Objects::nonNull);
+        if (result != null) {
+            return result;
         }
         if (hasExtendedFilterContext(serviceName, serviceNamespace, environment, resourceFilters, attributeFilters)) {
             return getRowFilteredLogs(start, end, traceId, spanId, severityNumber, severityText, search,
@@ -833,26 +806,23 @@ public class LogQueryServiceImpl implements LogQueryService {
                                               Map<String, String> resourceFilters,
                                               Map<String, String> attributeFilters,
                                               boolean hideInternal, boolean hideNoise) {
-        for (HistoryDataReader historyDataReader : historyDataReaders) {
-            try {
-                List<LogEntry> logs;
-                if (hideInternal || hideNoise) {
-                    logs = historyDataReader.queryLogsByMultipleConditions(
-                            start, end, traceId, spanId, severityNumber, severityText, search,
-                            hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise));
-                } else {
-                    logs = historyDataReader.queryLogsByMultipleConditions(
-                            start, end, traceId, spanId, severityNumber, severityText, search);
-                }
-                if (logs != null && !logs.isEmpty()) {
-                    return filterQueryLogs(logs, serviceName, serviceNamespace, environment,
-                            resourceFilters, attributeFilters, hideInternal, hideNoise);
-                }
-            } catch (UnsupportedOperationException ex) {
-                // Try the next reader. Not every history store supports log queries.
+        List<LogEntry> result = HistoryDataReaderFallback.firstMatching(historyDataReaders, historyDataReader -> {
+            List<LogEntry> logs;
+            if (hideInternal || hideNoise) {
+                logs = historyDataReader.queryLogsByMultipleConditions(
+                        start, end, traceId, spanId, severityNumber, severityText, search,
+                        hiddenServiceNames(hideInternal, hideNoise), shouldRequireServiceName(hideInternal, hideNoise));
+            } else {
+                logs = historyDataReader.queryLogsByMultipleConditions(
+                        start, end, traceId, spanId, severityNumber, severityText, search);
             }
-        }
-        return Collections.emptyList();
+            if (logs == null || logs.isEmpty()) {
+                return null;
+            }
+            return filterQueryLogs(logs, serviceName, serviceNamespace, environment,
+                    resourceFilters, attributeFilters, hideInternal, hideNoise);
+        }, Objects::nonNull);
+        return result == null ? Collections.emptyList() : result;
     }
 
     private Page<LogEntry> getPagedLogs(Long start, Long end, String traceId, String spanId,
