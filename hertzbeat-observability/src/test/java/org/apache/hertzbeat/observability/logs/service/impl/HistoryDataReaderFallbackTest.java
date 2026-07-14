@@ -62,4 +62,24 @@ class HistoryDataReaderFallbackTest {
 
         assertNull(result);
     }
+
+    @Test
+    void keepsPageCountAndRowsOnTheSameSupportedReader() {
+        HistoryDataReader unsupportedPage = mock(HistoryDataReader.class);
+        HistoryDataReader supported = mock(HistoryDataReader.class);
+
+        HistoryDataReaderFallback.PagedResult<String> result = HistoryDataReaderFallback.firstPage(
+                List.of(unsupportedPage, supported),
+                reader -> reader == unsupportedPage ? 7L : 2L,
+                reader -> {
+                    if (reader == unsupportedPage) {
+                        throw new UnsupportedOperationException();
+                    }
+                    return List.of("secondary-row");
+                }
+        );
+
+        assertEquals(2L, result.total());
+        assertEquals(List.of("secondary-row"), result.rows());
+    }
 }

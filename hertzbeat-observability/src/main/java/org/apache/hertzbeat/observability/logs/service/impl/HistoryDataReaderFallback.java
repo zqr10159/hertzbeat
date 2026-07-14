@@ -20,6 +20,7 @@ package org.apache.hertzbeat.observability.logs.service.impl;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.ToLongFunction;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.HistoryDataReader;
 
 /**
@@ -47,5 +48,28 @@ final class HistoryDataReaderFallback {
             }
         }
         return null;
+    }
+
+    static <T> PagedResult<T> firstPage(List<HistoryDataReader> readers,
+                                        ToLongFunction<HistoryDataReader> countQuery,
+                                        Function<HistoryDataReader, List<T>> pageQuery) {
+        if (readers == null || readers.isEmpty()) {
+            return null;
+        }
+        for (HistoryDataReader reader : readers) {
+            try {
+                long total = countQuery.applyAsLong(reader);
+                if (total <= 0) {
+                    continue;
+                }
+                return new PagedResult<>(total, pageQuery.apply(reader));
+            } catch (UnsupportedOperationException ex) {
+                // Count and rows must advance to the next reader together.
+            }
+        }
+        return null;
+    }
+
+    record PagedResult<T>(long total, List<T> rows) {
     }
 }
