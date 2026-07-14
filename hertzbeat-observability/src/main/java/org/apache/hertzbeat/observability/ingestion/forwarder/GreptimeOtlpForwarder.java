@@ -106,19 +106,20 @@ public class GreptimeOtlpForwarder {
     }
 
     public ResponseEntity<byte[]> forwardLogsProtobuf(byte[] protobufContent) {
-        return post(LOGS_PATH, sanitizeLogsForGreptimeNative(safeContent(protobufContent)), logHeaders());
+        return forwardProtobuf(LOGS_PATH, sanitizeLogsForGreptimeNative(safeContent(protobufContent)), logHeaders());
     }
 
     public byte[] forwardLogsGrpc(ExportLogsServiceRequest request) {
         ExportLogsServiceRequest forwardRequest = request == null
                 ? ExportLogsServiceRequest.getDefaultInstance()
                 : request;
-        ResponseEntity<byte[]> response = post(LOGS_PATH, sanitizeLogsForGreptimeNative(forwardRequest).toByteArray(),
+        ResponseEntity<byte[]> response = forwardProtobuf(LOGS_PATH,
+                sanitizeLogsForGreptimeNative(forwardRequest).toByteArray(),
                 logHeaders());
         return response.getBody() == null ? new byte[0] : response.getBody();
     }
 
-    private ResponseEntity<byte[]> post(String path, byte[] content, HttpHeaders headers) {
+    ResponseEntity<byte[]> forwardProtobuf(String path, byte[] content, HttpHeaders headers) {
         GreptimeProperties greptimeProperties = greptimePropertiesOrUnavailable();
         if (greptimeProperties == null || !greptimeProperties.enabled()
                 || StringUtils.isBlank(greptimeProperties.httpEndpoint())) {
