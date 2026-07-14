@@ -17,9 +17,7 @@
 
 package org.apache.hertzbeat.observability.ingestion.service.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
@@ -128,7 +126,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private static final String DEFAULT_TRACE_PIPELINE = "greptime_trace_v1";
     private static final String DEFAULT_METRIC_PROMOTED_RESOURCE_ATTRS =
             String.join(";", OtlpResourceSemanticAttributes.GREPTIME_METRIC_PROMOTED_RESOURCE_KEYS);
-    private static final Set<String> OTLP_HEX_ID_FIELDS = Set.of("traceId", "spanId", "parentSpanId");
     private static final int OTLP_TRACE_ID_BYTES = 16;
     private static final int OTLP_SPAN_ID_BYTES = 8;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -181,6 +178,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private final OtlpEntityIdentityResolver otlpEntityIdentityResolver;
     private final OtlpIngestionRedactionService redactionService = new OtlpIngestionRedactionService();
     private final OtlpIngestionRetryService retryService;
+    private final OtlpRequestDecoder requestDecoder;
 
     public OtlpGrpcIngestionServiceImpl(RestTemplate restTemplate,
                                         ObjectProvider<GreptimeProperties> greptimePropertiesProvider,
@@ -198,7 +196,27 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         this(restTemplate, greptimePropertiesProvider, otlpLogProtocolAdapter, greptimeOtlpForwarder,
                 otlpCorrelationEnricher, errorResponseFactory, requestContextResolver, auditService, governanceService,
                 quotaService, observabilitySignalIntakeGateway, otlpEntityIdentityResolver,
-                new OtlpIngestionRetryService());
+                new OtlpIngestionRetryService(), new OtlpRequestDecoder());
+    }
+
+    public OtlpGrpcIngestionServiceImpl(RestTemplate restTemplate,
+                                        ObjectProvider<GreptimeProperties> greptimePropertiesProvider,
+                                        OtlpLogProtocolAdapter otlpLogProtocolAdapter,
+                                        GreptimeOtlpForwarder greptimeOtlpForwarder,
+                                        OtlpCorrelationEnricher otlpCorrelationEnricher,
+                                        OtlpIngestionErrorResponseFactory errorResponseFactory,
+                                        OtlpIngestionRequestContextResolver requestContextResolver,
+                                        OtlpIngestionAuditService auditService,
+                                        OtlpIngestionGovernanceService governanceService,
+                                        OtlpIngestionQuotaService quotaService,
+                                        @Qualifier("telemetryIntakeServiceImpl")
+                                        ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway,
+                                        OtlpEntityIdentityResolver otlpEntityIdentityResolver,
+                                        OtlpIngestionRetryService retryService) {
+        this(restTemplate, greptimePropertiesProvider, otlpLogProtocolAdapter, greptimeOtlpForwarder,
+                otlpCorrelationEnricher, errorResponseFactory, requestContextResolver, auditService, governanceService,
+                quotaService, observabilitySignalIntakeGateway, otlpEntityIdentityResolver, retryService,
+                new OtlpRequestDecoder());
     }
 
     @Autowired
@@ -215,7 +233,8 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                                         @Qualifier("telemetryIntakeServiceImpl")
                                         ObservabilitySignalIntakeGateway observabilitySignalIntakeGateway,
                                         OtlpEntityIdentityResolver otlpEntityIdentityResolver,
-                                        OtlpIngestionRetryService retryService) {
+                                        OtlpIngestionRetryService retryService,
+                                        OtlpRequestDecoder requestDecoder) {
         this.restTemplate = restTemplate;
         this.greptimePropertiesProvider = greptimePropertiesProvider;
         this.otlpLogProtocolAdapter = otlpLogProtocolAdapter;
@@ -229,6 +248,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         this.observabilitySignalIntakeGateway = observabilitySignalIntakeGateway;
         this.otlpEntityIdentityResolver = otlpEntityIdentityResolver;
         this.retryService = retryService == null ? new OtlpIngestionRetryService() : retryService;
+        this.requestDecoder = requestDecoder;
     }
 
     @Override
@@ -244,7 +264,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
             quotaService.checkRequestBytes("metrics", "http", requestBytes);
             byte[] normalizedContent = normalizeHttpContentForQuota("metrics", "http", safeContent, safeRequestHeaders);
             ExportMetricsServiceRequest request = normalizeAndEnrichMetricRequest(
-                    decodeMetricsRequest(normalizedContent, contentType), correlationContext);
+                    requestDecoder.decodeMetrics(normalizedContent, contentType), correlationContext);
             signalItems = quotaService.countMetricItems(request);
             quotaService.checkMetricItems("http", signalItems);
             OtlpIngestionGovernanceService.Decision governanceDecision =
@@ -353,7 +373,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
             quotaService.checkRequestBytes("traces", "http", requestBytes);
             byte[] normalizedContent = normalizeHttpContentForQuota("traces", "http", safeContent, safeRequestHeaders);
             ExportTraceServiceRequest request = normalizeAndEnrichTraceRequest(
-                    decodeTraceRequest(normalizedContent, contentType), correlationContext);
+                    requestDecoder.decodeTraces(normalizedContent, contentType), correlationContext);
             signalItems = quotaService.countTraceItems(request);
             quotaService.checkTraceItems("http", signalItems);
             OtlpIngestionGovernanceService.Decision governanceDecision =
@@ -562,36 +582,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         } catch (InvalidProtocolBufferException ex) {
             throw io.grpc.Status.INTERNAL.withDescription("OTLP logs response is malformed.").withCause(ex)
                     .asRuntimeException();
-        }
-    }
-
-    private ExportMetricsServiceRequest decodeMetricsRequest(byte[] content, MediaType contentType) {
-        try {
-            if (contentType != null && MediaType.APPLICATION_JSON.includes(contentType)) {
-                ExportMetricsServiceRequest.Builder builder = ExportMetricsServiceRequest.newBuilder();
-                JsonFormat.parser().ignoringUnknownFields()
-                        .merge(normalizeOtlpJson(new String(content, StandardCharsets.UTF_8)), builder);
-                return builder.build();
-            }
-            return ExportMetricsServiceRequest.parseFrom(content);
-        } catch (InvalidProtocolBufferException ex) {
-            throw io.grpc.Status.INVALID_ARGUMENT.withDescription("Malformed OTLP metrics payload.")
-                    .withCause(ex).asRuntimeException();
-        }
-    }
-
-    private ExportTraceServiceRequest decodeTraceRequest(byte[] content, MediaType contentType) {
-        try {
-            if (contentType != null && MediaType.APPLICATION_JSON.includes(contentType)) {
-                ExportTraceServiceRequest.Builder builder = ExportTraceServiceRequest.newBuilder();
-                JsonFormat.parser().ignoringUnknownFields()
-                        .merge(normalizeOtlpJson(new String(content, StandardCharsets.UTF_8)), builder);
-                return builder.build();
-            }
-            return ExportTraceServiceRequest.parseFrom(content);
-        } catch (InvalidProtocolBufferException ex) {
-            throw io.grpc.Status.INVALID_ARGUMENT.withDescription("Malformed OTLP trace payload.")
-                    .withCause(ex).asRuntimeException();
         }
     }
 
@@ -898,35 +888,12 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                                                    HttpHeaders requestHeaders,
                                                    OtlpCorrelationContext correlationContext) {
         byte[] normalizedContent = maybeDecompress(content, requestHeaders);
-        if (contentType == null || !MediaType.APPLICATION_JSON.includes(contentType)) {
-            try {
-                if (!traceSignal) {
-                    return normalizeAndEnrichMetricRequest(
-                            ExportMetricsServiceRequest.parseFrom(normalizedContent), correlationContext).toByteArray();
-                }
-                return normalizeAndEnrichTraceRequest(
-                        ExportTraceServiceRequest.parseFrom(normalizedContent), correlationContext).toByteArray();
-            } catch (InvalidProtocolBufferException ex) {
-                throw io.grpc.Status.INVALID_ARGUMENT.withDescription(
-                                traceSignal ? "Malformed OTLP trace payload." : "Malformed OTLP metrics payload.")
-                        .withCause(ex).asRuntimeException();
-            }
+        if (traceSignal) {
+            return normalizeAndEnrichTraceRequest(
+                    requestDecoder.decodeTraces(normalizedContent, contentType), correlationContext).toByteArray();
         }
-        try {
-            if (traceSignal) {
-                ExportTraceServiceRequest.Builder builder = ExportTraceServiceRequest.newBuilder();
-                JsonFormat.parser().ignoringUnknownFields()
-                        .merge(normalizeOtlpJson(new String(normalizedContent, StandardCharsets.UTF_8)), builder);
-                return normalizeAndEnrichTraceRequest(builder.build(), correlationContext).toByteArray();
-            }
-            ExportMetricsServiceRequest.Builder builder = ExportMetricsServiceRequest.newBuilder();
-            JsonFormat.parser().ignoringUnknownFields()
-                    .merge(normalizeOtlpJson(new String(normalizedContent, StandardCharsets.UTF_8)), builder);
-            return normalizeAndEnrichMetricRequest(builder.build(), correlationContext).toByteArray();
-        } catch (InvalidProtocolBufferException ex) {
-            throw io.grpc.Status.INVALID_ARGUMENT.withDescription("Malformed OTLP JSON request.")
-                    .withCause(ex).asRuntimeException();
-        }
+        return normalizeAndEnrichMetricRequest(
+                requestDecoder.decodeMetrics(normalizedContent, contentType), correlationContext).toByteArray();
     }
 
     private ExportMetricsServiceRequest normalizeAndEnrichMetricRequest(ExportMetricsServiceRequest request,
@@ -1505,16 +1472,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         return Math.max(0L, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos));
     }
 
-    private String normalizeOtlpJson(String content) throws InvalidProtocolBufferException {
-        try {
-            JsonNode root = OBJECT_MAPPER.readTree(content);
-            normalizeOtlpHexEncodedIds(root);
-            return OBJECT_MAPPER.writeValueAsString(root);
-        } catch (Exception ex) {
-            throw new InvalidProtocolBufferException("Failed to normalize OTLP JSON: " + ex.getMessage());
-        }
-    }
-
     private ExportTraceServiceRequest normalizeTraceRequest(ExportTraceServiceRequest request) {
         if (request == null || request.getResourceSpansCount() == 0) {
             return request;
@@ -1852,43 +1809,4 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private record MetricObservation(String metricType, Long observedAt, Double value, Map<String, String> attributes) {
     }
 
-    private void normalizeOtlpHexEncodedIds(JsonNode node) {
-        if (node == null) {
-            return;
-        }
-        if (node.isObject()) {
-            ObjectNode objectNode = (ObjectNode) node;
-            objectNode.fieldNames().forEachRemaining(fieldName -> {
-                JsonNode child = objectNode.get(fieldName);
-                if (OTLP_HEX_ID_FIELDS.contains(fieldName) && child != null && child.isTextual()) {
-                    String normalized = tryConvertHexToBase64(child.asText());
-                    if (normalized != null) {
-                        objectNode.put(fieldName, normalized);
-                    }
-                } else {
-                    normalizeOtlpHexEncodedIds(child);
-                }
-            });
-            return;
-        }
-        if (node.isArray()) {
-            node.forEach(this::normalizeOtlpHexEncodedIds);
-        }
-    }
-
-    private String tryConvertHexToBase64(String value) {
-        if (StringUtils.isBlank(value) || (value.length() & 1) != 0) {
-            return null;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.digit(value.charAt(i), 16) < 0) {
-                return null;
-            }
-        }
-        try {
-            return Base64.getEncoder().encodeToString(HexFormat.of().parseHex(value));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
-    }
 }
