@@ -20,7 +20,6 @@ package org.apache.hertzbeat.observability.ingestion.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
-import com.google.protobuf.util.JsonFormat;
 import io.grpc.StatusRuntimeException;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
@@ -94,9 +93,6 @@ import org.springframework.web.client.RestTemplate;
 @Service
 public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
 
-    private static final String CONTENT_TYPE_PROTOBUF = "application/x-protobuf";
-    private static final MediaType MEDIA_TYPE_PROTOBUF = MediaType.parseMediaType(CONTENT_TYPE_PROTOBUF);
-    private static final MediaType MEDIA_TYPE_PROTOBUF_ALT = MediaType.parseMediaType("application/protobuf");
     private static final String CONTENT_ENCODING = "Content-Encoding";
     private static final String CONTENT_ENCODING_GZIP = "gzip";
     private static final int GZIP_DECOMPRESSION_BUFFER_BYTES = 8192;
@@ -157,6 +153,7 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private final OtlpIngestionRetryService retryService;
     private final OtlpRequestDecoder requestDecoder;
     private final OtlpTraceRequestNormalizer traceRequestNormalizer = new OtlpTraceRequestNormalizer();
+    private final OtlpHttpContentCodec httpContentCodec = new OtlpHttpContentCodec();
 
     public OtlpGrpcIngestionServiceImpl(RestTemplate restTemplate,
                                         ObjectProvider<GreptimeProperties> greptimePropertiesProvider,
@@ -527,40 +524,13 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
 
     private ResponseEntity<byte[]> logsHttpSuccess(MediaType requestContentType, List<MediaType> acceptTypes,
                                                    byte[] upstreamBody) {
-        MediaType responseContentType = resolveResponseContentType(requestContentType, acceptTypes);
-        byte[] protobufBody = upstreamBody == null || upstreamBody.length == 0
-                ? ExportLogsServiceResponse.getDefaultInstance().toByteArray()
-                : upstreamBody;
-        ExportLogsServiceResponse parsedResponse = parseLogsResponseBody(protobufBody);
-        if (MediaType.APPLICATION_JSON.includes(responseContentType)) {
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(normalizeLogsResponseBodyForClient(parsedResponse));
-        }
+        MediaType responseContentType = httpContentCodec.resolveResponseContentType(
+                requestContentType, acceptTypes);
+        byte[] responseBody = httpContentCodec.responseBodyForClient(
+                upstreamBody, OtlpHttpContentCodec.Signal.LOGS, responseContentType);
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(CONTENT_TYPE_PROTOBUF))
-                .body(protobufBody);
-    }
-
-    private ExportLogsServiceResponse parseLogsResponseBody(byte[] upstreamBody) {
-        byte[] safeBody = upstreamBody == null ? new byte[0] : upstreamBody;
-        try {
-            return safeBody.length == 0
-                    ? ExportLogsServiceResponse.getDefaultInstance()
-                    : ExportLogsServiceResponse.parseFrom(safeBody);
-        } catch (InvalidProtocolBufferException ex) {
-            throw io.grpc.Status.INTERNAL.withDescription("OTLP logs response is malformed.").withCause(ex)
-                    .asRuntimeException();
-        }
-    }
-
-    private byte[] normalizeLogsResponseBodyForClient(ExportLogsServiceResponse response) {
-        try {
-            return JsonFormat.printer().print(response).getBytes(StandardCharsets.UTF_8);
-        } catch (InvalidProtocolBufferException ex) {
-            throw io.grpc.Status.INTERNAL.withDescription("OTLP logs response is malformed.").withCause(ex)
-                    .asRuntimeException();
-        }
+                .contentType(responseContentType)
+                .body(responseBody);
     }
 
     private byte[] normalizeHttpContentForQuota(String signal, String protocol, byte[] content, HttpHeaders headers) {
@@ -747,13 +717,15 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         byte[] responseBody = proxySignalInternal(content, path, traceSignal, contentType,
                 requestHeaders.getAccept(), requestHeaders, correlationContext);
         return ResponseEntity.ok()
-                .contentType(resolveResponseContentType(contentType, requestHeaders.getAccept()))
+                .contentType(httpContentCodec.resolveResponseContentType(
+                        contentType, requestHeaders.getAccept()))
                 .body(responseBody);
     }
 
     private ResponseEntity<byte[]> emptySignalHttpSuccess(MediaType requestContentType, List<MediaType> acceptTypes,
                                                          boolean traceSignal) {
-        MediaType responseContentType = resolveResponseContentType(requestContentType, acceptTypes);
+        MediaType responseContentType = httpContentCodec.resolveResponseContentType(
+                requestContentType, acceptTypes);
         byte[] responseBody = emptySignalResponseBody(responseContentType, traceSignal);
         return ResponseEntity.ok()
                 .contentType(responseContentType)
@@ -765,9 +737,13 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                 ? ExportTraceServiceResponse.getDefaultInstance().toByteArray()
                 : ExportMetricsServiceResponse.getDefaultInstance().toByteArray();
         if (responseContentType != null && MediaType.APPLICATION_JSON.includes(responseContentType)) {
-            return normalizeResponseBodyForClient(protobufBody, traceSignal);
+            return httpContentCodec.responseBodyForClient(protobufBody, signal(traceSignal), responseContentType);
         }
         return protobufBody;
+    }
+
+    private OtlpHttpContentCodec.Signal signal(boolean traceSignal) {
+        return traceSignal ? OtlpHttpContentCodec.Signal.TRACES : OtlpHttpContentCodec.Signal.METRICS;
     }
 
     private byte[] proxySignalBinary(byte[] content, String path, boolean traceSignal) {
@@ -777,8 +753,8 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
     private byte[] proxySignalBinary(byte[] content, String path, boolean traceSignal,
                                      OtlpCorrelationContext correlationContext) {
         return proxySignalInternal(content, path, traceSignal,
-                MediaType.parseMediaType(CONTENT_TYPE_PROTOBUF),
-                List.of(MediaType.parseMediaType(CONTENT_TYPE_PROTOBUF)),
+                OtlpHttpContentCodec.PROTOBUF_MEDIA_TYPE,
+                List.of(OtlpHttpContentCodec.PROTOBUF_MEDIA_TYPE),
                 null,
                 correlationContext);
     }
@@ -793,15 +769,15 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                     .asRuntimeException();
         }
         try {
-            boolean clientExpectsJson = acceptsJson(contentType, acceptTypes);
+            boolean clientExpectsJson = httpContentCodec.prefersJsonResponse(contentType, acceptTypes);
             byte[] upstreamContent = normalizeRequestBodyForUpstream(
                     content, contentType, traceSignal, requestHeaders, correlationContext);
             HttpHeaders upstreamHeaders = new HttpHeaders();
-            upstreamHeaders.setContentType(resolveUpstreamContentType(contentType));
+            upstreamHeaders.setContentType(httpContentCodec.resolveUpstreamContentType(contentType));
             if (clientExpectsJson) {
-                upstreamHeaders.setAccept(List.of(MediaType.parseMediaType(CONTENT_TYPE_PROTOBUF)));
+                upstreamHeaders.setAccept(List.of(OtlpHttpContentCodec.PROTOBUF_MEDIA_TYPE));
             } else {
-                List<MediaType> upstreamAcceptTypes = resolveUpstreamAcceptTypes(acceptTypes);
+                List<MediaType> upstreamAcceptTypes = httpContentCodec.resolveUpstreamAcceptTypes(acceptTypes);
                 if (!upstreamAcceptTypes.isEmpty()) {
                     upstreamHeaders.setAccept(upstreamAcceptTypes);
                 }
@@ -836,11 +812,12 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
                 throw backendStatusException(response.getStatusCode(), response.getHeaders());
             }
             byte[] responseBody = response.getBody() == null ? new byte[0] : response.getBody();
-            validateSignalResponseBody(responseBody, traceSignal);
+            httpContentCodec.validateResponseBody(responseBody, signal(traceSignal));
             if (!clientExpectsJson) {
                 return responseBody;
             }
-            return normalizeResponseBodyForClient(responseBody, traceSignal);
+            return httpContentCodec.responseBodyForClient(
+                    responseBody, signal(traceSignal), MediaType.APPLICATION_JSON);
         } catch (HttpStatusCodeException ex) {
             log.error("Failed to proxy OTLP signal {}: {}", traceSignal ? "traces" : "metrics", ex.getMessage(), ex);
             throw backendStatusException(ex.getStatusCode(), ex.getResponseHeaders());
@@ -893,72 +870,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
         ExportTraceServiceRequest resolved =
                 otlpEntityIdentityResolver.enrichTraces(normalized, safeContext.workspaceId());
         return protobufRedactor.redactTraces(otlpCorrelationEnricher.enrichTraces(resolved, safeContext));
-    }
-
-    private MediaType resolveUpstreamContentType(MediaType contentType) {
-        if (contentType == null) {
-            return MEDIA_TYPE_PROTOBUF;
-        }
-        if (MediaType.APPLICATION_JSON.includes(contentType) || isExplicitProtobufMediaType(contentType)) {
-            return MEDIA_TYPE_PROTOBUF;
-        }
-        return contentType;
-    }
-
-    private List<MediaType> resolveUpstreamAcceptTypes(List<MediaType> acceptTypes) {
-        if (acceptTypes == null || acceptTypes.isEmpty()) {
-            return List.of();
-        }
-        return acceptTypes.stream()
-                .map(this::resolveUpstreamAcceptType)
-                .toList();
-    }
-
-    private MediaType resolveUpstreamAcceptType(MediaType acceptType) {
-        if (isExplicitProtobufMediaType(acceptType)) {
-            return new MediaType(MEDIA_TYPE_PROTOBUF.getType(), MEDIA_TYPE_PROTOBUF.getSubtype(),
-                    acceptType.getParameters());
-        }
-        return acceptType;
-    }
-
-    private boolean acceptsJson(MediaType requestContentType, List<MediaType> acceptTypes) {
-        return prefersJsonResponse(requestContentType, acceptTypes);
-    }
-
-    private byte[] normalizeResponseBodyForClient(byte[] upstreamBody, boolean traceSignal) {
-        try {
-            return JsonFormat.printer().print(parseSignalResponse(upstreamBody, traceSignal))
-                    .getBytes(StandardCharsets.UTF_8);
-        } catch (InvalidProtocolBufferException ex) {
-            throw io.grpc.Status.INTERNAL.withDescription(signalResponseMalformedReason(traceSignal))
-                    .withCause(ex).asRuntimeException();
-        }
-    }
-
-    private void validateSignalResponseBody(byte[] upstreamBody, boolean traceSignal) {
-        parseSignalResponse(upstreamBody, traceSignal);
-    }
-
-    private Message parseSignalResponse(byte[] upstreamBody, boolean traceSignal) {
-        byte[] safeBody = upstreamBody == null ? new byte[0] : upstreamBody;
-        try {
-            if (traceSignal) {
-                return safeBody.length == 0
-                        ? ExportTraceServiceResponse.getDefaultInstance()
-                        : ExportTraceServiceResponse.parseFrom(safeBody);
-            }
-            return safeBody.length == 0
-                    ? ExportMetricsServiceResponse.getDefaultInstance()
-                    : ExportMetricsServiceResponse.parseFrom(safeBody);
-        } catch (InvalidProtocolBufferException ex) {
-            throw io.grpc.Status.INTERNAL.withDescription(signalResponseMalformedReason(traceSignal))
-                    .withCause(ex).asRuntimeException();
-        }
-    }
-
-    private String signalResponseMalformedReason(boolean traceSignal) {
-        return traceSignal ? "OTLP trace response is malformed." : "OTLP metrics response is malformed.";
     }
 
     private void addAuthenticationHeader(HttpHeaders headers, GreptimeProperties greptimeProperties) {
@@ -1066,75 +977,6 @@ public class OtlpGrpcIngestionServiceImpl implements OtlpGrpcIngestionService {
 
     private String database(String configuredDatabase) {
         return StringUtils.defaultIfBlank(StringUtils.trim(configuredDatabase), DEFAULT_GREPTIME_DB_NAME);
-    }
-
-    private MediaType resolveResponseContentType(MediaType requestContentType, List<MediaType> acceptTypes) {
-        return prefersJsonResponse(requestContentType, acceptTypes)
-                ? MediaType.APPLICATION_JSON
-                : MEDIA_TYPE_PROTOBUF;
-    }
-
-    private boolean prefersJsonResponse(MediaType requestContentType, List<MediaType> acceptTypes) {
-        double jsonQuality = negotiatedQuality(acceptTypes, true);
-        double protobufQuality = negotiatedQuality(acceptTypes, false);
-        if (jsonQuality >= 0 || protobufQuality >= 0) {
-            double acceptableJsonQuality = Math.max(jsonQuality, 0.0d);
-            double acceptableProtobufQuality = Math.max(protobufQuality, 0.0d);
-            if (Double.compare(acceptableJsonQuality, acceptableProtobufQuality) == 0) {
-                return acceptableJsonQuality > 0 && isExplicitJsonMediaType(requestContentType);
-            }
-            return acceptableJsonQuality > acceptableProtobufQuality;
-        }
-        return isExplicitJsonMediaType(requestContentType);
-    }
-
-    private double negotiatedQuality(List<MediaType> acceptTypes, boolean json) {
-        if (acceptTypes == null || acceptTypes.isEmpty()) {
-            return -1.0d;
-        }
-        double explicitQuality = acceptTypes.stream()
-                .filter(json ? this::isExplicitJsonMediaType : this::isExplicitProtobufMediaType)
-                .mapToDouble(MediaType::getQualityValue)
-                .max()
-                .orElse(-1.0d);
-        if (explicitQuality >= 0) {
-            return explicitQuality;
-        }
-        return acceptTypes.stream()
-                .filter(json ? this::isJsonWildcardMediaType : this::isProtobufWildcardMediaType)
-                .mapToDouble(MediaType::getQualityValue)
-                .max()
-                .orElse(-1.0d);
-    }
-
-    private boolean isJsonWildcardMediaType(MediaType mediaType) {
-        return mediaType != null
-                && !isExplicitJsonMediaType(mediaType)
-                && mediaType.includes(MediaType.APPLICATION_JSON);
-    }
-
-    private boolean isProtobufWildcardMediaType(MediaType mediaType) {
-        return mediaType != null
-                && !isExplicitProtobufMediaType(mediaType)
-                && (mediaType.includes(MEDIA_TYPE_PROTOBUF) || mediaType.includes(MEDIA_TYPE_PROTOBUF_ALT));
-    }
-
-    private boolean isExplicitJsonMediaType(MediaType mediaType) {
-        if (mediaType == null || mediaType.isWildcardType() || mediaType.isWildcardSubtype()) {
-            return false;
-        }
-        return "application".equalsIgnoreCase(mediaType.getType())
-                && ("json".equalsIgnoreCase(mediaType.getSubtype())
-                || mediaType.getSubtype().toLowerCase(Locale.ROOT).endsWith("+json"));
-    }
-
-    private boolean isExplicitProtobufMediaType(MediaType mediaType) {
-        if (mediaType == null || mediaType.isWildcardType() || mediaType.isWildcardSubtype()) {
-            return false;
-        }
-        return "application".equalsIgnoreCase(mediaType.getType())
-                && ("x-protobuf".equalsIgnoreCase(mediaType.getSubtype())
-                || "protobuf".equalsIgnoreCase(mediaType.getSubtype()));
     }
 
     private String defaultErrorMessage(Exception ex) {
