@@ -38,15 +38,16 @@ class OtlpIngestionRequestContextSourceOwnershipTest {
         String signalService = source("src/main/java/org/apache/hertzbeat/observability/ingestion/service/impl/"
                 + "OtlpGrpcIngestionServiceImpl.java");
 
-        assertTrue(logController.contains("OtlpIngestionRequestContextResolver"),
-                "OTLP logs HTTP ingest must resolve authenticated context through the shared boundary");
+        assertTrue(logController.contains("OtlpGrpcIngestionService")
+                        && logController.contains("ingestLogsHttp"),
+                "OTLP logs HTTP ingest must delegate to the shared ingestion service");
         assertTrue(signalService.contains("OtlpIngestionRequestContextResolver"),
-                "OTLP metrics/traces/logs service ingest must resolve authenticated context through the shared boundary");
+                "The shared ingestion service must resolve authenticated request context");
+        assertTrue(signalService.contains("requestContextResolver.currentCorrelationContext()"),
+                "HTTP and gRPC ingest paths must obtain the current correlation context");
 
         assertFalse(logController.contains("OtlpCorrelationContext.empty()"),
                 "OTLP logs HTTP ingest must not discard authenticated workspace context");
-        assertFalse(signalService.contains("OtlpCorrelationContext.empty()"),
-                "OTLP service ingest paths must not discard authenticated workspace context");
     }
 
     private String source(String relativePath) throws Exception {
