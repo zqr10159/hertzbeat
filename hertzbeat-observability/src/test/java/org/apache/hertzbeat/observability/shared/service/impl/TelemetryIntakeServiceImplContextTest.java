@@ -30,6 +30,7 @@ class TelemetryIntakeServiceImplContextTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withBean(LogQueryRepository.class, () -> mock(LogQueryRepository.class))
+            .withBean(RecentTelemetrySignalStore.class)
             .withBean(TelemetryIntakeServiceImpl.class);
 
     @Test
@@ -37,6 +38,7 @@ class TelemetryIntakeServiceImplContextTest {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(TelemetryIntakeServiceImpl.class);
+            assertThat(context).hasSingleBean(RecentTelemetrySignalStore.class);
             assertThat(context).hasSingleBean(ObservabilitySignalIntakeGateway.class);
             assertThat(context).hasSingleBean(TelemetryEvidenceGateway.class);
         });

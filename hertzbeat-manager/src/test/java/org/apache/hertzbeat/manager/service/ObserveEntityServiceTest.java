@@ -82,6 +82,7 @@ import org.apache.hertzbeat.manager.pojo.dto.EntitySummaryInfo;
 import org.apache.hertzbeat.common.observability.gateway.EntityObservabilityGateway;
 import org.apache.hertzbeat.common.observability.dto.trace.EntityTraceSummaryDto;
 import org.apache.hertzbeat.observability.shared.service.impl.EntityObservabilityGatewayImpl;
+import org.apache.hertzbeat.observability.shared.service.impl.RecentTelemetrySignalStore;
 import org.apache.hertzbeat.observability.shared.service.impl.TelemetryIntakeServiceImpl;
 import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService;
 import org.apache.hertzbeat.manager.service.impl.ObserveEntityServiceImpl;
@@ -163,6 +164,9 @@ import org.springframework.test.util.ReflectionTestUtils;
  */
 @ExtendWith(MockitoExtension.class)
 class ObserveEntityServiceTest {
+
+    private static final Pageable ENTITY_RELATION_PAGE =
+            PageRequest.of(0, 50, Sort.by(Sort.Direction.DESC, "id"));
 
     @InjectMocks
     private ObserveEntityServiceImpl observeEntityService;
@@ -257,7 +261,10 @@ class ObserveEntityServiceTest {
     void setUpNoiseControlDefaults() {
         previousLocale = Locale.getDefault();
         Locale.setDefault(Locale.US);
-        telemetryIntakeService = org.mockito.Mockito.spy(new TelemetryIntakeServiceImpl(logQueryRepository));
+        telemetryIntakeService = org.mockito.Mockito.spy(new TelemetryIntakeServiceImpl(
+                logQueryRepository,
+                new RecentTelemetrySignalStore()
+        ));
         entityObservabilityGateway = org.mockito.Mockito.spy(
                 new EntityObservabilityGatewayImpl(telemetryIntakeService, entityTraceQueryService));
         entityWorkspaceQueryService = new EntityWorkspaceQueryService(observeEntityDao);
@@ -1054,7 +1061,8 @@ class ObserveEntityServiceTest {
                 .primaryIdentity(true)
                 .build();
         when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(1L)).thenReturn(List.of(identity));
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(1L, 1L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(1L, 1L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
 
@@ -1111,7 +1119,8 @@ class ObserveEntityServiceTest {
         when(observeEntityDao.findById(73L)).thenReturn(Optional.of(entity));
         when(observeEntityDao.save(any(ObserveEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(73L)).thenReturn(Collections.emptyList());
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(73L, 73L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(73L, 73L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
 
@@ -1171,7 +1180,7 @@ class ObserveEntityServiceTest {
         when(observeEntityDao.findById(71L)).thenReturn(Optional.of(entity));
         lenient().when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(71L))
                 .thenReturn(Collections.emptyList());
-        lenient().when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(71L, 71L))
+        lenient().when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(71L, 71L, ENTITY_RELATION_PAGE))
                 .thenReturn(Collections.emptyList());
         lenient().when(entityMonitorBindDao.findAllByEntityIdOrderByIdAsc(71L))
                 .thenReturn(Collections.emptyList());
@@ -1250,7 +1259,8 @@ class ObserveEntityServiceTest {
                 .build();
         when(observeEntityDao.findById(9L)).thenReturn(Optional.of(entity));
         when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(9L)).thenReturn(Collections.emptyList());
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(9L, 9L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(9L, 9L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityMonitorBindDao.findAllByEntityIdOrderByIdAsc(9L)).thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
@@ -1294,7 +1304,9 @@ class ObserveEntityServiceTest {
                 .targetEntityId(12L)
                 .relationType("depends_on")
                 .build();
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(11L, 11L)).thenReturn(List.of(relation));
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(11L, 11L, ENTITY_RELATION_PAGE))
+                .thenReturn(List.of(relation));
+        when(entityRelationDao.countBySourceEntityIdOrTargetEntityId(11L, 11L)).thenReturn(1L);
 
         EntityMonitorBind bind = EntityMonitorBind.builder()
                 .entityId(11L)
@@ -1383,7 +1395,8 @@ class ObserveEntityServiceTest {
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
         when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(14L)).thenReturn(Collections.emptyList());
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(14L, 14L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(14L, 14L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
 
         EntityMonitorBind bind = EntityMonitorBind.builder()
                 .entityId(14L)
@@ -1465,7 +1478,8 @@ class ObserveEntityServiceTest {
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
         when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(141L)).thenReturn(Collections.emptyList());
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(141L, 141L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(141L, 141L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
 
         EntityMonitorBind bind = EntityMonitorBind.builder()
                 .entityId(141L)
@@ -1584,7 +1598,8 @@ class ObserveEntityServiceTest {
                 .primaryIdentity(true)
                 .build();
         when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(13L)).thenReturn(List.of(identity));
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(13L, 13L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(13L, 13L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
 
         EntityMonitorBind bind = EntityMonitorBind.builder()
                 .entityId(13L)
@@ -1648,7 +1663,8 @@ class ObserveEntityServiceTest {
                 .build();
         when(observeEntityDao.findById(12L)).thenReturn(Optional.of(entity));
         when(entityIdentityDao.findAllByEntityIdOrderByPriorityDescIdAsc(12L)).thenReturn(Collections.emptyList());
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(12L, 12L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(12L, 12L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityMonitorBindDao.findAllByEntityIdOrderByIdAsc(12L)).thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
@@ -1714,7 +1730,8 @@ class ObserveEntityServiceTest {
                 .source("manual")
                 .build();
         when(observeEntityDao.findById(15L)).thenReturn(Optional.of(entity));
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(15L, 15L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(15L, 15L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityMonitorBindDao.findAllByEntityIdOrderByIdAsc(15L)).thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
@@ -1801,7 +1818,8 @@ class ObserveEntityServiceTest {
                 .source("manual")
                 .build();
         when(observeEntityDao.findById(16L)).thenReturn(Optional.of(entity));
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(16L, 16L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(16L, 16L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityMonitorBindDao.findAllByEntityIdOrderByIdAsc(16L)).thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
@@ -1926,7 +1944,8 @@ class ObserveEntityServiceTest {
                 .source("manual")
                 .build();
         when(observeEntityDao.findById(18L)).thenReturn(Optional.of(entity));
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(18L, 18L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(18L, 18L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityMonitorBindDao.findAllByEntityIdOrderByIdAsc(18L)).thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
@@ -2012,7 +2031,8 @@ class ObserveEntityServiceTest {
                 .source("manual")
                 .build();
         when(observeEntityDao.findById(17L)).thenReturn(Optional.of(entity));
-        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(17L, 17L)).thenReturn(Collections.emptyList());
+        when(entityRelationDao.findBySourceEntityIdOrTargetEntityId(17L, 17L, ENTITY_RELATION_PAGE))
+                .thenReturn(Collections.emptyList());
         when(entityMonitorBindDao.findAllByEntityIdOrderByIdAsc(17L)).thenReturn(Collections.emptyList());
         when(entityDefinitionActivityDao.findAllByEntityId(anyLong(), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());

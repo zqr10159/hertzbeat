@@ -22,7 +22,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,7 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.Comparator;
 import org.apache.hertzbeat.common.entity.observability.TelemetryIntakeSignalEvent;
 import org.apache.hertzbeat.common.entity.log.LogEntry;
@@ -57,6 +55,9 @@ import org.apache.hertzbeat.common.observability.model.CodeNavigationHint;
 import org.apache.hertzbeat.common.observability.model.EntityCanonicalIdentityRegistry;
 import org.apache.hertzbeat.common.observability.model.ObservedEntityContext;
 import org.apache.hertzbeat.observability.ingestion.semantic.OtlpResourceSemanticAttributes;
+import org.apache.hertzbeat.observability.shared.service.impl.RecentTelemetrySignalStore.RecentLogSignal;
+import org.apache.hertzbeat.observability.shared.service.impl.RecentTelemetrySignalStore.RecentMetricSignal;
+import org.apache.hertzbeat.observability.shared.service.impl.RecentTelemetrySignalStore.RecentTraceSignal;
 import org.apache.hertzbeat.warehouse.repository.LogQueryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
@@ -81,9 +82,6 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
     private static final String FOCUS_TRACES = "traces";
     private static final String FOCUS_EVIDENCE = "evidence";
     private static final long CORRELATION_WINDOW_MILLIS = Duration.ofMinutes(15).toMillis();
-    private static final int MAX_RECENT_METRIC_SIGNALS = 256;
-    private static final int MAX_RECENT_LOG_SIGNALS = 256;
-    private static final int MAX_RECENT_TRACE_SIGNALS = 256;
     private static final String OTLP_METRIC_METADATA_PREFIX = "otlp.metric.";
     private static final String OTLP_METRIC_COMPATIBILITY = "otlp.metric.compatibility";
     private static final String OTLP_METRIC_COMPATIBILITY_REASON = "otlp.metric.compatibility.reason";
@@ -109,14 +107,14 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
             "frontend-proxy"
     );
 
-    private final ConcurrentLinkedDeque<RecentMetricSignal> recentMetricSignals = new ConcurrentLinkedDeque<>();
-    private final ConcurrentLinkedDeque<RecentLogSignal> recentLogSignals = new ConcurrentLinkedDeque<>();
-    private final ConcurrentLinkedDeque<RecentTraceSignal> recentTraceSignals = new ConcurrentLinkedDeque<>();
     private final LogQueryRepository logQueryRepository;
+    private final RecentTelemetrySignalStore recentSignalStore;
 
     @Autowired
-    public TelemetryIntakeServiceImpl(LogQueryRepository logQueryRepository) {
+    public TelemetryIntakeServiceImpl(LogQueryRepository logQueryRepository,
+                                      RecentTelemetrySignalStore recentSignalStore) {
         this.logQueryRepository = logQueryRepository;
+        this.recentSignalStore = recentSignalStore;
     }
 
     @EventListener
@@ -170,17 +168,15 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
         if (canonicalIdentities.isEmpty()) {
             return;
         }
-        RecentMetricSignal signal = new RecentMetricSignal(
+        recentSignalStore.recordMetric(
                 canonicalIdentities,
                 observedAt,
                 metricName,
                 metricType,
                 unit,
                 value,
-                attributes == null ? Collections.emptyMap() : new LinkedHashMap<>(attributes)
+                attributes
         );
-        recentMetricSignals.addFirst(signal);
-        trimRecentMetricSignals();
     }
 
     @Override
@@ -195,17 +191,16 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
         if (canonicalIdentities.isEmpty()) {
             return;
         }
-        recentLogSignals.addFirst(new RecentLogSignal(
+        recentSignalStore.recordLog(
                 canonicalIdentities,
                 observedAt,
                 trimToNull(body),
                 trimToNull(severityText),
                 trimToNull(traceId),
                 trimToNull(spanId),
-                resourceAttributes == null ? Collections.emptyMap() : new LinkedHashMap<>(resourceAttributes),
-                attributes == null ? Collections.emptyMap() : new LinkedHashMap<>(attributes)
-        ));
-        trimRecentLogSignals();
+                resourceAttributes,
+                attributes
+        );
     }
 
     @Override
@@ -220,7 +215,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
         if (canonicalIdentities.isEmpty()) {
             return;
         }
-        recentTraceSignals.addFirst(new RecentTraceSignal(
+        recentSignalStore.recordTrace(
                 canonicalIdentities,
                 observedAt,
                 trimToNull(traceId),
@@ -229,10 +224,9 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
                 canonicalIdentities.get("service.name"),
                 canonicalIdentities.get("service.namespace"),
                 trimToNull(errorState),
-                resourceAttributes == null ? Collections.emptyMap() : new LinkedHashMap<>(resourceAttributes),
-                spanAttributes == null ? Collections.emptyMap() : new LinkedHashMap<>(spanAttributes)
-        ));
-        trimRecentTraceSignals();
+                resourceAttributes,
+                spanAttributes
+        );
     }
 
     @Override
@@ -297,7 +291,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
                 ));
             }
         }
-        for (RecentMetricSignal signal : recentMetricSignals) {
+        for (RecentMetricSignal signal : recentSignalStore.recentMetrics()) {
             snapshots.add(new TelemetryIdentitySnapshot(
                     SOURCE_OTLP,
                     SIGNAL_METRICS,
@@ -310,7 +304,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
                     signal.observedAt()
             ));
         }
-        for (RecentLogSignal signal : recentLogSignals) {
+        for (RecentLogSignal signal : recentSignalStore.recentLogs()) {
             snapshots.add(new TelemetryIdentitySnapshot(
                     SOURCE_OTLP,
                     SIGNAL_LOGS,
@@ -323,7 +317,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
                     signal.observedAt()
             ));
         }
-        for (RecentTraceSignal signal : recentTraceSignals) {
+        for (RecentTraceSignal signal : recentSignalStore.recentTraces()) {
             snapshots.add(new TelemetryIdentitySnapshot(
                     SOURCE_OTLP,
                     SIGNAL_TRACES,
@@ -542,7 +536,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
     }
 
     private List<RecentMetricSignal> orderedMetricSignals() {
-        return recentMetricSignals.stream()
+        return recentSignalStore.recentMetrics().stream()
                 .sorted(Comparator
                         .comparing(RecentMetricSignal::observedAt, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(signal -> defaultText(normalizeValue(signal.metricName()), ""))
@@ -618,7 +612,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
         EntityLogQueryHint preferredHint = CollectionUtils.isEmpty(logQueryHints) ? null : logQueryHints.getFirst();
         TelemetryBindingResult bindingResult = buildBindingResult(entityContext, SOURCE_OTLP, SIGNAL_LOGS);
         List<LogEvidence> results = new ArrayList<>();
-        for (RecentLogSignal signal : recentLogSignals) {
+        for (RecentLogSignal signal : recentSignalStore.recentLogs()) {
             if (!matchesEntitySignal(signal.canonicalIdentities(), entityIdentityKeys, entityIdentityValues, entityId)) {
                 continue;
             }
@@ -749,7 +743,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
         int recentErrorTraceCount = 0;
         Long latestObservedAt = null;
         String latestTraceId = null;
-        for (RecentTraceSignal signal : recentTraceSignals) {
+        for (RecentTraceSignal signal : recentSignalStore.recentTraces()) {
             if (!matchesEntitySignal(signal.canonicalIdentities(), entityIdentityKeys, entityIdentityValues, entityId)) {
                 continue;
             }
@@ -793,7 +787,7 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
         Set<String> entityIdentityKeys = entityIdentityKeySet(entityContext);
         Map<String, String> entityIdentityValues = entityIdentityValueMap(entityContext);
         RecentTraceSignal preferredSignal = null;
-        for (RecentTraceSignal signal : recentTraceSignals) {
+        for (RecentTraceSignal signal : recentSignalStore.recentTraces()) {
             if (!matchesEntitySignal(signal.canonicalIdentities(), entityIdentityKeys, entityIdentityValues, entityId)) {
                 continue;
             }
@@ -1191,13 +1185,13 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
     }
 
     private List<MetricEvidence> buildOtlpMetricEvidence(ObservedEntityContext entityContext, long entityId) {
-        if (entityContext == null || entityId == 0L || recentMetricSignals.isEmpty()) {
+        if (entityContext == null || entityId == 0L || recentSignalStore.recentMetrics().isEmpty()) {
             return Collections.emptyList();
         }
         List<MetricEvidence> result = new ArrayList<>();
         Set<String> entityIdentityKeys = entityIdentityKeySet(entityContext);
         Map<String, String> entityIdentityValues = entityIdentityValueMap(entityContext);
-        for (RecentMetricSignal signal : recentMetricSignals) {
+        for (RecentMetricSignal signal : recentSignalStore.recentMetrics()) {
             if (!matchesEntitySignal(signal.canonicalIdentities(), entityIdentityKeys, entityIdentityValues, entityId)) {
                 continue;
             }
@@ -1447,33 +1441,6 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
         return null;
     }
 
-    private void trimRecentMetricSignals() {
-        while (recentMetricSignals.size() > MAX_RECENT_METRIC_SIGNALS) {
-            recentMetricSignals.pollLast();
-        }
-        Iterator<RecentMetricSignal> iterator = recentMetricSignals.descendingIterator();
-        int seen = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            seen++;
-            if (seen > MAX_RECENT_METRIC_SIGNALS) {
-                iterator.remove();
-            }
-        }
-    }
-
-    private void trimRecentLogSignals() {
-        while (recentLogSignals.size() > MAX_RECENT_LOG_SIGNALS) {
-            recentLogSignals.pollLast();
-        }
-    }
-
-    private void trimRecentTraceSignals() {
-        while (recentTraceSignals.size() > MAX_RECENT_TRACE_SIGNALS) {
-            recentTraceSignals.pollLast();
-        }
-    }
-
     private TelemetryIdentitySnapshot buildMetricIdentitySnapshot(RecentMetricSignal signal) {
         if (signal == null) {
             return null;
@@ -1511,37 +1478,6 @@ public class TelemetryIntakeServiceImpl implements TelemetryEvidenceGateway {
             return false;
         }
         return true;
-    }
-
-    private record RecentMetricSignal(Map<String, String> canonicalIdentities,
-                                      Long observedAt,
-                                      String metricName,
-                                      String metricType,
-                                      String unit,
-                                      Double value,
-                                      Map<String, String> attributes) {
-    }
-
-    private record RecentLogSignal(Map<String, String> canonicalIdentities,
-                                   Long observedAt,
-                                   String body,
-                                   String severityText,
-                                   String traceId,
-                                   String spanId,
-                                   Map<String, String> resource,
-                                   Map<String, String> attributes) {
-    }
-
-    private record RecentTraceSignal(Map<String, String> canonicalIdentities,
-                                     Long observedAt,
-                                     String traceId,
-                                     String spanId,
-                                     String spanName,
-                                     String serviceName,
-                                     String serviceNamespace,
-                                     String errorState,
-                                     Map<String, String> resource,
-                                     Map<String, String> spanAttributes) {
     }
 
     private String extractLatestTraceId(List<EntityLogQueryHint> logQueryHints) {

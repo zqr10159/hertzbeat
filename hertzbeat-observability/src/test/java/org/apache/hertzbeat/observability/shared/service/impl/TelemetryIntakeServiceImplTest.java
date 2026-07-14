@@ -65,7 +65,7 @@ class TelemetryIntakeServiceImplTest {
 
     private final LogQueryRepository logQueryRepository = Mockito.mock(LogQueryRepository.class);
     private final TelemetryIntakeServiceImpl telemetryIntakeService =
-            new TelemetryIntakeServiceImpl(logQueryRepository);
+            new TelemetryIntakeServiceImpl(logQueryRepository, new RecentTelemetrySignalStore());
 
     private Locale previousLocale;
 
