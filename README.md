@@ -159,7 +159,7 @@ Detailed config refer to [Install HertzBeat via Package](https://hertzbeat.apach
 ##### 3：Start via source code        
 
 1. Local source code debugging needs to start the back-end project `hertzbeat-startup` and the front-end project `web-next`.
-2. Backend：need `maven3+`, `java21`, `lombok`, add VM options in IDE: ` --add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED `, then start the `hertzbeat-startup` service. 
+2. Backend：need `maven3+`, `java25`, `lombok`, add VM options in IDE: ` --add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED `, then start the `hertzbeat-startup` service.
 3. Web：need `Node.js >= 22` and `npm`, run `npm ci && npm run dev` in `web-next` after backend startup.
 4. Access `http://localhost:4200` to start, default account: `admin/hertzbeat`  
 

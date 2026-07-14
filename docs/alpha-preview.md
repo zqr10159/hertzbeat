@@ -18,7 +18,7 @@ project toward a beta.
 
 ## Local Source Quickstart
 
-1. Start the backend from `hertzbeat-startup` with Java 21.
+1. Start the backend from `hertzbeat-startup` with Java 25.
 
    Keep the Arrow JVM open option when running locally:
 
