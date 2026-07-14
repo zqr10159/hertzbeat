@@ -71,6 +71,9 @@ class EntityTraceQueryServiceImplTest {
     @Spy
     private TraceResourceFilterParser resourceFilterParser = new TraceResourceFilterParser();
 
+    @Spy
+    private TraceRowMapper rowMapper = new TraceRowMapper();
+
     @AfterEach
     void tearDown() {
         AuthTokenRequestContext.clear();
