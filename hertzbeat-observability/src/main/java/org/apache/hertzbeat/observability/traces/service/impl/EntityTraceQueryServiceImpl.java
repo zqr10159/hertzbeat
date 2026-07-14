@@ -37,8 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hertzbeat.common.entity.manager.EntityIdentity;
@@ -89,26 +87,10 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
     private static final long TRACE_GROUP_BY_MAX_MIN_COUNT = 1_000_000L;
     private static final long DEFAULT_LOOKBACK_MILLIS = Duration.ofHours(24).toMillis();
     private static final long ACTIVE_TRACE_WINDOW_MILLIS = Duration.ofMinutes(15).toMillis();
-    private static final String RESOURCE_FILTER_CONTAINS_PREFIX = "__hz_contains__:";
-    private static final String RESOURCE_FILTER_NOT_CONTAINS_PREFIX = "__hz_not_contains__:";
-    private static final String RESOURCE_FILTER_EXISTS_VALUE = "__hz_exists__";
-    private static final String RESOURCE_FILTER_NOT_EXISTS_VALUE = "__hz_not_exists__";
     private static final BigInteger LONG_MAX_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger LONG_MIN_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
     private static final BigDecimal LONG_MAX_DECIMAL = BigDecimal.valueOf(Long.MAX_VALUE);
     private static final BigDecimal LONG_MIN_DECIMAL = BigDecimal.valueOf(Long.MIN_VALUE);
-    private static final Pattern RESOURCE_FILTER_LIST_OPERATOR_PATTERN = Pattern.compile(
-            "^\\s*([A-Za-z0-9._:-]+)\\s+(NOT\\s+IN|IN)\\s*(\\(.+\\))\\s*$",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern RESOURCE_FILTER_NOT_EQUALS_PATTERN = Pattern.compile(
-            "^\\s*([A-Za-z0-9._:-]+)\\s*!=\\s*(.+?)\\s*$",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern RESOURCE_FILTER_TEXT_OPERATOR_PATTERN = Pattern.compile(
-            "^\\s*([A-Za-z0-9._:-]+)\\s+(NOT\\s+CONTAINS|CONTAINS)\\s+(.+)\\s*$",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern RESOURCE_FILTER_PRESENCE_OPERATOR_PATTERN = Pattern.compile(
-            "^\\s*([A-Za-z0-9._:-]+)\\s+(NOT\\s+EXISTS|EXISTS)\\s*$",
-            Pattern.CASE_INSENSITIVE);
     private static final Set<String> WORKSPACE_RESOURCE_KEYS = Set.of(
             OtlpCorrelationEnricher.WORKSPACE_ID_ATTRIBUTE,
             AuthTokenScopes.CLAIM_WORKSPACE_ID,
@@ -124,6 +106,7 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
 
     private final TraceQueryRepository traceQueryRepository;
     private final ObservabilityWorkspaceQueryGateway workspaceQueryGateway;
+    private final TraceResourceFilterParser resourceFilterParser;
 
     @Override
     public EntityTraceSummaryDto buildEntityTraceSummary(ObservedEntityContext entityContext) {
@@ -256,9 +239,9 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         ObservedEntityContext entityContext = entityId == null ? null : loadEntityContext(entityId);
         Map<String, Set<String>> identityValues = traceQueryIdentityValues(entityContext);
         TraceQueryScope queryScope = resolveTraceQueryScope(entityContext, identityValues, serviceName, serviceNamespace, environment);
-        ResourceFilterSet resourceFilters = removeEntityScopeResourceFilters(
+        TraceResourceFilterParser.FilterSet resourceFilters = removeEntityScopeResourceFilters(
                 identityValues, parseResourceFilters(resourceFilter));
-        ResourceFilterSet attributeFilters = parseResourceFilters(attributeFilter);
+        TraceResourceFilterParser.FilterSet attributeFilters = parseResourceFilters(attributeFilter);
         Map<String, Set<String>> pushedResourceFilters = mergeResourceFilters(identityValues, resourceFilters.pushableInclude());
         PageRequest pageRequest = PageRequest.of(normalizeTraceListPageIndex(pageIndex), normalizeTraceListPageSize(pageSize));
         int repositoryOffset = Math.toIntExact(Math.min(pageRequest.getOffset(), Integer.MAX_VALUE));
@@ -401,9 +384,9 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         ObservedEntityContext entityContext = entityId == null ? null : loadEntityContext(entityId);
         Map<String, Set<String>> identityValues = traceQueryIdentityValues(entityContext);
         TraceQueryScope queryScope = resolveTraceQueryScope(entityContext, identityValues, serviceName, serviceNamespace, environment);
-        ResourceFilterSet resourceFilters = removeEntityScopeResourceFilters(
+        TraceResourceFilterParser.FilterSet resourceFilters = removeEntityScopeResourceFilters(
                 identityValues, parseResourceFilters(resourceFilter));
-        ResourceFilterSet attributeFilters = parseResourceFilters(attributeFilter);
+        TraceResourceFilterParser.FilterSet attributeFilters = parseResourceFilters(attributeFilter);
         Map<String, Set<String>> pushedResourceFilters = mergeResourceFilters(identityValues, resourceFilters.pushableInclude());
         Long minDurationNanos = durationMillisToNanos(minDurationMs);
         Long maxDurationNanos = durationMillisToNanos(maxDurationMs);
@@ -543,9 +526,9 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         ObservedEntityContext entityContext = entityId == null ? null : loadEntityContext(entityId);
         Map<String, Set<String>> identityValues = traceQueryIdentityValues(entityContext);
         TraceQueryScope queryScope = resolveTraceQueryScope(entityContext, identityValues, serviceName, serviceNamespace, environment);
-        ResourceFilterSet resourceFilters = removeEntityScopeResourceFilters(
+        TraceResourceFilterParser.FilterSet resourceFilters = removeEntityScopeResourceFilters(
                 identityValues, parseResourceFilters(resourceFilter));
-        ResourceFilterSet attributeFilters = parseResourceFilters(attributeFilter);
+        TraceResourceFilterParser.FilterSet attributeFilters = parseResourceFilters(attributeFilter);
         Map<String, Set<String>> pushedResourceFilters = mergeResourceFilters(identityValues, resourceFilters.pushableInclude());
         Long minDurationNanos = durationMillisToNanos(minDurationMs);
         Long maxDurationNanos = durationMillisToNanos(maxDurationMs);
@@ -783,13 +766,13 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         }
         if (normalized.startsWith("resource:")) {
             String key = normalized.substring("resource:".length());
-            return isSafeResourceFilterKey(key) ? "resource:" + key : null;
+            return resourceFilterParser.isSafeKey(key) ? "resource:" + key : null;
         }
         if (normalized.startsWith("attribute:")) {
             String key = normalized.substring("attribute:".length());
-            return isSafeResourceFilterKey(key) ? "attribute:" + key : null;
+            return resourceFilterParser.isSafeKey(key) ? "attribute:" + key : null;
         }
-        return isSafeResourceFilterKey(normalized) ? normalized : null;
+        return resourceFilterParser.isSafeKey(normalized) ? normalized : null;
     }
 
     private boolean isTraceAttributeGroupBy(String groupBy) {
@@ -1039,11 +1022,11 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
     }
 
     private boolean matchesTraceFilters(TraceAggregate trace, Map<String, Set<String>> identityValues,
-                                        ResourceFilterSet resourceFilters, Long start, Long end,
+                                        TraceResourceFilterParser.FilterSet resourceFilters, Long start, Long end,
                                         String traceId, Boolean errorOnly, String serviceName, String serviceNamespace,
                                         String environment, String operationName, Long minDurationNanos,
                                         Long maxDurationNanos, Boolean hideInternal,
-                                        ResourceFilterSet attributeFilters) {
+                                        TraceResourceFilterParser.FilterSet attributeFilters) {
         if (trace == null) {
             return false;
         }
@@ -1193,12 +1176,19 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         return false;
     }
 
-    private boolean matchesResourceFilters(TraceAggregate trace, ResourceFilterSet resourceFilters) {
-        return matchesIncludedResourceFilters(trace, resourceFilters.include())
-                && matchesExcludedResourceFilters(trace, resourceFilters.exclude());
+    private boolean matchesResourceFilters(TraceAggregate trace, TraceResourceFilterParser.FilterSet resourceFilters) {
+        if (trace == null) {
+            return resourceFilters == null || resourceFilters.isEmpty();
+        }
+        Map<String, String> values = new LinkedHashMap<>(trace.getResourceAttributes());
+        if (StringUtils.hasText(trace.getServiceName())) {
+            values.put("service.name", trace.getServiceName());
+        }
+        return resourceFilterParser.matches(values, resourceFilters);
     }
 
-    private boolean matchesSpanAttributeFilters(TraceAggregate trace, ResourceFilterSet attributeFilters) {
+    private boolean matchesSpanAttributeFilters(TraceAggregate trace,
+                                                TraceResourceFilterParser.FilterSet attributeFilters) {
         if (attributeFilters == null || attributeFilters.isEmpty()) {
             return true;
         }
@@ -1206,7 +1196,7 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
             return false;
         }
         return trace.spans.stream()
-                .anyMatch(span -> matchesFilterMap(spanAttributeFilterValues(span), attributeFilters));
+                .anyMatch(span -> resourceFilterParser.matches(spanAttributeFilterValues(span), attributeFilters));
     }
 
     private Map<String, String> spanAttributeFilterValues(TraceSpanNodeDto span) {
@@ -1226,351 +1216,8 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         return values;
     }
 
-    private boolean matchesFilterMap(Map<String, String> values, ResourceFilterSet filters) {
-        Map<String, String> source = values == null ? Collections.emptyMap() : values;
-        return matchesIncludedFilterMap(source, filters.include())
-                && matchesExcludedFilterMap(source, filters.exclude());
-    }
-
-    private boolean matchesIncludedFilterMap(Map<String, String> source, Map<String, Set<String>> filters) {
-        if (filters.isEmpty()) {
-            return true;
-        }
-        for (Map.Entry<String, Set<String>> entry : filters.entrySet()) {
-            String actual = trimText(source.get(entry.getKey()));
-            boolean keyExists = source.containsKey(entry.getKey());
-            boolean matched = entry.getValue().stream()
-                    .filter(StringUtils::hasText)
-                    .anyMatch(expected -> matchesResourceFilterValue(actual, expected, keyExists));
-            if (!matched) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean matchesExcludedFilterMap(Map<String, String> source, Map<String, Set<String>> filters) {
-        if (filters.isEmpty()) {
-            return true;
-        }
-        for (Map.Entry<String, Set<String>> entry : filters.entrySet()) {
-            String actual = trimText(source.get(entry.getKey()));
-            if (!StringUtils.hasText(actual)) {
-                continue;
-            }
-            boolean excluded = entry.getValue().stream()
-                    .filter(StringUtils::hasText)
-                    .anyMatch(expected -> matchesExactResourceFilterValue(actual, expected));
-            if (excluded) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean matchesIncludedResourceFilters(TraceAggregate trace, Map<String, Set<String>> resourceFilters) {
-        if (resourceFilters.isEmpty()) {
-            return true;
-        }
-        if (trace == null) {
-            return false;
-        }
-        for (Map.Entry<String, Set<String>> entry : resourceFilters.entrySet()) {
-            String actual = trimText(resolveCanonicalValue(trace.getResourceAttributes(), entry.getKey(), trace.getServiceName()));
-            boolean keyExists = resourceKeyExists(trace, entry.getKey());
-            boolean matched = entry.getValue().stream()
-                    .filter(StringUtils::hasText)
-                    .anyMatch(expected -> matchesResourceFilterValue(actual, expected, keyExists));
-            if (!matched) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean matchesExcludedResourceFilters(TraceAggregate trace, Map<String, Set<String>> resourceFilters) {
-        if (resourceFilters.isEmpty()) {
-            return true;
-        }
-        if (trace == null) {
-            return false;
-        }
-        for (Map.Entry<String, Set<String>> entry : resourceFilters.entrySet()) {
-            String actual = trimText(resolveCanonicalValue(trace.getResourceAttributes(), entry.getKey(), trace.getServiceName()));
-            if (!StringUtils.hasText(actual)) {
-                continue;
-            }
-            boolean excluded = entry.getValue().stream()
-                    .filter(StringUtils::hasText)
-                    .anyMatch(expected -> matchesExactResourceFilterValue(actual, expected));
-            if (excluded) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean matchesResourceFilterValue(String actualValue, String expectedValue, boolean keyExists) {
-        if (isExistsResourceFilterValue(expectedValue)) {
-            return keyExists;
-        }
-        if (isNotExistsResourceFilterValue(expectedValue)) {
-            return !keyExists;
-        }
-        if (isContainsResourceFilterValue(expectedValue)) {
-            return matchesContainedResourceFilterValue(actualValue,
-                    expectedValue.substring(RESOURCE_FILTER_CONTAINS_PREFIX.length()));
-        }
-        if (isNotContainsResourceFilterValue(expectedValue)) {
-            return !matchesContainedResourceFilterValue(actualValue,
-                    expectedValue.substring(RESOURCE_FILTER_NOT_CONTAINS_PREFIX.length()));
-        }
-        return matchesExactResourceFilterValue(actualValue, expectedValue);
-    }
-
-    private boolean matchesExactResourceFilterValue(String actualValue, String expectedValue) {
-        return StringUtils.hasText(actualValue) && StringUtils.hasText(expectedValue)
-                && actualValue.equalsIgnoreCase(expectedValue);
-    }
-
-    private boolean matchesContainedResourceFilterValue(String actualValue, String expectedValue) {
-        if (!StringUtils.hasText(actualValue) || !StringUtils.hasText(expectedValue)) {
-            return false;
-        }
-        return actualValue.toLowerCase(Locale.ROOT).contains(expectedValue.toLowerCase(Locale.ROOT));
-    }
-
-    private ResourceFilterSet parseResourceFilters(String resourceFilter) {
-        if (!StringUtils.hasText(resourceFilter)) {
-            return ResourceFilterSet.empty();
-        }
-        Map<String, Set<String>> includeFilters = new LinkedHashMap<>();
-        Map<String, Set<String>> excludeFilters = new LinkedHashMap<>();
-        for (String clause : splitResourceFilterClauses(resourceFilter)) {
-            String trimmedClause = trimText(clause);
-            if (!StringUtils.hasText(trimmedClause)) {
-                continue;
-            }
-            if (appendResourceFilterListValues(includeFilters, excludeFilters, trimmedClause)) {
-                continue;
-            }
-            if (appendResourceFilterTextValue(includeFilters, trimmedClause)) {
-                continue;
-            }
-            if (appendResourceFilterPresenceValue(includeFilters, trimmedClause)) {
-                continue;
-            }
-            if (appendResourceFilterNotEqualsValue(excludeFilters, trimmedClause)) {
-                continue;
-            }
-            int separatorIndex = resourceFilterSeparatorIndex(trimmedClause);
-            if (separatorIndex <= 0 || separatorIndex >= trimmedClause.length() - 1) {
-                continue;
-            }
-            String key = trimText(trimmedClause.substring(0, separatorIndex));
-            String value = stripResourceFilterQuotes(trimText(trimmedClause.substring(separatorIndex + 1)));
-            if (!isSafeResourceFilterKey(key) || !StringUtils.hasText(value)) {
-                continue;
-            }
-            includeFilters.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(value);
-        }
-        return new ResourceFilterSet(includeFilters, excludeFilters);
-    }
-
-    private boolean appendResourceFilterTextValue(Map<String, Set<String>> includeFilters, String clause) {
-        Matcher matcher = RESOURCE_FILTER_TEXT_OPERATOR_PATTERN.matcher(clause);
-        if (!matcher.matches()) {
-            return false;
-        }
-        String key = trimText(matcher.group(1));
-        String operator = trimText(matcher.group(2));
-        String value = stripResourceFilterQuotes(trimText(matcher.group(3)));
-        if (!isSafeResourceFilterKey(key) || !StringUtils.hasText(operator) || !StringUtils.hasText(value)) {
-            return false;
-        }
-        String prefix = operator.replaceAll("\\s+", " ").equalsIgnoreCase("not contains")
-                ? RESOURCE_FILTER_NOT_CONTAINS_PREFIX
-                : RESOURCE_FILTER_CONTAINS_PREFIX;
-        includeFilters.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(prefix + value);
-        return true;
-    }
-
-    private boolean appendResourceFilterPresenceValue(Map<String, Set<String>> includeFilters, String clause) {
-        Matcher matcher = RESOURCE_FILTER_PRESENCE_OPERATOR_PATTERN.matcher(clause);
-        if (!matcher.matches()) {
-            return false;
-        }
-        String key = trimText(matcher.group(1));
-        String operator = trimText(matcher.group(2));
-        if (!isSafeResourceFilterKey(key) || !StringUtils.hasText(operator)) {
-            return false;
-        }
-        String value = operator.replaceAll("\\s+", " ").equalsIgnoreCase("not exists")
-                ? RESOURCE_FILTER_NOT_EXISTS_VALUE
-                : RESOURCE_FILTER_EXISTS_VALUE;
-        includeFilters.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(value);
-        return true;
-    }
-
-    private boolean appendResourceFilterListValues(Map<String, Set<String>> includeFilters,
-                                                   Map<String, Set<String>> excludeFilters,
-                                                   String clause) {
-        Matcher matcher = RESOURCE_FILTER_LIST_OPERATOR_PATTERN.matcher(clause);
-        if (!matcher.matches()) {
-            return false;
-        }
-        String key = trimText(matcher.group(1));
-        String operator = trimText(matcher.group(2));
-        String valueList = trimText(matcher.group(3));
-        if (!isSafeResourceFilterKey(key) || !StringUtils.hasText(operator) || !StringUtils.hasText(valueList)
-                || valueList.length() < 2 || !valueList.startsWith("(") || !valueList.endsWith(")")) {
-            return false;
-        }
-        Map<String, Set<String>> target = operator.replaceAll("\\s+", " ").equalsIgnoreCase("not in")
-                ? excludeFilters
-                : includeFilters;
-        for (String value : splitResourceFilterListValues(valueList.substring(1, valueList.length() - 1))) {
-            String normalizedValue = stripResourceFilterQuotes(trimText(value));
-            if (StringUtils.hasText(normalizedValue)) {
-                target.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(normalizedValue);
-            }
-        }
-        return target.containsKey(key);
-    }
-
-    private boolean appendResourceFilterNotEqualsValue(Map<String, Set<String>> excludeFilters, String clause) {
-        Matcher matcher = RESOURCE_FILTER_NOT_EQUALS_PATTERN.matcher(clause);
-        if (!matcher.matches()) {
-            return false;
-        }
-        String key = trimText(matcher.group(1));
-        String value = stripResourceFilterQuotes(trimText(matcher.group(2)));
-        if (!isSafeResourceFilterKey(key) || !StringUtils.hasText(value)) {
-            return false;
-        }
-        excludeFilters.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(value);
-        return true;
-    }
-
-    private List<String> splitResourceFilterClauses(String resourceFilter) {
-        List<String> clauses = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        int depth = 0;
-        char quote = 0;
-        for (int index = 0; index < resourceFilter.length(); index++) {
-            char character = resourceFilter.charAt(index);
-            if (quote != 0) {
-                current.append(character);
-                if (character == quote) {
-                    quote = 0;
-                }
-                continue;
-            }
-            if (character == '\'' || character == '"') {
-                quote = character;
-                current.append(character);
-                continue;
-            }
-            if (character == '(') {
-                depth++;
-                current.append(character);
-                continue;
-            }
-            if (character == ')') {
-                depth = Math.max(0, depth - 1);
-                current.append(character);
-                continue;
-            }
-            if (depth == 0 && character == ',') {
-                addResourceFilterClause(clauses, current);
-                continue;
-            }
-            if (depth == 0 && isResourceFilterAndDelimiter(resourceFilter, index)) {
-                addResourceFilterClause(clauses, current);
-                index += 4;
-                continue;
-            }
-            current.append(character);
-        }
-        addResourceFilterClause(clauses, current);
-        return clauses;
-    }
-
-    private List<String> splitResourceFilterListValues(String values) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        char quote = 0;
-        for (int index = 0; index < values.length(); index++) {
-            char character = values.charAt(index);
-            if (quote != 0) {
-                current.append(character);
-                if (character == quote) {
-                    quote = 0;
-                }
-                continue;
-            }
-            if (character == '\'' || character == '"') {
-                quote = character;
-                current.append(character);
-                continue;
-            }
-            if (character == ',') {
-                addResourceFilterClause(result, current);
-                continue;
-            }
-            current.append(character);
-        }
-        addResourceFilterClause(result, current);
-        return result;
-    }
-
-    private void addResourceFilterClause(List<String> clauses, StringBuilder current) {
-        String clause = trimText(current.toString());
-        if (StringUtils.hasText(clause)) {
-            clauses.add(clause);
-        }
-        current.setLength(0);
-    }
-
-    private boolean isResourceFilterAndDelimiter(String value, int index) {
-        return index + 5 <= value.length() && value.regionMatches(true, index, " and ", 0, 5);
-    }
-
-    private int resourceFilterSeparatorIndex(String clause) {
-        int equalsIndex = clause.indexOf('=');
-        int colonIndex = clause.indexOf(':');
-        if (equalsIndex < 0) {
-            return colonIndex;
-        }
-        if (colonIndex < 0) {
-            return equalsIndex;
-        }
-        return Math.min(equalsIndex, colonIndex);
-    }
-
-    private String stripResourceFilterQuotes(String value) {
-        if (value == null || value.length() < 2) {
-            return value;
-        }
-        char first = value.charAt(0);
-        char last = value.charAt(value.length() - 1);
-        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-            return trimText(value.substring(1, value.length() - 1));
-        }
-        return value;
-    }
-
-    private boolean isSafeResourceFilterKey(String key) {
-        if (!StringUtils.hasText(key)) {
-            return false;
-        }
-        for (int index = 0; index < key.length(); index++) {
-            char character = key.charAt(index);
-            if (!Character.isLetterOrDigit(character) && character != '.' && character != '_' && character != '-' && character != ':') {
-                return false;
-            }
-        }
-        return true;
+    private TraceResourceFilterParser.FilterSet parseResourceFilters(String resourceFilter) {
+        return resourceFilterParser.parse(resourceFilter);
     }
 
     private Map<String, Set<String>> mergeResourceFilters(Map<String, Set<String>> identityValues,
@@ -1584,12 +1231,13 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         return merged;
     }
 
-    private ResourceFilterSet removeEntityScopeResourceFilters(Map<String, Set<String>> identityValues,
-                                                               ResourceFilterSet resourceFilters) {
+    private TraceResourceFilterParser.FilterSet removeEntityScopeResourceFilters(
+            Map<String, Set<String>> identityValues,
+            TraceResourceFilterParser.FilterSet resourceFilters) {
         if (resourceFilters == null || resourceFilters.isEmpty()) {
-            return ResourceFilterSet.empty();
+            return TraceResourceFilterParser.FilterSet.empty();
         }
-        return new ResourceFilterSet(
+        return new TraceResourceFilterParser.FilterSet(
                 removeEntityScopeResourceFilterMap(identityValues, resourceFilters.include()),
                 removeEntityScopeResourceFilterMap(identityValues, resourceFilters.exclude())
         );
@@ -1615,39 +1263,6 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
             return defaultText(serviceName, resourceAttributes.get(key));
         }
         return resourceAttributes.get(key);
-    }
-
-    private boolean resourceKeyExists(TraceAggregate trace, String key) {
-        if (trace == null || !StringUtils.hasText(key)) {
-            return false;
-        }
-        if ("service.name".equals(key) && StringUtils.hasText(trace.getServiceName())) {
-            return true;
-        }
-        return trace.getResourceAttributes().containsKey(key);
-    }
-
-    private static boolean isComplexResourceFilterValue(String value) {
-        return isContainsResourceFilterValue(value)
-                || isNotContainsResourceFilterValue(value)
-                || isExistsResourceFilterValue(value)
-                || isNotExistsResourceFilterValue(value);
-    }
-
-    private static boolean isContainsResourceFilterValue(String value) {
-        return value != null && value.startsWith(RESOURCE_FILTER_CONTAINS_PREFIX);
-    }
-
-    private static boolean isNotContainsResourceFilterValue(String value) {
-        return value != null && value.startsWith(RESOURCE_FILTER_NOT_CONTAINS_PREFIX);
-    }
-
-    private static boolean isExistsResourceFilterValue(String value) {
-        return RESOURCE_FILTER_EXISTS_VALUE.equals(value);
-    }
-
-    private static boolean isNotExistsResourceFilterValue(String value) {
-        return RESOURCE_FILTER_NOT_EXISTS_VALUE.equals(value);
     }
 
     private Map<String, Set<String>> canonicalIdentityValues(ObservedEntityContext entityContext) {
@@ -2022,56 +1637,6 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
 
     private String readText(Map<String, Object> row, String key) {
         return trimText(Objects.toString(row.get(key), null));
-    }
-
-    private record ResourceFilterSet(Map<String, Set<String>> include, Map<String, Set<String>> exclude) {
-
-        private static ResourceFilterSet empty() {
-            return new ResourceFilterSet(Collections.emptyMap(), Collections.emptyMap());
-        }
-
-        private ResourceFilterSet {
-            include = include == null ? Collections.emptyMap() : include;
-            exclude = exclude == null ? Collections.emptyMap() : exclude;
-        }
-
-        private boolean isEmpty() {
-            return include.isEmpty() && exclude.isEmpty();
-        }
-
-        private boolean hasExclusions() {
-            return !exclude.isEmpty();
-        }
-
-        private boolean requiresRowFallback() {
-            return hasExclusions() || containsComplexResourceFilterValue(include);
-        }
-
-        private Map<String, Set<String>> pushableInclude() {
-            if (include.isEmpty()) {
-                return Collections.emptyMap();
-            }
-            Map<String, Set<String>> pushable = new LinkedHashMap<>();
-            include.forEach((key, values) -> {
-                Set<String> exactValues = new LinkedHashSet<>();
-                values.stream()
-                        .filter(value -> !isComplexResourceFilterValue(value))
-                        .forEach(exactValues::add);
-                if (!exactValues.isEmpty()) {
-                    pushable.put(key, exactValues);
-                }
-            });
-            return pushable;
-        }
-
-        private boolean containsComplexResourceFilterValue(Map<String, Set<String>> resourceFilters) {
-            if (resourceFilters.isEmpty()) {
-                return false;
-            }
-            return resourceFilters.values().stream()
-                    .flatMap(Set::stream)
-                    .anyMatch(EntityTraceQueryServiceImpl::isComplexResourceFilterValue);
-        }
     }
 
     private record TraceQueryScope(String serviceName, String serviceNamespace, String environment) {
