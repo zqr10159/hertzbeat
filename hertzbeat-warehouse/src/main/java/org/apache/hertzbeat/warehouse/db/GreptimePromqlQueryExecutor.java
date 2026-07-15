@@ -19,10 +19,12 @@ package org.apache.hertzbeat.warehouse.db;
 
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.greptime.GreptimeProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 
 /**
@@ -48,6 +50,15 @@ public class GreptimePromqlQueryExecutor extends PromqlQueryExecutor {
     @Override
     public String getDatasource() {
         return Datasource;
+    }
+
+    @Override
+    protected UriComponentsBuilder queryUri(String path) {
+        UriComponentsBuilder builder = super.queryUri(path);
+        if (StringUtils.isNotBlank(greptimeProperties.database())) {
+            builder.queryParam("db", greptimeProperties.database());
+        }
+        return builder;
     }
 
 }
