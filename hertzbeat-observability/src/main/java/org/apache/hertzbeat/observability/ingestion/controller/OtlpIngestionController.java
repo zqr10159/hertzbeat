@@ -31,6 +31,7 @@ import org.apache.hertzbeat.common.observability.dto.metrics.OtlpMetricsInventor
 import org.apache.hertzbeat.common.observability.dto.metrics.OtlpRelatedMetricsDto;
 import org.apache.hertzbeat.observability.ingestion.red.OtlpIngestionRedSummaryService;
 import org.apache.hertzbeat.observability.ingestion.service.OtlpIngestionWorkspaceService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,6 +49,7 @@ public class OtlpIngestionController {
 
     private final OtlpIngestionWorkspaceService otlpIngestionWorkspaceService;
     private final OtlpIngestionRedSummaryService otlpIngestionRedSummaryService;
+    private final ObservabilityQueryAdmissionService queryAdmissionService;
 
     @GetMapping("/overview")
     @Operation(summary = "Unified OTLP ingestion overview")
@@ -93,9 +95,10 @@ public class OtlpIngestionController {
             @RequestParam(value = "step", required = false) String step,
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "operationName", required = false) String operationName) {
-        return ResponseEntity.ok(Message.success(otlpIngestionWorkspaceService.getMetricsConsole(
-                entityId, entityType, start, end, serviceName, serviceNamespace, environment, query, filter, groupBy, aggregation,
-                temporalAggregation, step, limit, operationName)));
+        return ResponseEntity.ok(Message.success(queryAdmissionService.execute("metrics",
+                () -> otlpIngestionWorkspaceService.getMetricsConsole(
+                        entityId, entityType, start, end, serviceName, serviceNamespace, environment, query, filter,
+                        groupBy, aggregation, temporalAggregation, step, limit, operationName))));
     }
 
     @GetMapping("/metrics/inventory")
@@ -109,8 +112,9 @@ public class OtlpIngestionController {
             @RequestParam(value = "serviceNamespace", required = false) String serviceNamespace,
             @RequestParam(value = "environment", required = false) String environment,
             @RequestParam(value = "limit", required = false) String limit) {
-        return ResponseEntity.ok(Message.success(otlpIngestionWorkspaceService.getMetricsInventory(
-                entityId, entityType, start, end, serviceName, serviceNamespace, environment, limit)));
+        return ResponseEntity.ok(Message.success(queryAdmissionService.execute("metrics",
+                () -> otlpIngestionWorkspaceService.getMetricsInventory(
+                        entityId, entityType, start, end, serviceName, serviceNamespace, environment, limit))));
     }
 
     @GetMapping("/metrics/related")
@@ -126,7 +130,9 @@ public class OtlpIngestionController {
             @RequestParam(value = "filter", required = false) String filter,
             @RequestParam(value = "operationName", required = false) String operationName,
             @RequestParam(value = "limit", required = false) String limit) {
-        return ResponseEntity.ok(Message.success(otlpIngestionWorkspaceService.getRelatedMetrics(
-                entityId, entityType, start, end, serviceName, serviceNamespace, environment, filter, operationName, limit)));
+        return ResponseEntity.ok(Message.success(queryAdmissionService.execute("metrics",
+                () -> otlpIngestionWorkspaceService.getRelatedMetrics(
+                        entityId, entityType, start, end, serviceName, serviceNamespace, environment, filter,
+                        operationName, limit))));
     }
 }

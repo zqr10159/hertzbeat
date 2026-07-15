@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.common.entity.log.LogEntry;
@@ -46,6 +47,8 @@ import org.apache.hertzbeat.common.entity.manager.ObserveEntity;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext;
 import org.apache.hertzbeat.common.observability.gateway.ObservabilityWorkspaceQueryGateway;
 import org.apache.hertzbeat.observability.logs.service.impl.LogQueryServiceImpl;
+import org.apache.hertzbeat.observability.logs.service.LogQueryService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.HistoryDataReader;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,11 +74,16 @@ class LogQueryControllerTest {
     @Mock
     private HistoryDataReader secondaryHistoryDataReader;
 
+    @Mock
+    private ObservabilityQueryAdmissionService queryAdmissionService;
+
     private LogQueryController logQueryController;
 
     @BeforeEach
     void setUp() {
-        this.logQueryController = new LogQueryController(new LogQueryServiceImpl(List.of(historyDataReader)));
+        when(queryAdmissionService.execute(eq("logs"), any())).thenAnswer(invocation ->
+                ((Supplier<?>) invocation.getArgument(1)).get());
+        this.logQueryController = newController(new LogQueryServiceImpl(List.of(historyDataReader)));
         this.mockMvc = MockMvcBuilders.standaloneSetup(logQueryController).build();
     }
 
@@ -266,7 +274,7 @@ class LogQueryControllerTest {
     @Test
     void testListLogsPrefersEntityIdentityOverConflictingRouteContext() throws Exception {
         ObservabilityWorkspaceQueryGateway workspaceQueryGateway = org.mockito.Mockito.mock(ObservabilityWorkspaceQueryGateway.class);
-        this.logQueryController = new LogQueryController(
+        this.logQueryController = newController(
                 new LogQueryServiceImpl(List.of(historyDataReader), Optional.of(workspaceQueryGateway)));
         this.mockMvc = MockMvcBuilders.standaloneSetup(logQueryController).build();
         EntityIdentity serviceName = EntityIdentity.builder()
@@ -340,7 +348,7 @@ class LogQueryControllerTest {
     @Test
     void testLogStatsPreferEntityIdentityOverConflictingRouteContext() throws Exception {
         ObservabilityWorkspaceQueryGateway workspaceQueryGateway = org.mockito.Mockito.mock(ObservabilityWorkspaceQueryGateway.class);
-        this.logQueryController = new LogQueryController(
+        this.logQueryController = newController(
                 new LogQueryServiceImpl(List.of(historyDataReader), Optional.of(workspaceQueryGateway)));
         this.mockMvc = MockMvcBuilders.standaloneSetup(logQueryController).build();
         when(workspaceQueryGateway.findEntityById(42L)).thenReturn(Optional.of(ObserveEntity.builder()
@@ -592,7 +600,7 @@ class LogQueryControllerTest {
     @Test
     void testLogContextPrefersEntityIdentityOverConflictingRouteContext() throws Exception {
         ObservabilityWorkspaceQueryGateway workspaceQueryGateway = org.mockito.Mockito.mock(ObservabilityWorkspaceQueryGateway.class);
-        this.logQueryController = new LogQueryController(
+        this.logQueryController = newController(
                 new LogQueryServiceImpl(List.of(historyDataReader), Optional.of(workspaceQueryGateway)));
         this.mockMvc = MockMvcBuilders.standaloneSetup(logQueryController).build();
         when(workspaceQueryGateway.findEntityById(42L)).thenReturn(Optional.of(ObserveEntity.builder()
@@ -1403,7 +1411,8 @@ class LogQueryControllerTest {
                 .attributes(new HashMap<>())
                 .build();
         MockMvc fallbackMockMvc = MockMvcBuilders
-                .standaloneSetup(new LogQueryController(new LogQueryServiceImpl(List.of(historyDataReader, secondaryHistoryDataReader))))
+                .standaloneSetup(newController(
+                        new LogQueryServiceImpl(List.of(historyDataReader, secondaryHistoryDataReader))))
                 .build();
 
         when(historyDataReader.countLogsByMultipleConditions(any(), any(), any(), any(), any(), any(), any()))
@@ -1840,4 +1849,7 @@ class LogQueryControllerTest {
                 org.mockito.ArgumentMatchers.<Map<String, String>>any(), eq("resource:service.version"));
     }
 
+    private LogQueryController newController(LogQueryService logQueryService) {
+        return new LogQueryController(logQueryService, queryAdmissionService);
+    }
 }

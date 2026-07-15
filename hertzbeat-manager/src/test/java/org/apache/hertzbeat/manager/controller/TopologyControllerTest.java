@@ -17,15 +17,19 @@
 
 package org.apache.hertzbeat.manager.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.hertzbeat.common.constants.CommonConstants;
 import org.apache.hertzbeat.manager.pojo.dto.EntityTopologyGraphInfo;
 import org.apache.hertzbeat.manager.service.entity.EntityTopologyQueryService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,8 +54,13 @@ class TopologyControllerTest {
     @Mock
     private EntityTopologyQueryService entityTopologyQueryService;
 
+    @Mock
+    private ObservabilityQueryAdmissionService queryAdmissionService;
+
     @BeforeEach
     void setUp() {
+        when(queryAdmissionService.execute(eq("topology"), any())).thenAnswer(invocation ->
+                ((Supplier<?>) invocation.getArgument(1)).get());
         this.mockMvc = MockMvcBuilders.standaloneSetup(topologyController).build();
     }
 

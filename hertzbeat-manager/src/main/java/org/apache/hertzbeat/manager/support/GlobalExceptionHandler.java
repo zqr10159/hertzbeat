@@ -30,7 +30,9 @@ import org.apache.hertzbeat.alert.notice.AlertNoticeException;
 import org.apache.hertzbeat.manager.support.exception.MonitorDatabaseException;
 import org.apache.hertzbeat.manager.support.exception.MonitorDetectException;
 import org.apache.hertzbeat.manager.support.exception.MonitorMetricsException;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionException;
 import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -50,6 +52,24 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
     private static final String CONNECT_STR = "||";
+
+    /**
+     * Return an explicit overload or timeout response for bounded observability queries.
+     *
+     * @param exception query admission failure
+     * @return retryable HTTP response
+     */
+    @ExceptionHandler(ObservabilityQueryAdmissionException.class)
+    @ResponseBody
+    ResponseEntity<Message<Void>> handleObservabilityQueryAdmissionException(
+            ObservabilityQueryAdmissionException exception) {
+        HttpStatus status = exception.getReason() == ObservabilityQueryAdmissionException.Reason.OVERLOADED
+                ? HttpStatus.TOO_MANY_REQUESTS
+                : HttpStatus.SERVICE_UNAVAILABLE;
+        return ResponseEntity.status(status)
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(Message.fail(FAIL_CODE, exception.getMessage()));
+    }
 
     /**
      * Processing probe failure

@@ -21,10 +21,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.hertzbeat.common.entity.dto.Message;
 import org.apache.hertzbeat.common.entity.log.LogEntry;
 import org.apache.hertzbeat.observability.ingestion.semantic.OtlpResourceSemanticAttributes;
 import org.apache.hertzbeat.observability.logs.service.LogQueryService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -43,10 +45,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class LogQueryController {
 
     private final LogQueryService logQueryService;
+    private final ObservabilityQueryAdmissionService queryAdmissionService;
 
     @Autowired
-    public LogQueryController(LogQueryService logQueryService) {
+    public LogQueryController(LogQueryService logQueryService,
+                              ObservabilityQueryAdmissionService queryAdmissionService) {
         this.logQueryService = logQueryService;
+        this.queryAdmissionService = queryAdmissionService;
     }
 
     @GetMapping("/list")
@@ -90,9 +95,10 @@ public class LogQueryController {
             @Parameter(description = "Hide demo infrastructure noise logs such as kafka/load-generator when focusing on business requests", example = "true")
             @RequestParam(value = "hideNoise", required = false, defaultValue = "false") boolean hideNoise) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        Page<LogEntry> result = logQueryService.list(entityId, start, end, traceId, spanId, severityNumber, severityText, search,
+        Page<LogEntry> result = executeQuery(() -> logQueryService.list(
+                entityId, start, end, traceId, spanId, severityNumber, severityText, search,
                 serviceName, serviceNamespace, environment, scopedResourceFilter, attributeFilter,
-                pageIndex, pageSize, hideInternal, hideNoise);
+                pageIndex, pageSize, hideInternal, hideNoise));
         return ResponseEntity.ok(Message.success(result));
     }
 
@@ -131,9 +137,10 @@ public class LogQueryController {
             @Parameter(description = "Hide demo infrastructure noise logs such as kafka/load-generator when focusing on business requests", example = "true")
             @RequestParam(value = "hideNoise", required = false, defaultValue = "false") boolean hideNoise) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        return ResponseEntity.ok(Message.success(logQueryService.context(
+        return ResponseEntity.ok(Message.success(executeQuery(() -> logQueryService.context(
                 entityId, logTimeUnixNano, start, end, serviceName, serviceNamespace, environment,
-                scopedResourceFilter, attributeFilter, limit, direction, cursorLogTimeUnixNano, hideInternal, hideNoise)));
+                scopedResourceFilter, attributeFilter, limit, direction, cursorLogTimeUnixNano,
+                hideInternal, hideNoise))));
     }
 
     @GetMapping("/stats/overview")
@@ -173,10 +180,10 @@ public class LogQueryController {
             @Parameter(description = "Hide demo infrastructure noise logs such as kafka/load-generator when focusing on business requests", example = "true")
             @RequestParam(value = "hideNoise", required = false, defaultValue = "false") boolean hideNoise) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        return ResponseEntity.ok(Message.success(logQueryService.overviewStats(
+        return ResponseEntity.ok(Message.success(executeQuery(() -> logQueryService.overviewStats(
                 entityId, start, end, traceId, spanId, severityNumber, severityText, search,
                 serviceName, serviceNamespace, environment, scopedResourceFilter, attributeFilter,
-                hideInternal, hideNoise)));
+                hideInternal, hideNoise))));
     }
 
     @GetMapping("/stats/trace-coverage")
@@ -216,10 +223,10 @@ public class LogQueryController {
             @Parameter(description = "Hide demo infrastructure noise logs such as kafka/load-generator when focusing on business requests", example = "true")
             @RequestParam(value = "hideNoise", required = false, defaultValue = "false") boolean hideNoise) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        return ResponseEntity.ok(Message.success(logQueryService.traceCoverageStats(
+        return ResponseEntity.ok(Message.success(executeQuery(() -> logQueryService.traceCoverageStats(
                 entityId, start, end, traceId, spanId, severityNumber, severityText, search,
                 serviceName, serviceNamespace, environment, scopedResourceFilter, attributeFilter,
-                hideInternal, hideNoise)));
+                hideInternal, hideNoise))));
     }
 
     @GetMapping("/stats/trend")
@@ -259,10 +266,10 @@ public class LogQueryController {
             @Parameter(description = "Hide demo infrastructure noise logs such as kafka/load-generator when focusing on business requests", example = "true")
             @RequestParam(value = "hideNoise", required = false, defaultValue = "false") boolean hideNoise) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        return ResponseEntity.ok(Message.success(logQueryService.trendStats(
+        return ResponseEntity.ok(Message.success(executeQuery(() -> logQueryService.trendStats(
                 entityId, start, end, traceId, spanId, severityNumber, severityText, search,
                 serviceName, serviceNamespace, environment, scopedResourceFilter, attributeFilter,
-                hideInternal, hideNoise)));
+                hideInternal, hideNoise))));
     }
 
     @GetMapping("/stats/group-by")
@@ -310,10 +317,10 @@ public class LogQueryController {
             @Parameter(description = "Hide demo infrastructure noise logs such as kafka/load-generator when focusing on business requests", example = "true")
             @RequestParam(value = "hideNoise", required = false, defaultValue = "false") boolean hideNoise) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        return ResponseEntity.ok(Message.success(logQueryService.groupByStats(
+        return ResponseEntity.ok(Message.success(executeQuery(() -> logQueryService.groupByStats(
                 entityId, start, end, traceId, spanId, severityNumber, severityText, search,
                 serviceName, serviceNamespace, environment, scopedResourceFilter, attributeFilter, groupBy,
-                limit, orderBy, minCount, hideInternal, hideNoise)));
+                limit, orderBy, minCount, hideInternal, hideNoise))));
     }
 
     private String mergeEntityContextResourceFilter(Long entityId, String entityType, String resourceFilter) {
@@ -339,5 +346,9 @@ public class LogQueryController {
         return StringUtils.hasText(scopedResourceFilter)
                 ? scopedResourceFilter + " and " + entityTypeFilter
                 : entityTypeFilter;
+    }
+
+    private <T> T executeQuery(Supplier<T> query) {
+        return queryAdmissionService.execute("logs", query);
     }
 }

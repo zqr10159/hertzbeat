@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import org.apache.hertzbeat.observability.logs.service.impl.LogQueryServiceImpl;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.HistoryDataReader;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -30,6 +31,8 @@ class LogQueryControllerContextTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withBean("duckdbDatabaseDataStorage", HistoryDataReader.class, () -> mock(HistoryDataReader.class))
             .withBean("greptimeDbDataStorage", HistoryDataReader.class, () -> mock(HistoryDataReader.class))
+            .withBean(ObservabilityQueryAdmissionService.class,
+                    () -> mock(ObservabilityQueryAdmissionService.class))
             .withBean(LogQueryServiceImpl.class)
             .withBean(LogQueryController.class);
 

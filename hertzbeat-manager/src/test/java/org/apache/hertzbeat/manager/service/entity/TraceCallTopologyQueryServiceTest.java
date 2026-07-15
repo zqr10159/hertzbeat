@@ -27,12 +27,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.apache.hertzbeat.common.entity.manager.EntityIdentity;
 import org.apache.hertzbeat.common.entity.manager.ObserveEntity;
 import org.apache.hertzbeat.warehouse.repository.TraceQueryRepository;
@@ -191,99 +188,6 @@ class TraceCallTopologyQueryServiceTest {
         assertEquals(20L, edge.targetEntityId());
         assertEquals("trace-fallback", edge.traceId());
         assertEquals(1L, edge.redMetrics().requestCount());
-    }
-
-    @Test
-    void fallsBackToRawTraceRowsWhenGreptimeServiceGraphAggregationTimesOut() throws InterruptedException {
-        TraceCallTopologyQueryService boundedService = new TraceCallTopologyQueryService(
-                traceQueryRepository,
-                entityIdentityQueryService,
-                entityWorkspaceAccessService,
-                Duration.ofMillis(25));
-        ObserveEntity checkout = entity(10L, "checkout-api", "commerce", "prod");
-        ObserveEntity payment = entity(20L, "payment-api", "commerce", "prod");
-        CountDownLatch releaseServiceGraphQuery = new CountDownLatch(1);
-        when(entityIdentityQueryService.findIdentities(10L)).thenReturn(List.of(
-                identity(10L, "service.name", "checkout-api")));
-        when(traceQueryRepository.queryTraceServiceGraphRows(
-                eq(1500), eq(1710000000000L), eq(1710003600000L), eq("prod"),
-                argThat(serviceNames -> serviceNames != null && serviceNames.contains("checkout-api")),
-                eq(true)))
-                .thenAnswer(invocation -> {
-                    releaseServiceGraphQuery.await(5, TimeUnit.SECONDS);
-                    return List.of(serviceGraphRow(
-                            "checkout-api", "payment-api", 1L, 0L, 100D, 80D,
-                            "trace-late", "span-late", "POST /pay",
-                            "2026-05-20T03:01:00Z", "2026-05-20T03:08:00Z"));
-                });
-        when(traceQueryRepository.queryRecentTraceRows(1500, 1710000000000L, 1710003600000L, null, "prod", true))
-                .thenReturn(List.of(
-                        traceRow("trace-timeout", "root", null, "GET /checkout",
-                                "checkout-api", "STATUS_CODE_OK", 20D),
-                        traceRow("trace-timeout", "payment", "root", "POST /pay",
-                                "payment-api", "STATUS_CODE_OK", 140D)));
-        when(entityIdentityQueryService.findMatchingIdentities(argThat(keys ->
-                keys != null && keys.contains("service.name")), argThat(values ->
-                values != null && values.containsAll(Set.of("checkout api", "payment api"))))).thenReturn(List.of(
-                identity(10L, "service.name", "checkout-api"),
-                identity(20L, "service.name", "payment-api")));
-        when(entityWorkspaceAccessService.findAccessibleEntitiesByIdsForRequestWorkspace(argThat(ids ->
-                ids != null && ids.containsAll(Set.of(10L, 20L))))).thenReturn(List.of(checkout, payment));
-
-        long startedAt = System.nanoTime();
-        TraceCallTopologyReadModel readModel;
-        try {
-            readModel = boundedService.findTraceCallEdges(
-                    List.of(checkout), "prod", 1710000000000L, 1710003600000L);
-        } finally {
-            releaseServiceGraphQuery.countDown();
-        }
-
-        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt) < 1000);
-        assertEquals(Set.of(10L, 20L), readModel.entityById().keySet());
-        assertEquals(1, readModel.edges().size());
-        TraceCallTopologyEdgeInfo edge = readModel.edges().getFirst();
-        assertEquals(10L, edge.sourceEntityId());
-        assertEquals(20L, edge.targetEntityId());
-        assertEquals("trace-timeout", edge.traceId());
-        assertEquals(1L, edge.redMetrics().requestCount());
-    }
-
-    @Test
-    void returnsEmptyWhenRawTraceFallbackTimesOutAfterServiceGraphHasNoEdges() throws InterruptedException {
-        TraceCallTopologyQueryService boundedService = new TraceCallTopologyQueryService(
-                traceQueryRepository,
-                entityIdentityQueryService,
-                entityWorkspaceAccessService,
-                Duration.ofMillis(25));
-        ObserveEntity checkout = entity(10L, "checkout-api", "commerce", "prod");
-        CountDownLatch releaseRawTraceQuery = new CountDownLatch(1);
-        when(entityIdentityQueryService.findIdentities(10L)).thenReturn(List.of(
-                identity(10L, "service.name", "checkout-api")));
-        when(traceQueryRepository.queryTraceServiceGraphRows(
-                eq(1500), eq(1710000000000L), eq(1710003600000L), eq("prod"),
-                argThat(serviceNames -> serviceNames != null && serviceNames.contains("checkout-api")),
-                eq(true)))
-                .thenReturn(List.of());
-        when(traceQueryRepository.queryRecentTraceRows(1500, 1710000000000L, 1710003600000L, null, "prod", true))
-                .thenAnswer(invocation -> {
-                    releaseRawTraceQuery.await(5, TimeUnit.SECONDS);
-                    return List.of(traceRow("trace-late", "root", null, "GET /checkout",
-                            "checkout-api", "STATUS_CODE_OK", 20D));
-                });
-
-        long startedAt = System.nanoTime();
-        TraceCallTopologyReadModel readModel;
-        try {
-            readModel = boundedService.findTraceCallEdges(
-                    List.of(checkout), "prod", 1710000000000L, 1710003600000L);
-        } finally {
-            releaseRawTraceQuery.countDown();
-        }
-
-        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt) < 1000);
-        assertTrue(readModel.entityById().isEmpty());
-        assertTrue(readModel.edges().isEmpty());
     }
 
     @Test

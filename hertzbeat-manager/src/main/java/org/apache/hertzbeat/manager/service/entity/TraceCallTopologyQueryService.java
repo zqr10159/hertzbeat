@@ -17,7 +17,6 @@
 
 package org.apache.hertzbeat.manager.service.entity;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,10 +27,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.apache.hertzbeat.common.entity.manager.EntityIdentity;
 import org.apache.hertzbeat.common.entity.manager.ObserveEntity;
 import org.apache.hertzbeat.warehouse.repository.TraceQueryRepository;
@@ -52,34 +47,20 @@ public class TraceCallTopologyQueryService {
 
     private static final ObjectMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final int TRACE_ROW_LIMIT = 1500;
-    private static final Duration SERVICE_GRAPH_QUERY_TIMEOUT = Duration.ofSeconds(3);
     private static final String SERVICE_NAME_KEY = "service.name";
     private static final Set<String> SERVICE_IDENTITY_KEYS = Set.of(SERVICE_NAME_KEY);
 
     private final TraceQueryRepository traceQueryRepository;
     private final EntityIdentityQueryService entityIdentityQueryService;
     private final EntityWorkspaceAccessService entityWorkspaceAccessService;
-    private final Duration serviceGraphQueryTimeout;
 
     @Autowired
     public TraceCallTopologyQueryService(TraceQueryRepository traceQueryRepository,
                                          EntityIdentityQueryService entityIdentityQueryService,
                                          EntityWorkspaceAccessService entityWorkspaceAccessService) {
-        this(traceQueryRepository, entityIdentityQueryService, entityWorkspaceAccessService,
-                SERVICE_GRAPH_QUERY_TIMEOUT);
-    }
-
-    TraceCallTopologyQueryService(TraceQueryRepository traceQueryRepository,
-                                  EntityIdentityQueryService entityIdentityQueryService,
-                                  EntityWorkspaceAccessService entityWorkspaceAccessService,
-                                  Duration serviceGraphQueryTimeout) {
         this.traceQueryRepository = traceQueryRepository;
         this.entityIdentityQueryService = entityIdentityQueryService;
         this.entityWorkspaceAccessService = entityWorkspaceAccessService;
-        this.serviceGraphQueryTimeout = serviceGraphQueryTimeout == null || serviceGraphQueryTimeout.isZero()
-                || serviceGraphQueryTimeout.isNegative()
-                ? SERVICE_GRAPH_QUERY_TIMEOUT
-                : serviceGraphQueryTimeout;
     }
 
     public TraceCallTopologyReadModel findTraceCallEdges(Collection<ObserveEntity> seedEntities,
@@ -189,17 +170,16 @@ public class TraceCallTopologyQueryService {
                                                              Set<String> seedServiceNames,
                                                              Boolean hideInternal) {
         try {
-            return CompletableFuture.supplyAsync(() -> safeList(traceQueryRepository.queryTraceServiceGraphRows(
-                            TRACE_ROW_LIMIT, start, end, environment, seedServiceNames, hideInternal)))
-                    .get(serviceGraphQueryTimeout.toMillis(), TimeUnit.MILLISECONDS)
+            return safeList(traceQueryRepository.queryTraceServiceGraphRows(
+                            TRACE_ROW_LIMIT, start, end, environment, seedServiceNames, hideInternal))
                     .stream()
                     .map(this::toTraceServiceGraphRow)
                     .filter(Objects::nonNull)
                     .toList();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return Collections.emptyList();
-        } catch (ExecutionException | TimeoutException | RuntimeException ex) {
+        } catch (RuntimeException exception) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw exception;
+            }
             return Collections.emptyList();
         }
     }
@@ -208,16 +188,8 @@ public class TraceCallTopologyQueryService {
                                                            Long end,
                                                            String environment,
                                                            Boolean hideInternal) {
-        try {
-            return CompletableFuture.supplyAsync(() -> safeList(traceQueryRepository.queryRecentTraceRows(
-                            TRACE_ROW_LIMIT, start, end, null, environment, hideInternal)))
-                    .get(serviceGraphQueryTimeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return Collections.emptyList();
-        } catch (ExecutionException | TimeoutException | RuntimeException ex) {
-            return Collections.emptyList();
-        }
+        return safeList(traceQueryRepository.queryRecentTraceRows(
+                TRACE_ROW_LIMIT, start, end, null, environment, hideInternal));
     }
 
     private Set<String> seedServiceNames(Collection<ObserveEntity> seedEntities) {

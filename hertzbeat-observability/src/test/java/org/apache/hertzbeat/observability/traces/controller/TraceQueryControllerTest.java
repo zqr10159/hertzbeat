@@ -17,6 +17,8 @@
 
 package org.apache.hertzbeat.observability.traces.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -25,9 +27,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceListItemDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceOverviewDto;
 import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,9 +50,15 @@ class TraceQueryControllerTest {
     @Mock
     private EntityTraceQueryService entityTraceQueryService;
 
+    @Mock
+    private ObservabilityQueryAdmissionService queryAdmissionService;
+
     @BeforeEach
     void setUp() {
-        TraceQueryController controller = new TraceQueryController(entityTraceQueryService);
+        when(queryAdmissionService.execute(eq("traces"), any())).thenAnswer(invocation ->
+                ((Supplier<?>) invocation.getArgument(1)).get());
+        TraceQueryController controller = new TraceQueryController(
+                entityTraceQueryService, queryAdmissionService);
         this.mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 

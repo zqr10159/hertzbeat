@@ -25,6 +25,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.hertzbeat.common.entity.dto.Message;
 import org.apache.hertzbeat.manager.pojo.dto.EntityTopologyGraphInfo;
 import org.apache.hertzbeat.manager.service.entity.EntityTopologyQueryService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,9 +41,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class TopologyController {
 
     private final EntityTopologyQueryService entityTopologyQueryService;
+    private final ObservabilityQueryAdmissionService queryAdmissionService;
 
-    public TopologyController(EntityTopologyQueryService entityTopologyQueryService) {
+    public TopologyController(EntityTopologyQueryService entityTopologyQueryService,
+                              ObservabilityQueryAdmissionService queryAdmissionService) {
         this.entityTopologyQueryService = entityTopologyQueryService;
+        this.queryAdmissionService = queryAdmissionService;
     }
 
     @GetMapping
@@ -68,9 +72,10 @@ public class TopologyController {
             @RequestParam(required = false) Integer pageIndex,
             @Parameter(description = "Edge page size", example = "50")
             @RequestParam(required = false) Integer pageSize) {
-        EntityTopologyGraphInfo graph = entityTopologyQueryService.buildFocusedTopology(
-                focusEntityId, depth, environment, sourceKind, start, end,
-                relationType, hideInternal, pageIndex, pageSize);
+        EntityTopologyGraphInfo graph = queryAdmissionService.execute("topology",
+                () -> entityTopologyQueryService.buildFocusedTopology(
+                        focusEntityId, depth, environment, sourceKind, start, end,
+                        relationType, hideInternal, pageIndex, pageSize));
         return ResponseEntity.ok(Message.success(graph));
     }
 }

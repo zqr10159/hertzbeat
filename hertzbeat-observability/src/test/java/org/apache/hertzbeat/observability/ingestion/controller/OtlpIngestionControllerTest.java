@@ -18,6 +18,8 @@
 package org.apache.hertzbeat.observability.ingestion.controller;
 
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -26,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.hertzbeat.common.entity.dto.query.DatasourceQueryData;
 import org.apache.hertzbeat.common.observability.dto.binding.OtlpEntityBindingSummaryDto;
 import org.apache.hertzbeat.common.observability.dto.ingestion.OtlpIngestionGuideDto;
@@ -36,6 +39,7 @@ import org.apache.hertzbeat.common.observability.dto.metrics.OtlpMetricsInventor
 import org.apache.hertzbeat.common.observability.dto.metrics.OtlpRelatedMetricsDto;
 import org.apache.hertzbeat.observability.ingestion.red.OtlpIngestionRedSummaryService;
 import org.apache.hertzbeat.observability.ingestion.service.OtlpIngestionWorkspaceService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,10 +59,13 @@ class OtlpIngestionControllerTest {
     @Mock
     private OtlpIngestionRedSummaryService otlpIngestionRedSummaryService;
 
+    @Mock
+    private ObservabilityQueryAdmissionService queryAdmissionService;
+
     @BeforeEach
     void setUp() {
         OtlpIngestionController controller = new OtlpIngestionController(
-                otlpIngestionWorkspaceService, otlpIngestionRedSummaryService);
+                otlpIngestionWorkspaceService, otlpIngestionRedSummaryService, queryAdmissionService);
         this.mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -203,6 +210,7 @@ class OtlpIngestionControllerTest {
 
     @Test
     void shouldReturnWrappedMetricsConsolePayload() throws Exception {
+        allowQueries();
         OtlpMetricsConsoleDto console = new OtlpMetricsConsoleDto(
                 new OtlpMetricsConsoleDto.Context(42L, "service", "Checkout API", "checkout", "commerce", "prod",
                         "POST /checkout", 1000L, 2000L),
@@ -265,6 +273,7 @@ class OtlpIngestionControllerTest {
 
     @Test
     void shouldReturnWrappedMetricsInventoryPayload() throws Exception {
+        allowQueries();
         OtlpMetricsInventoryDto inventory = new OtlpMetricsInventoryDto(
                 new OtlpMetricsConsoleDto.Context(42L, "service", "Checkout API", "checkout", "commerce", "prod",
                         null, 1000L, 2000L),
@@ -306,6 +315,7 @@ class OtlpIngestionControllerTest {
 
     @Test
     void shouldReturnWrappedRelatedMetricsPayload() throws Exception {
+        allowQueries();
         OtlpRelatedMetricsDto related = new OtlpRelatedMetricsDto(
                 new OtlpMetricsConsoleDto.Context(42L, "service", "Checkout API", "checkout", "commerce", "prod",
                         "POST /checkout", 1000L, 2000L),
@@ -351,5 +361,10 @@ class OtlpIngestionControllerTest {
         verify(otlpIngestionWorkspaceService)
                 .getRelatedMetrics(42L, "service", 1000L, 2000L, "checkout", "commerce", "prod",
                         "k8s.pod.name=\"checkout-7d9\"", "POST /checkout", "8");
+    }
+
+    private void allowQueries() {
+        when(queryAdmissionService.execute(eq("metrics"), any())).thenAnswer(invocation ->
+                ((Supplier<?>) invocation.getArgument(1)).get());
     }
 }

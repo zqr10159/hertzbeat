@@ -29,6 +29,7 @@ import org.apache.hertzbeat.common.observability.dto.trace.TraceOverviewDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceSpanNodeDto;
 import org.apache.hertzbeat.observability.ingestion.semantic.OtlpResourceSemanticAttributes;
 import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService;
+import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -48,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TraceQueryController {
 
     private final EntityTraceQueryService entityTraceQueryService;
+    private final ObservabilityQueryAdmissionService queryAdmissionService;
 
     @GetMapping("/list")
     @Operation(summary = "Query traces with entity context and canonical resource filters")
@@ -71,10 +73,11 @@ public class TraceQueryController {
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        Page<TraceListItemDto> page = entityTraceQueryService.queryTraceList(
-                entityId, start, end, traceId, errorOnly, serviceName, serviceNamespace, environment,
-                scopedResourceFilter, operationName, minDurationMs, maxDurationMs, pageIndex, pageSize, hideInternal,
-                spanScope, attributeFilter);
+        Page<TraceListItemDto> page = queryAdmissionService.execute("traces",
+                () -> entityTraceQueryService.queryTraceList(
+                        entityId, start, end, traceId, errorOnly, serviceName, serviceNamespace, environment,
+                        scopedResourceFilter, operationName, minDurationMs, maxDurationMs, pageIndex, pageSize,
+                        hideInternal, spanScope, attributeFilter));
         return ResponseEntity.ok(Message.success(page));
     }
 
@@ -98,10 +101,11 @@ public class TraceQueryController {
             @RequestParam(value = "spanScope", required = false) String spanScope,
             @RequestParam(value = "hideInternal", required = false) Boolean hideInternal) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        return ResponseEntity.ok(Message.success(entityTraceQueryService.getTraceOverview(
-                entityId, start, end, traceId, errorOnly, serviceName, serviceNamespace, environment,
-                scopedResourceFilter, operationName, minDurationMs, maxDurationMs, hideInternal, spanScope,
-                attributeFilter)));
+        return ResponseEntity.ok(Message.success(queryAdmissionService.execute("traces",
+                () -> entityTraceQueryService.getTraceOverview(
+                        entityId, start, end, traceId, errorOnly, serviceName, serviceNamespace, environment,
+                        scopedResourceFilter, operationName, minDurationMs, maxDurationMs, hideInternal, spanScope,
+                        attributeFilter))));
     }
 
     @GetMapping("/stats/group-by")
@@ -128,24 +132,27 @@ public class TraceQueryController {
             @RequestParam(value = "spanScope", required = false) String spanScope,
             @RequestParam(value = "hideInternal", required = false) Boolean hideInternal) {
         String scopedResourceFilter = mergeEntityContextResourceFilter(entityId, entityType, resourceFilter);
-        return ResponseEntity.ok(Message.success(entityTraceQueryService.getTraceGroupByStats(
-                entityId, start, end, traceId, errorOnly, serviceName, serviceNamespace, environment,
-                scopedResourceFilter, operationName, minDurationMs, maxDurationMs, groupBy, limit, orderBy, minCount,
-                hideInternal, spanScope, attributeFilter)));
+        return ResponseEntity.ok(Message.success(queryAdmissionService.execute("traces",
+                () -> entityTraceQueryService.getTraceGroupByStats(
+                        entityId, start, end, traceId, errorOnly, serviceName, serviceNamespace, environment,
+                        scopedResourceFilter, operationName, minDurationMs, maxDurationMs, groupBy, limit, orderBy,
+                        minCount, hideInternal, spanScope, attributeFilter))));
     }
 
     @GetMapping("/{traceId}")
     @Operation(summary = "Query single trace detail")
     public ResponseEntity<Message<TraceDetailDto>> detail(@PathVariable("traceId") String traceId,
                                                           @RequestParam(value = "entityId", required = false) Long entityId) {
-        return ResponseEntity.ok(Message.success(entityTraceQueryService.getTraceDetail(entityId, traceId)));
+        return ResponseEntity.ok(Message.success(queryAdmissionService.execute("traces",
+                () -> entityTraceQueryService.getTraceDetail(entityId, traceId))));
     }
 
     @GetMapping("/{traceId}/spans")
     @Operation(summary = "Query spans by trace id")
     public ResponseEntity<Message<List<TraceSpanNodeDto>>> spans(@PathVariable("traceId") String traceId,
                                                                  @RequestParam(value = "entityId", required = false) Long entityId) {
-        return ResponseEntity.ok(Message.success(entityTraceQueryService.getTraceSpans(entityId, traceId)));
+        return ResponseEntity.ok(Message.success(queryAdmissionService.execute("traces",
+                () -> entityTraceQueryService.getTraceSpans(entityId, traceId))));
     }
 
     private String mergeEntityContextResourceFilter(Long entityId, String entityType, String resourceFilter) {
