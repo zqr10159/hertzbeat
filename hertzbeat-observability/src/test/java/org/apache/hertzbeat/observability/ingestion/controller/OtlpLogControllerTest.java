@@ -31,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -49,6 +50,7 @@ import org.apache.hertzbeat.common.entity.manager.ObserveEntity;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext;
 import org.apache.hertzbeat.common.observability.gateway.ObservabilityWorkspaceQueryGateway;
 import org.apache.hertzbeat.observability.ingestion.adapter.OtlpLogProtocolAdapter;
+import org.apache.hertzbeat.observability.ingestion.admission.OtlpIngestionAdmissionService;
 import org.apache.hertzbeat.observability.ingestion.audit.OtlpIngestionAuditEvent;
 import org.apache.hertzbeat.observability.ingestion.audit.OtlpIngestionAuditService;
 import org.apache.hertzbeat.observability.ingestion.enricher.OtlpCorrelationContext;
@@ -128,6 +130,7 @@ class OtlpLogControllerTest {
                 auditService,
                 new OtlpIngestionGovernanceService(dropServiceNames),
                 new OtlpIngestionQuotaService(maxRequestBytes, maxSignalItems),
+                new OtlpIngestionAdmissionService(32, 32, Duration.ofMillis(100)),
                 org.mockito.Mockito.mock(org.apache.hertzbeat.common.observability.gateway.ObservabilitySignalIntakeGateway.class),
                 new org.apache.hertzbeat.observability.ingestion.enricher.OtlpEntityIdentityResolver(
                         java.util.List.of(workspaceQueryGateway)));

@@ -63,8 +63,9 @@ import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
 import io.opentelemetry.proto.trace.v1.Span;
-import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -77,6 +78,7 @@ import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext
 import org.apache.hertzbeat.common.observability.gateway.ObservabilitySignalIntakeGateway;
 import org.apache.hertzbeat.common.observability.gateway.ObservabilityWorkspaceQueryGateway;
 import org.apache.hertzbeat.observability.ingestion.adapter.OtlpLogProtocolAdapter;
+import org.apache.hertzbeat.observability.ingestion.admission.OtlpIngestionAdmissionService;
 import org.apache.hertzbeat.observability.ingestion.audit.OtlpIngestionAuditEvent;
 import org.apache.hertzbeat.observability.ingestion.audit.OtlpIngestionAuditService;
 import org.apache.hertzbeat.observability.ingestion.enricher.OtlpCorrelationContext;
@@ -179,7 +181,8 @@ class OtlpGrpcIngestionServiceImplTest {
                 otlpCorrelationEnricher, new OtlpIngestionErrorResponseFactory(),
                 new OtlpIngestionRequestContextResolver(), auditService,
                 new OtlpIngestionGovernanceService(dropServiceNames),
-                new OtlpIngestionQuotaService(maxRequestBytes, maxSignalItems), observabilitySignalIntakeGateway,
+                new OtlpIngestionQuotaService(maxRequestBytes, maxSignalItems), admissionService(),
+                observabilitySignalIntakeGateway,
                 new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)), new OtlpRequestDecoder());
     }
 
@@ -189,7 +192,8 @@ class OtlpGrpcIngestionServiceImplTest {
                 new OtlpIngestionRequestContextResolver(), auditService,
                 new OtlpIngestionGovernanceService(""),
                 new OtlpIngestionQuotaService(Long.MAX_VALUE, Long.MAX_VALUE, maxHeapUsageRatio, () -> heapUsageRatio),
-                observabilitySignalIntakeGateway, new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)),
+                admissionService(), observabilitySignalIntakeGateway,
+                new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)),
                 new OtlpRequestDecoder());
     }
 
@@ -199,8 +203,13 @@ class OtlpGrpcIngestionServiceImplTest {
                 new OtlpIngestionErrorResponseFactory(),
                 new OtlpIngestionRequestContextResolver(), auditService,
                 new OtlpIngestionGovernanceService(""),
-                new OtlpIngestionQuotaService(Long.MAX_VALUE, Long.MAX_VALUE), observabilitySignalIntakeGateway,
+                new OtlpIngestionQuotaService(Long.MAX_VALUE, Long.MAX_VALUE), admissionService(),
+                observabilitySignalIntakeGateway,
                 new OtlpEntityIdentityResolver(List.of(workspaceQueryGateway)), new OtlpRequestDecoder());
+    }
+
+    private OtlpIngestionAdmissionService admissionService() {
+        return new OtlpIngestionAdmissionService(32, 32, Duration.ofMillis(100));
     }
 
     private OtlpSignalStorage signalStorage(OtlpIngestionRetryService retryService) {
