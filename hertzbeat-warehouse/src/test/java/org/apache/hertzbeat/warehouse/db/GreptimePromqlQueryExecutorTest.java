@@ -24,10 +24,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.hertzbeat.common.entity.dto.query.DatasourceQuery;
 import org.apache.hertzbeat.common.entity.dto.query.DatasourceQueryData;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.greptime.GreptimeProperties;
@@ -103,5 +108,59 @@ class GreptimePromqlQueryExecutorTest {
 
         assertEquals(200, result.getStatus());
         assertEquals(1, result.getFrames().size());
+    }
+
+    @Test
+    void coalescesConcurrentIdenticalPromqlRangeQueries() throws Exception {
+        CountDownLatch requestStarted = new CountDownLatch(1);
+        CountDownLatch releaseRequest = new CountDownLatch(1);
+        PromQlQueryContent response = new PromQlQueryContent();
+        PromQlQueryContent.ContentData data = new PromQlQueryContent.ContentData();
+        data.setResult(List.of());
+        response.setData(data);
+        when(restTemplate.exchange(
+                any(URI.class),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(PromQlQueryContent.class)
+        )).thenAnswer(invocation -> {
+            requestStarted.countDown();
+            releaseRequest.await();
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        });
+        DatasourceQuery query = DatasourceQuery.builder()
+                .refId("metrics-console")
+                .datasource("Greptime-promql")
+                .expr("avg(hb_query_cpu_usage_ratio)")
+                .exprType("promql")
+                .timeType("range")
+                .start(1_775_034_288_092L)
+                .end(1_775_037_888_092L)
+                .step("30s")
+                .build();
+        List<Thread> callers = new ArrayList<>();
+        List<DatasourceQueryData> results = java.util.Collections.synchronizedList(new ArrayList<>());
+
+        for (int index = 0; index < 8; index++) {
+            callers.add(Thread.ofVirtual().start(() -> results.add(greptimePromqlQueryExecutor.query(query))));
+        }
+
+        assertEquals(true, requestStarted.await(1, TimeUnit.SECONDS));
+        Thread.sleep(50);
+        verify(restTemplate, times(1)).exchange(
+                any(URI.class),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(PromQlQueryContent.class));
+        releaseRequest.countDown();
+        for (Thread caller : callers) {
+            caller.join(Duration.ofSeconds(1));
+        }
+        assertEquals(8, results.size());
+        verify(restTemplate, times(1)).exchange(
+                any(URI.class),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(PromQlQueryContent.class));
     }
 }

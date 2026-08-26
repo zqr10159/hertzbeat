@@ -17,8 +17,12 @@
 
 package org.apache.hertzbeat.warehouse.query.admission;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PreDestroy;
 import java.time.Duration;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -49,6 +53,7 @@ public class ObservabilityQueryAdmissionService implements AutoCloseable {
 
     @Autowired
     public ObservabilityQueryAdmissionService(
+            MeterRegistry meterRegistry,
             @Value("${hertzbeat.observability.query.admission.metrics.max-concurrent-requests:8}")
             int metricsMaxConcurrentRequests,
             @Value("${hertzbeat.observability.query.admission.logs.max-concurrent-requests:8}")
@@ -63,15 +68,16 @@ public class ObservabilityQueryAdmissionService implements AutoCloseable {
             Duration maxQueueWait,
             @Value("${hertzbeat.observability.query.admission.timeout:5s}")
             Duration queryTimeout) {
+        Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.lanes = Map.of(
                 "metrics", new Lane("metrics", metricsMaxConcurrentRequests, queueCapacity,
-                        maxQueueWait, queryTimeout),
+                        maxQueueWait, queryTimeout, meterRegistry),
                 "logs", new Lane("logs", logsMaxConcurrentRequests, queueCapacity,
-                        maxQueueWait, queryTimeout),
+                        maxQueueWait, queryTimeout, meterRegistry),
                 "traces", new Lane("traces", tracesMaxConcurrentRequests, queueCapacity,
-                        maxQueueWait, queryTimeout),
+                        maxQueueWait, queryTimeout, meterRegistry),
                 "topology", new Lane("topology", topologyMaxConcurrentRequests, queueCapacity,
-                        maxQueueWait, queryTimeout));
+                        maxQueueWait, queryTimeout, meterRegistry));
     }
 
     /**
@@ -105,9 +111,11 @@ public class ObservabilityQueryAdmissionService implements AutoCloseable {
         private final boolean queueEnabled;
         private final long maxQueueWaitNanos;
         private final long queryTimeoutNanos;
+        private final Timer queueWaitTimer;
+        private final Map<Outcome, Timer> durationTimers;
 
         private Lane(String signal, int maxConcurrentRequests, int queueCapacity,
-                     Duration maxQueueWait, Duration queryTimeout) {
+                     Duration maxQueueWait, Duration queryTimeout, MeterRegistry meterRegistry) {
             if (maxConcurrentRequests <= 0) {
                 throw new IllegalArgumentException("maxConcurrentRequests must be greater than zero");
             }
@@ -126,9 +134,30 @@ public class ObservabilityQueryAdmissionService implements AutoCloseable {
                     workQueue(queueCapacity),
                     threadFactory(signal),
                     new ThreadPoolExecutor.AbortPolicy());
+            Gauge.builder("hertzbeat.observability.query.active", executor, ThreadPoolExecutor::getActiveCount)
+                    .description("Current active observability queries")
+                    .tag("signal", signal)
+                    .register(meterRegistry);
+            Gauge.builder("hertzbeat.observability.query.queued", executor,
+                            currentExecutor -> currentExecutor.getQueue().size())
+                    .description("Current queued observability queries")
+                    .tag("signal", signal)
+                    .register(meterRegistry);
+            this.queueWaitTimer = Timer.builder("hertzbeat.observability.query.queue.wait")
+                    .description("Time accepted observability queries wait before execution")
+                    .tag("signal", signal)
+                    .register(meterRegistry);
+            this.durationTimers = new EnumMap<>(Outcome.class);
+            for (Outcome outcome : Outcome.values()) {
+                durationTimers.put(outcome, Timer.builder("hertzbeat.observability.query.duration")
+                        .description("End-to-end observability query duration")
+                        .tags("signal", signal, "outcome", outcome.tagValue)
+                        .register(meterRegistry));
+            }
         }
 
         private <T> T execute(Supplier<T> operation, String workspaceId) {
+            long requestStartedNanos = System.nanoTime();
             CountDownLatch started = new CountDownLatch(1);
             Future<T> future;
             try {
@@ -142,24 +171,43 @@ public class ObservabilityQueryAdmissionService implements AutoCloseable {
                     }
                 });
             } catch (RejectedExecutionException exception) {
+                recordDuration(Outcome.REJECTED, requestStartedNanos);
                 throw failure(ObservabilityQueryAdmissionException.Reason.OVERLOADED, exception);
             }
+            long queuedAtNanos = System.nanoTime();
             try {
                 if (queueEnabled && !started.await(maxQueueWaitNanos, TimeUnit.NANOSECONDS)) {
+                    recordQueueWait(queuedAtNanos);
                     cancel(future);
+                    recordDuration(Outcome.REJECTED, requestStartedNanos);
                     throw failure(ObservabilityQueryAdmissionException.Reason.OVERLOADED, null);
                 }
-                return future.get(queryTimeoutNanos, TimeUnit.NANOSECONDS);
+                recordQueueWait(queuedAtNanos);
+                T result = future.get(queryTimeoutNanos, TimeUnit.NANOSECONDS);
+                recordDuration(Outcome.SUCCESS, requestStartedNanos);
+                return result;
             } catch (InterruptedException exception) {
                 cancel(future);
                 Thread.currentThread().interrupt();
+                recordDuration(Outcome.CANCELLED, requestStartedNanos);
                 throw failure(ObservabilityQueryAdmissionException.Reason.CANCELLED, exception);
             } catch (TimeoutException exception) {
                 cancel(future);
+                recordDuration(Outcome.TIMED_OUT, requestStartedNanos);
                 throw failure(ObservabilityQueryAdmissionException.Reason.TIMED_OUT, exception);
             } catch (ExecutionException exception) {
+                recordDuration(Outcome.ERROR, requestStartedNanos);
                 throw propagate(exception.getCause());
             }
+        }
+
+        private void recordQueueWait(long queuedAtNanos) {
+            queueWaitTimer.record(System.nanoTime() - queuedAtNanos, TimeUnit.NANOSECONDS);
+        }
+
+        private void recordDuration(Outcome outcome, long requestStartedNanos) {
+            durationTimers.get(outcome).record(
+                    System.nanoTime() - requestStartedNanos, TimeUnit.NANOSECONDS);
         }
 
         private void cancel(Future<?> future) {
@@ -208,6 +256,20 @@ public class ObservabilityQueryAdmissionService implements AutoCloseable {
                 return duration.toNanos();
             } catch (ArithmeticException ignored) {
                 return Long.MAX_VALUE;
+            }
+        }
+
+        private enum Outcome {
+            SUCCESS("success"),
+            ERROR("error"),
+            REJECTED("rejected"),
+            TIMED_OUT("timed_out"),
+            CANCELLED("cancelled");
+
+            private final String tagValue;
+
+            Outcome(String tagValue) {
+                this.tagValue = tagValue;
             }
         }
     }

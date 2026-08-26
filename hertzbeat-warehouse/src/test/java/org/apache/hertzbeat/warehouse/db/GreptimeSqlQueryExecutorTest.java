@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -33,6 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.greptime.GreptimeProperties;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.greptime.GreptimeSqlQueryContent;
 import org.junit.jupiter.api.BeforeEach;
@@ -228,6 +232,49 @@ class GreptimeSqlQueryExecutorTest {
         assertEquals("Basic " + Base64.getEncoder()
                         .encodeToString("demo:secret".getBytes(StandardCharsets.UTF_8)),
                 httpEntityCaptor.getValue().getHeaders().getFirst(HttpHeaders.AUTHORIZATION));
+    }
+
+    @Test
+    void coalescesConcurrentIdenticalSqlQueries() throws Exception {
+        CountDownLatch requestStarted = new CountDownLatch(1);
+        CountDownLatch releaseRequest = new CountDownLatch(1);
+        ResponseEntity<GreptimeSqlQueryContent> responseEntity =
+                new ResponseEntity<>(createMockResponse(), HttpStatus.OK);
+        when(restTemplate.exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GreptimeSqlQueryContent.class)
+        )).thenAnswer(invocation -> {
+            requestStarted.countDown();
+            releaseRequest.await();
+            return responseEntity;
+        });
+        List<Thread> callers = new ArrayList<>();
+        List<List<Map<String, Object>>> results = java.util.Collections.synchronizedList(new ArrayList<>());
+
+        for (int index = 0; index < 8; index++) {
+            callers.add(Thread.ofVirtual().start(() -> results.add(
+                    greptimeSqlQueryExecutor.execute("SELECT * FROM metrics"))));
+        }
+
+        assertEquals(true, requestStarted.await(1, TimeUnit.SECONDS));
+        Thread.sleep(50);
+        verify(restTemplate, times(1)).exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GreptimeSqlQueryContent.class));
+        releaseRequest.countDown();
+        for (Thread caller : callers) {
+            caller.join(Duration.ofSeconds(1));
+        }
+        assertEquals(8, results.size());
+        verify(restTemplate, times(1)).exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GreptimeSqlQueryContent.class));
     }
 
     private GreptimeSqlQueryContent createMockResponse() {

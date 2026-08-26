@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 class ObservabilityQueryAdmissionServiceTest {
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private ObservabilityQueryAdmissionService service;
 
     @AfterEach
@@ -42,6 +44,7 @@ class ObservabilityQueryAdmissionServiceTest {
         if (service != null) {
             service.close();
         }
+        meterRegistry.clear();
     }
 
     @Test
@@ -127,6 +130,8 @@ class ObservabilityQueryAdmissionServiceTest {
         await().atMost(Duration.ofSeconds(1)).untilTrue(interrupted);
         await().atMost(Duration.ofSeconds(1)).untilAsserted(
                 () -> assertEquals("recovered", service.execute("traces", () -> "recovered")));
+        assertEquals(1, meterRegistry.get("hertzbeat.observability.query.duration")
+                .tags("signal", "traces", "outcome", "timed_out").timer().count());
     }
 
     @Test
@@ -178,6 +183,62 @@ class ObservabilityQueryAdmissionServiceTest {
                 (ObservabilityQueryAdmissionException) failure.get();
         assertEquals(ObservabilityQueryAdmissionException.Reason.CANCELLED, exception.getReason());
         await().atMost(Duration.ofSeconds(1)).untilTrue(interrupted);
+        assertEquals(1, meterRegistry.get("hertzbeat.observability.query.duration")
+                .tags("signal", "topology", "outcome", "cancelled").timer().count());
+    }
+
+    @Test
+    void recordsStorageFailureOutcomeWithoutChangingTheException() {
+        service = service(1, 0, Duration.ZERO, Duration.ofSeconds(5));
+        IllegalStateException failure = new IllegalStateException("storage unavailable");
+
+        IllegalStateException actual = assertThrows(IllegalStateException.class,
+                () -> service.execute("logs", () -> {
+                    throw failure;
+                }));
+
+        assertEquals(failure, actual);
+        assertEquals(1, meterRegistry.get("hertzbeat.observability.query.duration")
+                .tags("signal", "logs", "outcome", "error").timer().count());
+    }
+
+    @Test
+    void exposesBoundedLaneOccupancyAndOutcomes() throws Exception {
+        service = service(1, 1, Duration.ofSeconds(5), Duration.ofSeconds(5));
+        CountDownLatch activeStarted = new CountDownLatch(1);
+        CountDownLatch releaseActive = new CountDownLatch(1);
+        Thread activeRequest = startBlockingQuery("metrics", activeStarted, releaseActive);
+        assertTrue(activeStarted.await(1, TimeUnit.SECONDS));
+
+        CountDownLatch queuedCompleted = new CountDownLatch(1);
+        Thread queuedRequest = Thread.ofVirtual().start(() -> {
+            service.execute("metrics", () -> "queued");
+            queuedCompleted.countDown();
+        });
+        await().atMost(Duration.ofSeconds(1)).untilAsserted(() -> {
+            assertEquals(1.0, meterRegistry.get("hertzbeat.observability.query.active")
+                    .tag("signal", "metrics").gauge().value());
+            assertEquals(1.0, meterRegistry.get("hertzbeat.observability.query.queued")
+                    .tag("signal", "metrics").gauge().value());
+        });
+
+        assertThrows(ObservabilityQueryAdmissionException.class,
+                () -> service.execute("metrics", () -> "rejected"));
+        assertEquals(1, meterRegistry.get("hertzbeat.observability.query.duration")
+                .tags("signal", "metrics", "outcome", "rejected").timer().count());
+
+        releaseActive.countDown();
+        activeRequest.join(1_000);
+        assertTrue(queuedCompleted.await(1, TimeUnit.SECONDS));
+        queuedRequest.join(1_000);
+        assertEquals(2, meterRegistry.get("hertzbeat.observability.query.duration")
+                .tags("signal", "metrics", "outcome", "success").timer().count());
+        assertEquals(2, meterRegistry.get("hertzbeat.observability.query.queue.wait")
+                .tag("signal", "metrics").timer().count());
+        assertEquals(0.0, meterRegistry.get("hertzbeat.observability.query.active")
+                .tag("signal", "metrics").gauge().value());
+        assertEquals(0.0, meterRegistry.get("hertzbeat.observability.query.queued")
+                .tag("signal", "metrics").gauge().value());
     }
 
     private ObservabilityQueryAdmissionService service(int maxConcurrentRequests,
@@ -185,6 +246,7 @@ class ObservabilityQueryAdmissionServiceTest {
                                                         Duration maxQueueWait,
                                                         Duration queryTimeout) {
         return new ObservabilityQueryAdmissionService(
+                meterRegistry,
                 maxConcurrentRequests, maxConcurrentRequests, maxConcurrentRequests, maxConcurrentRequests,
                 queueCapacity, maxQueueWait, queryTimeout);
     }

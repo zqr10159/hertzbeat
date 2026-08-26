@@ -68,6 +68,12 @@ public abstract class PromqlQueryExecutor implements QueryExecutor {
 
     private final HttpPromqlProperties httpPromqlProperties;
 
+    private final InFlightQueryCoalescer<String, List<Map<String, Object>>> executeQueries =
+            new InFlightQueryCoalescer<>();
+
+    private final InFlightQueryCoalescer<String, DatasourceQueryData> datasourceQueries =
+            new InFlightQueryCoalescer<>();
+
     PromqlQueryExecutor(RestTemplate restTemplate, HttpPromqlProperties httpPromqlProperties) {
         this.restTemplate = restTemplate;
         this.httpPromqlProperties = httpPromqlProperties;
@@ -89,6 +95,10 @@ public abstract class PromqlQueryExecutor implements QueryExecutor {
 
     @Override
     public List<Map<String, Object>> execute(String queryString) {
+        return executeQueries.execute(queryString, () -> executeQuery(queryString));
+    }
+
+    private List<Map<String, Object>> executeQuery(String queryString) {
         List<Map<String, Object>> results = new LinkedList<>();
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -139,6 +149,17 @@ public abstract class PromqlQueryExecutor implements QueryExecutor {
 
     @Override
     public DatasourceQueryData query(DatasourceQuery datasourceQuery) {
+        String queryKey = String.join("\u0000",
+                String.valueOf(datasourceQuery.getRefId()),
+                String.valueOf(datasourceQuery.getTimeType()),
+                String.valueOf(datasourceQuery.getExpr()),
+                String.valueOf(datasourceQuery.getStart()),
+                String.valueOf(datasourceQuery.getEnd()),
+                String.valueOf(datasourceQuery.getStep()));
+        return datasourceQueries.execute(queryKey, () -> queryDatasource(datasourceQuery));
+    }
+
+    private DatasourceQueryData queryDatasource(DatasourceQuery datasourceQuery) {
         DatasourceQueryData.DatasourceQueryDataBuilder queryDataBuilder = DatasourceQueryData.builder()
                 .refId(datasourceQuery.getRefId()).status(200);
         try {

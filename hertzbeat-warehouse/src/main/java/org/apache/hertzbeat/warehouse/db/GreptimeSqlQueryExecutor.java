@@ -56,6 +56,9 @@ public class GreptimeSqlQueryExecutor extends SqlQueryExecutor {
 
     private final GreptimeProperties greptimeProperties;
 
+    private final InFlightQueryCoalescer<String, List<Map<String, Object>>> queries =
+            new InFlightQueryCoalescer<>();
+
 
     public GreptimeSqlQueryExecutor(GreptimeProperties greptimeProperties, RestTemplate restTemplate) {
         super(restTemplate, new SqlQueryExecutor.HttpSqlProperties(sqlEndpoint(greptimeProperties.httpEndpoint()),
@@ -65,6 +68,10 @@ public class GreptimeSqlQueryExecutor extends SqlQueryExecutor {
 
     @Override
     public List<Map<String, Object>> execute(String queryString) {
+        return queries.execute(queryString, () -> executeQuery(queryString));
+    }
+
+    private List<Map<String, Object>> executeQuery(String queryString) {
         List<Map<String, Object>> results = new LinkedList<>();
 
         HttpHeaders headers = new HttpHeaders();
