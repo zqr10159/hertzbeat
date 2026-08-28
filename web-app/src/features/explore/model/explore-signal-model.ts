@@ -15,7 +15,8 @@
  * limitations under the License.
  */
 
-import type { LogRow, MetricConsole, TraceDetail, TraceRow, TraceSpan } from './explore-signal-contract';
+import type { LiveLogRow, LogRow, MetricConsole, TraceDetail, TraceRow, TraceSpan } from './explore-signal-contract';
+import { investigationDurationNanoToMillis } from './explore-investigation-model';
 
 export type LiveLogStatus = 'waiting' | 'connected' | 'degraded' | 'paused' | 'unavailable' | 'error' | 'contract';
 export type TraceSpanTiming =
@@ -97,8 +98,11 @@ export function metricPoints(series: MetricSeries): MetricPoint[] {
   });
 }
 
-export function traceDurationMs(row: Pick<TraceRow, 'durationNanos'>) {
-  return row.durationNanos == null ? undefined : row.durationNanos / 1_000_000;
+export function traceDurationMs(row: Pick<TraceRow | TraceDetail, 'durationNanos'>) {
+  if (row.durationNanos == null) return undefined;
+  return typeof row.durationNanos === 'string'
+    ? investigationDurationNanoToMillis(row.durationNanos)
+    : row.durationNanos / 1_000_000;
 }
 
 export function traceHealthState(row: Pick<TraceRow, 'status' | 'errorSpanCount'>): 'ok' | 'error' | 'unknown' {
@@ -137,7 +141,7 @@ function traceTimeline(detail: TraceDetail, spans: TraceSpan[]): TraceTimeline |
 
   const declaredEnd = startTime + (traceDurationMs(detail) ?? 0);
   const endTime = timedSpans.reduce(
-    (latest, span) => Math.max(latest, span.startTime + span.durationNanos / 1_000_000),
+    (latest, span) => Math.max(latest, span.startTime + investigationDurationNanoToMillis(span.durationNanos)!),
     Math.max(startTime, declaredEnd)
   );
   return { startTime, durationMs: endTime - startTime };
@@ -147,17 +151,23 @@ function traceSpanTiming(span: TraceSpan, timeline: TraceTimeline | undefined): 
   if (!timeline || !hasCompleteSpanTiming(span)) return { kind: 'unavailable' };
   const offsetPercent =
     timeline.durationMs > 0 ? clamp(((span.startTime - timeline.startTime) / timeline.durationMs) * 100, 0, 100) : 0;
-  if (span.durationNanos === 0) return { kind: 'instant', offsetPercent };
+  const durationMs = investigationDurationNanoToMillis(span.durationNanos);
+  if (durationMs == null) return { kind: 'unavailable' };
+  if (durationMs === 0) return { kind: 'instant', offsetPercent };
   if (timeline.durationMs === 0) return { kind: 'unavailable' };
   return {
     kind: 'duration',
     offsetPercent,
-    widthPercent: clamp((span.durationNanos / 1_000_000 / timeline.durationMs) * 100, 0.4, 100)
+    widthPercent: clamp((durationMs / timeline.durationMs) * 100, 0.4, 100)
   };
 }
 
-function hasCompleteSpanTiming(span: TraceSpan): span is TraceSpan & { startTime: number; durationNanos: number } {
-  return span.startTime != null && span.durationNanos != null;
+function hasCompleteSpanTiming(span: TraceSpan): span is TraceSpan & { startTime: number; durationNanos: string } {
+  return (
+    span.startTime != null &&
+    span.durationNanos != null &&
+    investigationDurationNanoToMillis(span.durationNanos) != null
+  );
 }
 
 function compareTraceSpanStart(left: TraceSpan, right: TraceSpan) {
@@ -166,12 +176,12 @@ function compareTraceSpanStart(left: TraceSpan, right: TraceSpan) {
   return left.startTime - right.startTime;
 }
 
-export function logServiceName(row: LogRow) {
+export function logServiceName(row: LogRow | LiveLogRow) {
   const value = row.resource?.['service.name'] ?? row.resource?.service_name;
   return typeof value === 'string' ? value : undefined;
 }
 
-export function logBody(row: LogRow) {
+export function logBody(row: LogRow | LiveLogRow) {
   if (typeof row.body === 'string') return row.body;
   if (row.body == null) return undefined;
   try {
@@ -181,9 +191,13 @@ export function logBody(row: LogRow) {
   }
 }
 
-export function logTimestampMs(row: LogRow) {
+export function logTimestampMs(row: LogRow | LiveLogRow) {
   const timestamp = row.timeUnixNano ?? row.observedTimeUnixNano;
-  return timestamp == null ? undefined : Math.floor(timestamp / 1_000_000);
+  if (timestamp == null) return undefined;
+  if (typeof timestamp === 'number') return Math.floor(timestamp / 1_000_000);
+  if (!/^[1-9]\d{0,18}$/u.test(timestamp)) return undefined;
+  const milliseconds = BigInt(timestamp) / 1_000_000n;
+  return milliseconds <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(milliseconds) : undefined;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

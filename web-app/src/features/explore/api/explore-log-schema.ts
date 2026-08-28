@@ -22,6 +22,7 @@ import {
   type ExplorePageResult,
   type LogOverview,
   type LogRow,
+  type LiveLogRow,
   type LogStreamGap,
   type LogTrend
 } from '../model/explore-signal-contract';
@@ -41,9 +42,7 @@ const instrumentationScopeSchema = z.object({
   droppedAttributesCount: nullableNonNegativeIntegerSchema
 });
 
-const logRowSchema: z.ZodType<LogRow> = z.object({
-  timeUnixNano: nullableJavaLongSchema,
-  observedTimeUnixNano: nullableJavaLongSchema,
+const sharedLogRowShape = {
   severityNumber: nullableNonNegativeIntegerSchema,
   severityText: nullableStringSchema,
   body: jsonValueSchema,
@@ -56,7 +55,32 @@ const logRowSchema: z.ZodType<LogRow> = z.object({
   resourceSchemaUrl: nullableStringSchema,
   instrumentationScope: instrumentationScopeSchema.nullable(),
   scopeSchemaUrl: nullableStringSchema
-});
+};
+
+const nullablePositiveLongDecimal = z
+  .string()
+  .regex(/^[1-9]\d{0,18}$/u)
+  .refine(value => value.length < 19 || value <= '9223372036854775807')
+  .nullable();
+const nullableLogRecordUid = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u)
+  .nullable();
+const logRowSchema: z.ZodType<LogRow> = z
+  .object({
+    logRecordUid: nullableLogRecordUid,
+    timeUnixNano: nullablePositiveLongDecimal,
+    observedTimeUnixNano: nullablePositiveLongDecimal,
+    ...sharedLogRowShape
+  })
+  .strict();
+const liveLogRowSchema: z.ZodType<LiveLogRow> = z
+  .object({
+    timeUnixNano: nullableJavaLongSchema,
+    observedTimeUnixNano: nullableJavaLongSchema,
+    ...sharedLogRowShape
+  })
+  .strict();
 
 const logStreamGapSchema: z.ZodType<LogStreamGap> = z
   .object({
@@ -93,8 +117,8 @@ export function parseLogPage(value: unknown, pageIndex: number, pageSize: number
   };
 }
 
-export function parseLogRow(value: unknown): LogRow {
-  const result = logRowSchema.safeParse(value);
+export function parseLiveLogRow(value: unknown): LiveLogRow {
+  const result = liveLogRowSchema.safeParse(value);
   if (!result.success) throw new ExploreSignalContractError();
   return result.data;
 }

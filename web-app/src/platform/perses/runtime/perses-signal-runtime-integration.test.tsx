@@ -102,7 +102,7 @@ describe('Perses official signal panel integration', () => {
         data={{
           searchResult: [
             {
-              traceId: 'trace-1',
+              traceId: '0123456789abcdef0123456789abcdef',
               rootServiceName: 'checkout',
               rootTraceName: 'POST /orders',
               startTimeUnixMs: timeWindow.from,
@@ -132,8 +132,8 @@ describe('Perses official signal panel integration', () => {
                   {
                     spans: [
                       {
-                        traceId: 'trace-1',
-                        spanId: 'span-1',
+                        traceId: '0123456789abcdef0123456789abcdef',
+                        spanId: '0123456789abcdef',
                         name: 'POST /orders',
                         startTimeUnixNano: '1750000000000000000',
                         endTimeUnixNano: '1750000000010000000'

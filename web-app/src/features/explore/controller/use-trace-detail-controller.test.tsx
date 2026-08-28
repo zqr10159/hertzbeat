@@ -37,17 +37,19 @@ describe('Trace detail controller', () => {
   });
 
   it('owns open, ready selection, cross-signal actions, pagination, and close reset', async () => {
-    api.loadTraceDetail.mockResolvedValue(traceDetail('trace-1'));
+    api.loadTraceDetail.mockResolvedValue(traceDetail('0123456789abcdef0123456789abcdef'));
     const openPath = vi.fn();
     const view = renderController(openPath);
     expect(view.result.current.state.kind).toBe('closed');
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     expect(view.result.current.state.kind).toBe('loading');
     await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
-    act(() => view.result.current.selectSpan('span-2'));
-    expect(view.result.current.state).toMatchObject({ kind: 'ready', selected: { spanId: 'span-2' } });
+    act(() => view.result.current.selectSpan('fedcba9876543210'));
+    expect(view.result.current.state).toMatchObject({ kind: 'ready', selected: { spanId: 'fedcba9876543210' } });
     act(() => view.result.current.openRelatedLogs());
-    expect(openPath).toHaveBeenLastCalledWith(expect.stringMatching(/signal=logs.*traceId=trace-1/));
+    expect(openPath).toHaveBeenLastCalledWith(
+      expect.stringMatching(/signal=logs.*traceId=0123456789abcdef0123456789abcdef/)
+    );
     act(() => view.result.current.openRelatedMetrics());
     expect(openPath).toHaveBeenLastCalledWith(expect.stringMatching(/signal=metrics.*serviceName=payments/));
     expect(openPath).toHaveBeenLastCalledWith(expect.not.stringContaining('operationName='));
@@ -55,38 +57,44 @@ describe('Trace detail controller', () => {
     expect(openPath).toHaveBeenLastCalledWith(expect.stringContaining('page=2'));
     act(() => view.result.current.close());
     expect(view.result.current.state.kind).toBe('closed');
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() =>
-      expect(view.result.current.state).toMatchObject({ kind: 'ready', selected: { spanId: 'span-1' } })
+      expect(view.result.current.state).toMatchObject({ kind: 'ready', selected: { spanId: '0123456789abcdef' } })
     );
   });
 
   it('uses a canonical span id only as detail selection identity', async () => {
-    api.loadTraceDetail.mockResolvedValue(traceDetail('trace-1'));
+    api.loadTraceDetail.mockResolvedValue(traceDetail('0123456789abcdef0123456789abcdef'));
     const view = renderController(vi.fn());
-    view.rerender({ query: { ...defaultQuery, traceId: 'trace-1', spanId: 'span-2' } });
+    view.rerender({
+      query: { ...defaultQuery, traceId: '0123456789abcdef0123456789abcdef', spanId: 'fedcba9876543210' }
+    });
 
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
 
     await waitFor(() =>
       expect(view.result.current.state).toMatchObject({
         kind: 'ready',
-        detail: { traceId: 'trace-1' },
-        selected: { spanId: 'span-2' }
+        detail: { traceId: '0123456789abcdef0123456789abcdef' },
+        selected: { spanId: 'fedcba9876543210' }
       })
     );
     expect(api.loadTraceDetail).toHaveBeenCalledWith(
-      expect.objectContaining({ signal: 'traces', traceId: 'trace-1', spanId: 'span-2' }),
-      'trace-1',
+      expect.objectContaining({
+        signal: 'traces',
+        traceId: '0123456789abcdef0123456789abcdef',
+        spanId: 'fedcba9876543210'
+      }),
+      '0123456789abcdef0123456789abcdef',
       expect.any(AbortSignal)
     );
   });
 
   it('injects operationName only from an honestly selected matching root span', async () => {
-    api.loadTraceDetail.mockResolvedValue(rootAlignedTraceDetail('trace-1'));
+    api.loadTraceDetail.mockResolvedValue(rootAlignedTraceDetail('0123456789abcdef0123456789abcdef'));
     const openPath = vi.fn();
     const view = renderController(openPath);
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
 
     act(() => view.result.current.openRelatedMetrics());
@@ -95,15 +103,23 @@ describe('Trace detail controller', () => {
   });
 
   it.each([
-    ['child selection', rootAlignedTraceDetail('trace-1'), 'span-2'],
-    ['root name mismatch', traceDetail('trace-1'), undefined],
-    ['missing root name', { ...rootAlignedTraceDetail('trace-1'), rootSpanName: null }, undefined],
-    ['missing root selection', { ...rootAlignedTraceDetail('trace-1'), rootSpanId: 'missing-span' }, undefined]
+    ['child selection', rootAlignedTraceDetail('0123456789abcdef0123456789abcdef'), 'fedcba9876543210'],
+    ['root name mismatch', traceDetail('0123456789abcdef0123456789abcdef'), undefined],
+    [
+      'missing root name',
+      { ...rootAlignedTraceDetail('0123456789abcdef0123456789abcdef'), rootSpanName: null },
+      undefined
+    ],
+    [
+      'missing root selection',
+      { ...rootAlignedTraceDetail('0123456789abcdef0123456789abcdef'), rootSpanId: 'missing-span' },
+      undefined
+    ]
   ] as const)('does not inject operationName for %s', async (_label, detail, selectedSpanId) => {
     api.loadTraceDetail.mockResolvedValue(detail);
     const openPath = vi.fn();
     const view = renderController(openPath);
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
     if (selectedSpanId) act(() => view.result.current.selectSpan(selectedSpanId));
 
@@ -113,7 +129,7 @@ describe('Trace detail controller', () => {
   });
 
   it('preserves full context for trace logs and clears downstream identity when a span changes the metric service', async () => {
-    api.loadTraceDetail.mockResolvedValue(traceDetail('trace-1'));
+    api.loadTraceDetail.mockResolvedValue(traceDetail('0123456789abcdef0123456789abcdef'));
     const openPath = vi.fn();
     const view = renderController(openPath);
     const scopedQuery: TraceExploreQuery = {
@@ -129,17 +145,17 @@ describe('Trace detail controller', () => {
       end: 2_000
     };
     view.rerender({ query: scopedQuery });
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
 
     act(() => view.result.current.openRelatedLogs());
     expect(openPath).toHaveBeenLastCalledWith(
-      '/explore?signal=logs&timeRange=last-30m&traceId=trace-1&start=1000&end=2000' +
+      '/explore?signal=logs&timeRange=last-30m&traceId=0123456789abcdef0123456789abcdef&start=1000&end=2000' +
         '&collectorId=collector-east&serviceName=checkout&serviceNamespace=commerce&environment=prod' +
         '&instance=checkout-7d9&endpoint=%2Fcheckout'
     );
 
-    act(() => view.result.current.selectSpan('span-2'));
+    act(() => view.result.current.selectSpan('fedcba9876543210'));
     act(() => view.result.current.openRelatedMetrics());
     expect(openPath).toHaveBeenLastCalledWith(
       '/explore?signal=metrics&timeRange=last-30m&start=1000&end=2000' +
@@ -160,9 +176,11 @@ describe('Trace detail controller', () => {
     ['error', async () => new (await import('../model/explore-signal-contract')).ExploreSignalContractError('bad')],
     ['error', () => new Error('bad')]
   ] as const)('classifies detail failure as %s and retries', async (kind, reasonFactory) => {
-    api.loadTraceDetail.mockRejectedValueOnce(await reasonFactory()).mockResolvedValueOnce(traceDetail('trace-1'));
+    api.loadTraceDetail
+      .mockRejectedValueOnce(await reasonFactory())
+      .mockResolvedValueOnce(traceDetail('0123456789abcdef0123456789abcdef'));
     const view = renderController(vi.fn());
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(view.result.current.state.kind).toBe(kind));
     await act(async () => {
       await view.result.current.retry();
@@ -176,17 +194,20 @@ describe('Trace detail controller', () => {
     const signals: AbortSignal[] = [];
     api.loadTraceDetail.mockImplementation((_query: TraceExploreQuery, traceId: string, signal: AbortSignal) => {
       signals.push(signal);
-      return traceId === 'trace-1' ? first.promise : second.promise;
+      return traceId === '0123456789abcdef0123456789abcdef' ? first.promise : second.promise;
     });
     const view = renderController(vi.fn());
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(signals).toHaveLength(1));
-    act(() => view.result.current.openTrace('trace-2'));
+    act(() => view.result.current.openTrace('fedcba9876543210fedcba9876543210'));
     await waitFor(() => expect(signals[0]?.aborted).toBe(true));
-    act(() => first.resolve(traceDetail('trace-1')));
-    act(() => second.resolve(traceDetail('trace-2')));
+    act(() => first.resolve(traceDetail('0123456789abcdef0123456789abcdef')));
+    act(() => second.resolve(traceDetail('fedcba9876543210fedcba9876543210')));
     await waitFor(() =>
-      expect(view.result.current.state).toMatchObject({ kind: 'ready', detail: { traceId: 'trace-2' } })
+      expect(view.result.current.state).toMatchObject({
+        kind: 'ready',
+        detail: { traceId: 'fedcba9876543210fedcba9876543210' }
+      })
     );
     const third = deferred<TraceDetail>();
     api.loadTraceDetail.mockImplementationOnce((_query: TraceExploreQuery, _traceId: string, signal: AbortSignal) => {
@@ -201,10 +222,10 @@ describe('Trace detail controller', () => {
   });
 
   it('permanently clears selected trace evidence and prevents stale pivots when scope changes A to B to A', async () => {
-    api.loadTraceDetail.mockResolvedValue(traceDetail('trace-1'));
+    api.loadTraceDetail.mockResolvedValue(traceDetail('0123456789abcdef0123456789abcdef'));
     const openPath = vi.fn();
     const view = renderController(openPath);
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
 
     view.rerender({ query: { ...defaultQuery, serviceName: 'payments' } });
@@ -227,7 +248,7 @@ describe('Trace detail controller', () => {
       }
     );
     const view = renderController(vi.fn());
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(signal).toBeDefined());
 
     view.rerender({ query: { ...defaultQuery, serviceName: 'payments' } });
@@ -246,14 +267,14 @@ describe('Trace detail controller', () => {
       }
     );
     const view = renderController(vi.fn());
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(signal).toBeDefined());
 
     view.rerender({ query: defaultQuery, parentEvidenceCurrent: false });
 
     expect(view.result.current.state.kind).toBe('closed');
     await waitFor(() => expect(signal?.aborted).toBe(true));
-    act(() => view.result.current.openTrace('trace-2'));
+    act(() => view.result.current.openTrace('fedcba9876543210fedcba9876543210'));
     expect(api.loadTraceDetail).toHaveBeenCalledOnce();
 
     view.rerender({ query: defaultQuery, parentEvidenceCurrent: true });
@@ -265,27 +286,33 @@ describe('Trace detail controller', () => {
       Promise.resolve(traceDetail(traceId))
     );
     const view = renderController(vi.fn());
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
 
     view.rerender({ query: { ...defaultQuery, serviceName: 'payments' } });
     expect(view.result.current.state.kind).toBe('closed');
-    act(() => view.result.current.openTrace('trace-2'));
+    act(() => view.result.current.openTrace('fedcba9876543210fedcba9876543210'));
 
     await waitFor(() =>
-      expect(view.result.current.state).toMatchObject({ kind: 'ready', detail: { traceId: 'trace-2' } })
+      expect(view.result.current.state).toMatchObject({
+        kind: 'ready',
+        detail: { traceId: 'fedcba9876543210fedcba9876543210' }
+      })
     );
   });
 
   it('keeps an opened detail when the same scope rerenders without another open', async () => {
-    api.loadTraceDetail.mockResolvedValue(traceDetail('trace-1'));
+    api.loadTraceDetail.mockResolvedValue(traceDetail('0123456789abcdef0123456789abcdef'));
     const view = renderController(vi.fn());
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
     await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
 
     view.rerender({ query: { ...defaultQuery } });
 
-    expect(view.result.current.state).toMatchObject({ kind: 'ready', detail: { traceId: 'trace-1' } });
+    expect(view.result.current.state).toMatchObject({
+      kind: 'ready',
+      detail: { traceId: '0123456789abcdef0123456789abcdef' }
+    });
     expect(api.loadTraceDetail).toHaveBeenCalledOnce();
   });
 
@@ -294,15 +321,18 @@ describe('Trace detail controller', () => {
       defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY } }
     });
     client.setQueryData(
-      exploreQueryKeys.detail(exploreEvidenceScopeKey(defaultQuery), 'trace-1'),
-      traceDetail('trace-1')
+      exploreQueryKeys.detail(exploreEvidenceScopeKey(defaultQuery), '0123456789abcdef0123456789abcdef'),
+      traceDetail('0123456789abcdef0123456789abcdef')
     );
     const view = renderController(vi.fn(), client);
 
-    act(() => view.result.current.openTrace('trace-1'));
+    act(() => view.result.current.openTrace('0123456789abcdef0123456789abcdef'));
 
     await waitFor(() =>
-      expect(view.result.current.state).toMatchObject({ kind: 'ready', detail: { traceId: 'trace-1' } })
+      expect(view.result.current.state).toMatchObject({
+        kind: 'ready',
+        detail: { traceId: '0123456789abcdef0123456789abcdef' }
+      })
     );
     expect(api.loadTraceDetail).not.toHaveBeenCalled();
   });
@@ -332,16 +362,16 @@ const defaultQuery: TraceExploreQuery = { signal: 'traces', timeRange: 'last-30m
 function traceDetail(traceId: string): TraceDetail {
   return {
     traceId,
-    rootSpanId: 'span-1',
+    rootSpanId: '0123456789abcdef',
     serviceName: 'checkout',
     serviceNamespace: null,
     rootSpanName: 'POST',
-    durationNanos: 2,
+    durationNanos: '2',
     status: 'OK',
     startTime: 0,
     errorSpanCount: 0,
     resourceAttributes: null,
-    spans: [span(traceId, 'span-1', 'checkout'), span(traceId, 'span-2', 'payments')]
+    spans: [span(traceId, '0123456789abcdef', 'checkout'), span(traceId, 'fedcba9876543210', 'payments')]
   };
 }
 function rootAlignedTraceDetail(traceId: string): TraceDetail {
@@ -349,7 +379,10 @@ function rootAlignedTraceDetail(traceId: string): TraceDetail {
   return {
     ...detail,
     rootSpanName: 'POST /checkout',
-    spans: [span(traceId, 'span-1', 'checkout', 'POST /checkout'), span(traceId, 'span-2', 'payments')]
+    spans: [
+      span(traceId, '0123456789abcdef', 'checkout', 'POST /checkout'),
+      span(traceId, 'fedcba9876543210', 'payments')
+    ]
   };
 }
 function span(traceId: string, spanId: string, serviceName: string, spanName = spanId) {
@@ -365,7 +398,7 @@ function span(traceId: string, spanId: string, serviceName: string, spanName = s
     traceState: null,
     scopeName: null,
     scopeVersion: null,
-    durationNanos: 1,
+    durationNanos: '1',
     startTime: 0,
     highlighted: false,
     resourceAttributes: null,

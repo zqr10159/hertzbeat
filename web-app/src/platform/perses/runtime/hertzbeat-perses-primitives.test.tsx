@@ -239,7 +239,7 @@ describe('HertzBeat Perses primitives', () => {
       <HertzBeatTracingGanttChart
         title="Trace"
         ariaLabel="Trace gantt"
-        query={{ signal: 'traces', queryKind: 'gantt', timeWindow, traceId: 'trace-1' }}
+        query={{ signal: 'traces', queryKind: 'gantt', timeWindow, traceId: '0123456789abcdef0123456789abcdef' }}
         messages={messages}
       />
     );
@@ -279,8 +279,8 @@ function logOutcome(): HertzBeatQueryOutcome<unknown> {
           body: 'checkout ready',
           attributes: {},
           droppedAttributesCount: 0,
-          traceId: 'trace-1',
-          spanId: 'span-1',
+          traceId: '0123456789abcdef0123456789abcdef',
+          spanId: '0123456789abcdef',
           traceFlags: 1,
           resource: { 'service.name': 'checkout' },
           resourceSchemaUrl: null,
@@ -300,8 +300,8 @@ function traceTableOutcome(): HertzBeatQueryOutcome<unknown> {
       total: 1,
       rows: [
         {
-          traceId: 'trace-1',
-          rootSpanId: 'span-1',
+          traceId: '0123456789abcdef0123456789abcdef',
+          rootSpanId: '0123456789abcdef',
           serviceName: 'checkout',
           serviceNamespace: 'commerce',
           rootSpanName: 'POST /orders',
@@ -323,8 +323,8 @@ function traceDetailOutcome(): HertzBeatQueryOutcome<unknown> {
   return {
     state: 'ready',
     data: {
-      traceId: 'trace-1',
-      rootSpanId: 'span-1',
+      traceId: '0123456789abcdef0123456789abcdef',
+      rootSpanId: '0123456789abcdef',
       serviceName: 'checkout',
       serviceNamespace: 'commerce',
       rootSpanName: 'POST /orders',
@@ -335,8 +335,8 @@ function traceDetailOutcome(): HertzBeatQueryOutcome<unknown> {
       resourceAttributes: {},
       spans: [
         {
-          traceId: 'trace-1',
-          spanId: 'span-1',
+          traceId: '0123456789abcdef0123456789abcdef',
+          spanId: '0123456789abcdef',
           parentSpanId: null,
           spanName: 'POST /orders',
           serviceName: 'checkout',

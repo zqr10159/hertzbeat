@@ -2,6 +2,72 @@
   "exploreTrace": {
     "closeDetail": "Close detail"
   },
+  "exploreInvestigation": {
+    "title": "Focused investigation",
+    "exactWindow": "Exact investigation window",
+    "availability": "Investigation signal availability",
+    "sections": {
+      "traces": "Traces",
+      "logs": "Logs in trace",
+      "metrics": "Metrics",
+      "topology": "Topology",
+      "selectedLog": "Selected log",
+      "nearbyLogs": "Nearby logs"
+    },
+    "states": {
+      "available": "Available",
+      "empty": "No evidence in this window.",
+      "unavailable": "This evidence is unavailable.",
+      "noTraceContext": "This log has no trace context. No trace query was sent."
+    },
+    "actions": {
+      "backToResults": "Back to results",
+      "openLogs": "Open logs",
+      "openMetrics": "Open metrics",
+      "openTopology": "Open topology",
+      "focusTrace": "Focus trace"
+    },
+    "trace": {
+      "summary": "Trace summary",
+      "traceId": "Trace ID",
+      "duration": "Duration",
+      "spanCount": "Span count",
+      "errorCount": "Error count",
+      "spanInspector": "Span inspector",
+      "selectSpan": "Select a span to inspect its evidence."
+    },
+    "logs": {
+      "anchor": "Investigation anchor",
+      "exactTrace": "Exact trace correlation",
+      "nearbyScope": "Logs near the selected record in this exact window."
+    },
+    "metrics": {
+      "red": "RED summary",
+      "service": "Service metrics",
+      "requestRate": "Request rate",
+      "errorRate": "Error rate",
+      "latencyP95": "P95 latency",
+      "requests": "Requests"
+    },
+    "topology": {
+      "scope": "Exact-trace dependencies are related evidence, not same-entity proof.",
+      "logScope": "Topology is scoped to the selected log's verified service identity and exact window.",
+      "upstream": "Upstream",
+      "downstream": "Downstream"
+    },
+    "query": {
+      "loading": "Loading signal evidence…",
+      "empty": "No evidence in this window.",
+      "truncated": "Showing a bounded subset of matching evidence.",
+      "truncationUnknown": "Result completeness is unknown.",
+      "runtimeError": "The visualization runtime could not render this evidence.",
+      "invalid": "The signal request is invalid.",
+      "permission": "You do not have permission to inspect this signal.",
+      "overloaded": "Signal storage is busy. Try again.",
+      "unavailable": "Signal storage is unavailable.",
+      "contract": "Signal storage returned an invalid response."
+    }
+  },
   "explore": {
     "exactWindow": "Fixed time window",
     "instanceId": "Service instance ID",

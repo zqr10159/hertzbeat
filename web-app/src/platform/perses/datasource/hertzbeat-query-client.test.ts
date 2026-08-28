@@ -147,7 +147,7 @@ describe('HertzBeat Perses query client', () => {
       context,
       search: 'checkout failed',
       severity: 'ERROR',
-      traceId: 'trace-1',
+      traceId: '0123456789abcdef0123456789abcdef',
       hideInternal: true,
       limit: 2
     });
@@ -163,11 +163,28 @@ describe('HertzBeat Perses query client', () => {
     });
 
     expect(request.mock.calls.map(([path]) => path)).toEqual([
-      '/api/logs/list?entityId=42&entityType=service&start=1000&end=2000&serviceName=checkout&serviceNamespace=commerce&environment=prod&collectorId=collector-a&instance=checkout-01&endpoint=%2Forders&pageIndex=0&pageSize=2&search=checkout+failed&severityText=ERROR&traceId=trace-1&hideInternal=true',
+      '/api/logs/list?entityId=42&entityType=service&start=1000&end=2000&serviceName=checkout&serviceNamespace=commerce&environment=prod&collectorId=collector-a&instance=checkout-01&endpoint=%2Forders&pageIndex=0&pageSize=2&search=checkout+failed&severityText=ERROR&traceId=0123456789abcdef0123456789abcdef&hideInternal=true',
       '/api/traces/list?entityId=42&entityType=service&start=1000&end=2000&serviceName=checkout&serviceNamespace=commerce&environment=prod&collectorId=collector-a&instance=checkout-01&endpoint=%2Forders&pageIndex=0&pageSize=2&operationName=POST+%2Forders&errorOnly=true&spanScope=entrypoint'
     ]);
     expect(logs).toMatchObject({ state: 'ready', truncated: true, data: { rows: [{ severityText: 'ERROR' }] } });
-    expect(traces).toMatchObject({ state: 'ready', truncated: false, data: { rows: [{ traceId: 'trace-1' }] } });
+    expect(traces).toMatchObject({
+      state: 'ready',
+      truncated: false,
+      data: { rows: [{ traceId: '0123456789abcdef0123456789abcdef' }] }
+    });
+  });
+
+  it('rejects numeric nanoseconds from the historical log endpoint', async () => {
+    request.mockResolvedValue({
+      content: [{ ...logRow(), timeUnixNano: 1_000_000_000 }],
+      totalElements: 1,
+      pageIndex: 0,
+      pageSize: 2
+    });
+
+    await expect(
+      queryHertzBeatData({ signal: 'logs', queryKind: 'table', timeWindow, limit: 2 })
+    ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
   });
 
   it.each([{ spanCount: -1 }, { spanCount: 1.5 }, { spanCount: undefined }])(
@@ -219,61 +236,128 @@ describe('HertzBeat Perses query client', () => {
   });
 
   it('loads one trace gantt primitive without exposing a free-form endpoint', async () => {
-    const detail = traceDetail();
-    detail.spans[1]!.events = [
-      {
-        timeUnixNano: '18446744073709551615',
-        name: 'exception',
-        attributes: {},
-        droppedAttributesCount: 0
-      }
-    ];
-    request.mockResolvedValue(detail);
+    request.mockResolvedValue(traceComposite('ready', 'fedcba9876543210'));
 
     const result = await queryHertzBeatData({
       signal: 'traces',
       queryKind: 'gantt',
       timeWindow,
       context,
-      traceId: 'trace-1',
-      spanId: 'span-2'
+      traceId: '0123456789abcdef0123456789abcdef',
+      spanId: 'fedcba9876543210'
     });
 
     expect(request.mock.calls[0]?.[0]).toBe(
-      '/api/traces/trace-1?entityId=42&start=1000&end=2000&serviceName=checkout&serviceNamespace=commerce&environment=prod&collectorId=collector-a&instance=checkout-01&endpoint=%2Forders&spanId=span-2'
+      '/api/traces/0123456789abcdef0123456789abcdef?start=1000&end=2000&spanId=fedcba9876543210'
     );
     expect(result).toMatchObject({
       state: 'ready',
       truncated: false,
       data: {
-        traceId: 'trace-1',
-        spans: [{ spanId: 'span-1' }, { spanId: 'span-2', events: [{ timeUnixNano: '18446744073709551615' }] }]
+        traceId: '0123456789abcdef0123456789abcdef',
+        spans: [{ spanId: '0123456789abcdef' }, { spanId: 'fedcba9876543210' }]
       }
     });
   });
 
-  it('rejects numeric trace event nanoseconds after the precise string wire cutover', async () => {
-    const detail = traceDetail();
-    detail.spans[0]!.events = [
-      { timeUnixNano: 1_750_000_001_005_000_000, name: 'exception', attributes: {}, droppedAttributesCount: 0 }
-    ];
-    request.mockResolvedValue(detail);
+  it('rejects a mismatched composite window or selected span instead of displaying stale Gantt evidence', async () => {
+    request
+      .mockResolvedValueOnce({ ...traceComposite('ready'), window: { start: 1_001, end: 2_000 } })
+      .mockResolvedValueOnce(traceComposite('ready', 'span-other'));
 
     await expect(
-      queryHertzBeatData({ signal: 'traces', queryKind: 'gantt', timeWindow, traceId: 'trace-1' })
+      queryHertzBeatData({
+        signal: 'traces',
+        queryKind: 'gantt',
+        timeWindow,
+        traceId: '0123456789abcdef0123456789abcdef'
+      })
+    ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
+    await expect(
+      queryHertzBeatData({
+        signal: 'traces',
+        queryKind: 'gantt',
+        timeWindow,
+        traceId: '0123456789abcdef0123456789abcdef'
+      })
     ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
   });
 
-  it('rejects trace event nanoseconds above the OTLP uint64 maximum', async () => {
-    const detail = traceDetail();
-    detail.spans[0]!.events = [
-      { timeUnixNano: '18446744073709551616', name: 'exception', attributes: {}, droppedAttributesCount: 0 }
-    ];
-    request.mockResolvedValue(detail);
+  it('preserves lossless event nanoseconds and rejects numeric or uint64-overflow values', async () => {
+    const valid = traceComposite('ready');
+    if (valid.gantt.detail) {
+      valid.gantt.detail.spans[0]!.events = [
+        {
+          timeUnixNano: '18446744073709551615',
+          name: 'exception',
+          attributes: {},
+          droppedAttributesCount: 0
+        }
+      ];
+    }
+    request
+      .mockResolvedValueOnce(valid)
+      .mockResolvedValueOnce(withEventTime(1_750_000_001_005_000_000))
+      .mockResolvedValueOnce(withEventTime('18446744073709551616'));
+    const query = {
+      signal: 'traces',
+      queryKind: 'gantt',
+      timeWindow,
+      traceId: '0123456789abcdef0123456789abcdef'
+    } as const;
 
-    await expect(
-      queryHertzBeatData({ signal: 'traces', queryKind: 'gantt', timeWindow, traceId: 'trace-1' })
-    ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
+    const ready = await queryHertzBeatData(query);
+    expect(ready.state).toBe('ready');
+    if (ready.state === 'ready') {
+      expect(ready.data.spans?.[0]?.events?.[0]?.timeUnixNano).toBe('18446744073709551615');
+    }
+    await expect(queryHertzBeatData(query)).resolves.toMatchObject({
+      state: 'error',
+      error: { kind: 'contract_error' }
+    });
+    await expect(queryHertzBeatData(query)).resolves.toMatchObject({
+      state: 'error',
+      error: { kind: 'contract_error' }
+    });
+  });
+
+  it('rejects numeric or out-of-range composite Trace durations', async () => {
+    const numeric = traceComposite('ready');
+    const overflow = traceComposite('ready');
+    if (numeric.gantt.detail) numeric.gantt.detail.durationNanos = 10_000_000 as unknown as string;
+    if (overflow.gantt.detail) overflow.gantt.detail.spans[0]!.durationNanos = '9223372036854775808';
+    request.mockResolvedValueOnce(numeric).mockResolvedValueOnce(overflow);
+    const query = {
+      signal: 'traces',
+      queryKind: 'gantt',
+      timeWindow,
+      traceId: '0123456789abcdef0123456789abcdef'
+    } as const;
+
+    await expect(queryHertzBeatData(query)).resolves.toMatchObject({
+      state: 'error',
+      error: { kind: 'contract_error' }
+    });
+    await expect(queryHertzBeatData(query)).resolves.toMatchObject({
+      state: 'error',
+      error: { kind: 'contract_error' }
+    });
+  });
+
+  it('maps honest composite Gantt empty and unavailable states without manufacturing detail', async () => {
+    request.mockResolvedValueOnce(traceComposite('empty')).mockResolvedValueOnce(traceComposite('unavailable'));
+    const query = {
+      signal: 'traces',
+      queryKind: 'gantt',
+      timeWindow,
+      traceId: '0123456789abcdef0123456789abcdef'
+    } as const;
+
+    await expect(queryHertzBeatData(query)).resolves.toEqual({ state: 'empty', truncated: false });
+    await expect(queryHertzBeatData(query)).resolves.toMatchObject({
+      state: 'error',
+      error: { kind: 'unavailable' }
+    });
   });
 
   it('rejects unbounded or transport-shaped input before issuing a request', async () => {
@@ -292,7 +376,32 @@ describe('HertzBeat Perses query client', () => {
         signal: 'traces',
         queryKind: 'table',
         timeWindow,
-        traceId: 'trace-1'
+        traceId: '0123456789abcdef0123456789abcdef'
+      },
+      {
+        signal: 'traces',
+        queryKind: 'gantt',
+        timeWindow,
+        traceId: '0123456789ABCDEF0123456789ABCDEF'
+      },
+      {
+        signal: 'traces',
+        queryKind: 'gantt',
+        timeWindow,
+        traceId: '0123456789abcdef0123456789abcde'
+      },
+      {
+        signal: 'traces',
+        queryKind: 'gantt',
+        timeWindow,
+        traceId: '0123456789abcdef0123456789abcdeg'
+      },
+      {
+        signal: 'traces',
+        queryKind: 'gantt',
+        timeWindow,
+        traceId: '0123456789abcdef0123456789abcdef',
+        spanId: '0123456789abcdeG'
       }
     ];
 
@@ -479,15 +588,16 @@ function metricFrame() {
 
 function logRow() {
   return {
-    timeUnixNano: 1_000_000_000,
-    observedTimeUnixNano: 1_000_000_000,
+    logRecordUid: 'event-1',
+    timeUnixNano: '1000000000',
+    observedTimeUnixNano: '1000000000',
     severityNumber: 17,
     severityText: 'ERROR',
     body: 'checkout failed',
     attributes: {},
     droppedAttributesCount: 0,
-    traceId: 'trace-1',
-    spanId: 'span-1',
+    traceId: '0123456789abcdef0123456789abcdef',
+    spanId: '0123456789abcdef',
     traceFlags: 1,
     resource: { 'service.name': 'checkout' },
     resourceSchemaUrl: null,
@@ -498,8 +608,8 @@ function logRow() {
 
 function traceRow() {
   return {
-    traceId: 'trace-1',
-    rootSpanId: 'span-1',
+    traceId: '0123456789abcdef0123456789abcdef',
+    rootSpanId: '0123456789abcdef',
     serviceName: 'checkout',
     serviceNamespace: 'commerce',
     rootSpanName: 'POST /orders',
@@ -516,33 +626,75 @@ function traceRow() {
   };
 }
 
-function traceDetail() {
+function traceComposite(state: 'ready' | 'empty' | 'unavailable', selectedSpanId: string | null = null) {
   return {
-    ...traceRow(),
-    spans: [traceSpan('span-1', null, false), traceSpan('span-2', 'span-1', true)]
+    traceId: '0123456789abcdef0123456789abcdef',
+    selectedSpanId,
+    window: { start: 1_000, end: 2_000 },
+    gantt: {
+      state,
+      reason: state === 'ready' ? 'observed' : state === 'empty' ? 'no_data' : 'storage_unavailable',
+      source: 'greptime_traces',
+      detail: state === 'ready' ? compositeTraceDetail() : null
+    },
+    sameTraceLogs: {},
+    red: {},
+    metrics: {},
+    dependencies: {}
   };
 }
 
-function traceSpan(spanId: string, parentSpanId: string | null, highlighted: boolean) {
+function compositeTraceDetail() {
   return {
-    traceId: 'trace-1',
+    rootSpanId: '0123456789abcdef',
+    serviceName: 'checkout',
+    serviceNamespace: 'commerce',
+    deploymentEnvironment: 'prod',
+    entityId: '42',
+    entityType: 'service',
+    rootSpanName: 'POST /orders',
+    durationNanos: '10000000',
+    status: 'ERROR',
+    startTime: 1_000,
+    errorSpanCount: 1,
+    resourceAttributes: { 'service.name': 'checkout' },
+    spans: [compositeSpan('0123456789abcdef', null, false), compositeSpan('fedcba9876543210', '0123456789abcdef', true)]
+  };
+}
+
+function compositeSpan(spanId: string, parentSpanId: string | null, failed: boolean) {
+  return {
     spanId,
     parentSpanId,
-    spanName: spanId === 'span-1' ? 'POST /orders' : 'SELECT cart',
+    spanName: spanId === '0123456789abcdef' ? 'POST /orders' : 'SELECT cart',
     serviceName: 'checkout',
-    status: highlighted ? 'ERROR' : 'OK',
-    spanKind: highlighted ? 'CLIENT' : 'SERVER',
-    statusMessage: null,
+    serviceNamespace: 'commerce',
+    deploymentEnvironment: 'prod',
+    entityId: '42',
+    entityType: 'service',
+    status: failed ? 'ERROR' : 'OK',
+    statusMessage: failed ? 'database unavailable' : null,
+    spanKind: failed ? 'CLIENT' : 'SERVER',
     traceState: null,
     scopeName: 'checkout',
     scopeVersion: '1.0.0',
-    durationNanos: 5_000_000,
+    durationNanos: '5000000',
     startTime: 1_000,
-    highlighted,
+    highlighted: failed,
     resourceAttributes: {},
     spanAttributes: {},
-    events: [] as unknown[],
+    events: [] as Array<Record<string, unknown>>,
     links: [],
     codeNavigationHint: null
   };
+}
+
+function withEventTime(timeUnixNano: string | number) {
+  const value = traceComposite('ready');
+  if (value.gantt.detail) {
+    value.gantt.detail.spans[0]!.events = [
+      { timeUnixNano, name: 'exception', attributes: {}, droppedAttributesCount: 0 }
+    ];
+  }
+  return value;
 }

@@ -2,6 +2,72 @@
   "exploreTrace": {
     "closeDetail": "关闭详情"
   },
+  "exploreInvestigation": {
+    "title": "聚焦调查",
+    "exactWindow": "精确调查时间范围",
+    "availability": "调查信号可用性",
+    "sections": {
+      "traces": "链路",
+      "logs": "链路内日志",
+      "metrics": "指标",
+      "topology": "拓扑",
+      "selectedLog": "已选日志",
+      "nearbyLogs": "附近日志"
+    },
+    "states": {
+      "available": "可用",
+      "empty": "当前时间范围内没有证据。",
+      "unavailable": "当前证据不可用。",
+      "noTraceContext": "此日志没有链路上下文，未发送链路查询。"
+    },
+    "actions": {
+      "backToResults": "返回结果",
+      "openLogs": "打开日志",
+      "openMetrics": "打开指标",
+      "openTopology": "打开拓扑",
+      "focusTrace": "聚焦链路"
+    },
+    "trace": {
+      "summary": "链路摘要",
+      "traceId": "链路 ID",
+      "duration": "持续时间",
+      "spanCount": "Span 数量",
+      "errorCount": "错误数量",
+      "spanInspector": "Span 检查器",
+      "selectSpan": "选择一个 Span 以检查其证据。"
+    },
+    "logs": {
+      "anchor": "调查锚点",
+      "exactTrace": "精确链路关联",
+      "nearbyScope": "精确时间范围内靠近已选记录的日志。"
+    },
+    "metrics": {
+      "red": "RED 摘要",
+      "service": "服务指标",
+      "requestRate": "请求速率",
+      "errorRate": "错误率",
+      "latencyP95": "P95 延迟",
+      "requests": "请求数"
+    },
+    "topology": {
+      "scope": "精确链路依赖是相关证据，不是同一实体的证明。",
+      "logScope": "拓扑范围限定为所选日志中已验证的服务身份和精确时间窗。",
+      "upstream": "上游",
+      "downstream": "下游"
+    },
+    "query": {
+      "loading": "正在加载信号证据…",
+      "empty": "当前时间范围内没有证据。",
+      "truncated": "正在显示符合条件的有界证据子集。",
+      "truncationUnknown": "结果完整性未知。",
+      "runtimeError": "可视化运行时无法渲染该证据。",
+      "invalid": "信号请求无效。",
+      "permission": "您没有权限检查该信号。",
+      "overloaded": "信号存储繁忙，请重试。",
+      "unavailable": "信号存储不可用。",
+      "contract": "信号存储返回了无效响应。"
+    }
+  },
   "explore": {
     "exactWindow": "固定时间范围",
     "instanceId": "服务实例 ID",

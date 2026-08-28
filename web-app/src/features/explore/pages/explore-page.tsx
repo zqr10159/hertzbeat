@@ -22,11 +22,38 @@ import { OperationalPage, OperationalResultRegion } from '@/shared/operational-p
 import { ExploreQueryBar } from '../components/explore-query-bar';
 import { ExploreWorkbench } from '../components/explore-workbench';
 import { useExplorePageController } from '../controller/use-explore-page-controller';
+import { ExploreFocusedLogPage, ExploreFocusedTracePage } from './explore-focused-investigation';
 import { ExploreResultPanel } from './explore-result-panel';
 
 export function ExplorePage() {
   const { t } = useTranslation();
   const controller = useExplorePageController();
+  if (controller.investigationRoute.kind === 'trace' && controller.query.signal === 'traces') {
+    return (
+      <OperationalPage mode="workspace">
+        <ExploreFocusedTracePage
+          query={controller.query}
+          t={t}
+          updateQuery={controller.updateQuery}
+          time={controller.time}
+          openPath={controller.openPath}
+        />
+      </OperationalPage>
+    );
+  }
+  if (controller.investigationRoute.kind === 'log' && controller.query.signal === 'logs') {
+    return (
+      <OperationalPage mode="workspace">
+        <ExploreFocusedLogPage
+          query={controller.query}
+          t={t}
+          updateQuery={controller.updateQuery}
+          time={controller.time}
+          openPath={controller.openPath}
+        />
+      </OperationalPage>
+    );
+  }
   return (
     <OperationalPage mode="workspace">
       <ExploreWorkbench

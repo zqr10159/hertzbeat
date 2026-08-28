@@ -14,8 +14,9 @@ import { useSharedTimeOptional } from '@/shared/time';
 import { ExploreResultFrame } from '../components/explore-state-panel';
 import { LogResult } from '../components/log-result';
 import { materializeLogInvestigation } from '../model/explore-agent-handoff';
+import { buildLogInvestigationPath, buildTraceInvestigationPath } from '../model/explore-investigation-model';
 import type { LogExploreQuery } from '../model/explore-model';
-import type { LogHistoryEvidence } from '../model/explore-signal-contract';
+import type { LogHistoryEvidence, LogRow } from '../model/explore-signal-contract';
 
 export function ExploreLogPanel({
   data,
@@ -49,6 +50,7 @@ export function ExploreLogPanel({
     [evidence, query, sharedTime?.window]
   );
   usePublishShellInvestigation(investigation);
+  const navigation = createLogFocusedNavigation(query, sharedTime?.window, evidenceCurrent, openPath);
   return (
     <ExploreResultFrame>
       <LogResult
@@ -58,7 +60,50 @@ export function ExploreLogPanel({
         t={t}
         navigate={openPath}
         evidenceCurrent={evidenceCurrent}
+        onSelectLog={navigation.openLog}
+        onOpenTrace={navigation.openTrace}
       />
     </ExploreResultFrame>
   );
+}
+
+function createLogFocusedNavigation(
+  query: LogExploreQuery,
+  window: { from: number; to: number } | undefined,
+  evidenceCurrent: boolean,
+  openPath: (path: string) => void
+) {
+  return {
+    openLog: (row: LogRow) => {
+      if (!evidenceCurrent || !window || !row.logRecordUid) return;
+      openPath(
+        buildLogInvestigationPath(
+          query,
+          {
+            logRecordUid: row.logRecordUid,
+            timeUnixNano: row.timeUnixNano,
+            traceId: row.traceId,
+            spanId: row.spanId
+          },
+          window,
+          browserTimeZone()
+        )
+      );
+    },
+    openTrace: (row: LogRow) => {
+      if (!evidenceCurrent || !window || !row.traceId) return;
+      openPath(
+        buildTraceInvestigationPath(
+          query,
+          { traceId: row.traceId, selectedSpanId: row.spanId, startTime: null, durationNanos: null },
+          window,
+          browserTimeZone()
+        )
+      );
+    }
+  };
+}
+
+function browserTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }

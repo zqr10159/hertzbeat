@@ -88,12 +88,13 @@ export function mergeManualExploreQuery(
 export function buildCrossSignalPath(
   query: ExploreQuery,
   signal: ExploreSignal,
-  context: { traceId?: string | undefined }
+  context: { traceId?: string | undefined; spanId?: string | undefined }
 ) {
   return buildExplorePath(
     mergeExploreQuery(query, {
       ...signalSelectionPatch(signal),
-      traceId: context.traceId
+      traceId: context.traceId,
+      spanId: context.spanId
     })
   );
 }
@@ -112,6 +113,7 @@ export function signalSelectionPatch(signal: ExploreSignal): ExploreQueryPatch {
     pageIndex: undefined,
     traceId: undefined,
     spanId: undefined,
+    logRecordUid: undefined,
     severityText: undefined,
     resourceFilter: undefined,
     attributeFilter: undefined,
@@ -147,15 +149,21 @@ export function presetTimeRangePatch(query: ExploreQuery, timeRange: ExploreTime
 
 function dependentFilterCleanup(query: ExploreQuery, changes: ExploreQueryPatch) {
   const currentTraceId = 'traceId' in query ? query.traceId : undefined;
+  const currentLogRecordUid = query.signal === 'logs' ? query.logRecordUid : undefined;
   const traceChanged = Object.hasOwn(changes, 'traceId') && changes.traceId !== currentTraceId;
+  const selectedLogChanged = Object.hasOwn(changes, 'logRecordUid') && changes.logRecordUid !== currentLogRecordUid;
   const timeChanged = (['timeRange', 'start', 'end'] as const).some(
     field => Object.hasOwn(changes, field) && changes[field] !== query[field]
   );
-  if (!traceChanged && !timeChanged) return changes;
+  if (!traceChanged && !selectedLogChanged && !timeChanged) return changes;
+  return { ...changes, ...selectionCleanup(changes, timeChanged) };
+}
+
+function selectionCleanup(changes: ExploreQueryPatch, timeChanged: boolean): ExploreQueryPatch {
   return {
-    ...changes,
     traceId: timeChanged && !Object.hasOwn(changes, 'traceId') ? undefined : changes.traceId,
     spanId: Object.hasOwn(changes, 'spanId') ? changes.spanId : undefined,
+    logRecordUid: timeChanged && !Object.hasOwn(changes, 'logRecordUid') ? undefined : changes.logRecordUid,
     pageIndex: Object.hasOwn(changes, 'pageIndex') ? changes.pageIndex : undefined
   };
 }

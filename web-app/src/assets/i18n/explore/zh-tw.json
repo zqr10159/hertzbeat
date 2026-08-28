@@ -2,6 +2,72 @@
   "exploreTrace": {
     "closeDetail": "關閉詳情"
   },
+  "exploreInvestigation": {
+    "title": "聚焦調查",
+    "exactWindow": "精確調查時間範圍",
+    "availability": "調查訊號可用性",
+    "sections": {
+      "traces": "追蹤",
+      "logs": "追蹤內日誌",
+      "metrics": "指標",
+      "topology": "拓撲",
+      "selectedLog": "已選日誌",
+      "nearbyLogs": "附近日誌"
+    },
+    "states": {
+      "available": "可用",
+      "empty": "目前時間範圍內沒有證據。",
+      "unavailable": "目前證據無法使用。",
+      "noTraceContext": "此日誌沒有追蹤內容，未傳送追蹤查詢。"
+    },
+    "actions": {
+      "backToResults": "返回結果",
+      "openLogs": "開啟日誌",
+      "openMetrics": "開啟指標",
+      "openTopology": "開啟拓撲",
+      "focusTrace": "聚焦追蹤"
+    },
+    "trace": {
+      "summary": "追蹤摘要",
+      "traceId": "追蹤 ID",
+      "duration": "持續時間",
+      "spanCount": "Span 數量",
+      "errorCount": "錯誤數量",
+      "spanInspector": "Span 檢查器",
+      "selectSpan": "選擇一個 Span 以檢查其證據。"
+    },
+    "logs": {
+      "anchor": "調查錨點",
+      "exactTrace": "精確追蹤關聯",
+      "nearbyScope": "精確時間範圍內接近已選記錄的日誌。"
+    },
+    "metrics": {
+      "red": "RED 摘要",
+      "service": "服務指標",
+      "requestRate": "請求速率",
+      "errorRate": "錯誤率",
+      "latencyP95": "P95 延遲",
+      "requests": "請求數"
+    },
+    "topology": {
+      "scope": "精確追蹤相依關係是相關證據，不是同一實體的證明。",
+      "logScope": "拓撲範圍限定為所選日誌中已驗證的服務身分與精確時間窗。",
+      "upstream": "上游",
+      "downstream": "下游"
+    },
+    "query": {
+      "loading": "正在載入訊號證據…",
+      "empty": "目前時間範圍內沒有證據。",
+      "truncated": "正在顯示符合條件的有界證據子集。",
+      "truncationUnknown": "結果完整性未知。",
+      "runtimeError": "視覺化執行環境無法呈現該證據。",
+      "invalid": "訊號請求無效。",
+      "permission": "您沒有權限檢查該訊號。",
+      "overloaded": "訊號儲存忙碌，請重試。",
+      "unavailable": "訊號儲存無法使用。",
+      "contract": "訊號儲存返回了無效回應。"
+    }
+  },
   "explore": {
     "exactWindow": "固定時間範圍",
     "instanceId": "服務執行個體 ID",

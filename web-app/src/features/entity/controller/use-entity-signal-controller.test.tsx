@@ -164,18 +164,28 @@ describe('useEntitySignalController', () => {
     );
 
     act(() => {
-      window.history.pushState({}, '', '/entities/7?traceId=trace-1&spanId=span-2');
+      window.history.pushState({}, '', '/entities/7?traceId=0123456789abcdef0123456789abcdef&spanId=fedcba9876543210');
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
 
     await waitFor(() =>
       expect(perses.queryHertzBeatData).toHaveBeenCalledWith(
-        expect.objectContaining({ signal: 'traces', queryKind: 'gantt', traceId: 'trace-1', spanId: 'span-2' }),
+        expect.objectContaining({
+          signal: 'traces',
+          queryKind: 'gantt',
+          traceId: '0123456789abcdef0123456789abcdef',
+          spanId: 'fedcba9876543210'
+        }),
         expect.any(Object)
       )
     );
     expect(perses.queryHertzBeatData).toHaveBeenCalledWith(
-      expect.objectContaining({ signal: 'logs', queryKind: 'table', traceId: 'trace-1', spanId: 'span-2' }),
+      expect.objectContaining({
+        signal: 'logs',
+        queryKind: 'table',
+        traceId: '0123456789abcdef0123456789abcdef',
+        spanId: 'fedcba9876543210'
+      }),
       expect.any(Object)
     );
   });

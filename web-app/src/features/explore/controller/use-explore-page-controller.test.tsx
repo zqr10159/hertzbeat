@@ -683,6 +683,7 @@ function logRow(
   override: Partial<import('../model/explore-signal-contract').LogRow> = {}
 ): import('../model/explore-signal-contract').LogRow {
   return {
+    logRecordUid: null,
     timeUnixNano: null,
     observedTimeUnixNano: null,
     severityNumber: null,

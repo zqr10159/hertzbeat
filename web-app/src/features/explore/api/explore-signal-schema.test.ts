@@ -86,11 +86,12 @@ describe('Explore signal contracts', () => {
     });
   });
 
-  it('retains JSON-safe log body and attributes and strips unknown fields', () => {
+  it('retains JSON-safe log body and attributes', () => {
     const page = parseLogPage(
       stableLogPage([
         {
-          timeUnixNano: 10,
+          logRecordUid: 'event-10',
+          timeUnixNano: '10',
           observedTimeUnixNano: null,
           severityNumber: 9,
           severityText: 'INFO',
@@ -103,23 +104,22 @@ describe('Explore signal contracts', () => {
           resource: {},
           resourceSchemaUrl: null,
           instrumentationScope: null,
-          scopeSchemaUrl: null,
-          secret: 'drop'
+          scopeSchemaUrl: null
         }
       ]),
       0,
       20
     );
-    expect(page.content[0]).not.toHaveProperty('secret');
     expect(page.content[0]?.body).toEqual({ event: ['paid', 1, true, null] });
   });
 
-  it('accepts the lossy Java Long number representation used for epoch nanoseconds', () => {
+  it('rejects a numeric historical epoch timestamp instead of accepting rounded nanoseconds', () => {
     const epochNanos = 1_750_000_000_000_000_000;
-    expect(
+    expect(() =>
       parseLogPage(
         stableLogPage([
           {
+            logRecordUid: 'event-10',
             timeUnixNano: epochNanos,
             observedTimeUnixNano: epochNanos,
             severityNumber: null,
@@ -138,12 +138,13 @@ describe('Explore signal contracts', () => {
         ]),
         0,
         20
-      ).content[0]?.timeUnixNano
-    ).toBe(epochNanos);
+      )
+    ).toThrow(ExploreSignalContractError);
   });
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5])('rejects invalid Java Long value %s', timeUnixNano => {
     const value = {
+      logRecordUid: null,
       timeUnixNano,
       observedTimeUnixNano: null,
       severityNumber: null,
@@ -185,6 +186,7 @@ describe('Explore signal contracts', () => {
 
   it('rejects content beyond the authoritative last-page remainder', () => {
     const content = Array.from({ length: 2 }, () => ({
+      logRecordUid: null,
       timeUnixNano: null,
       observedTimeUnixNano: null,
       severityNumber: null,
@@ -270,7 +272,7 @@ describe('Explore signal contracts', () => {
             traceState: null,
             scopeName: null,
             scopeVersion: null,
-            durationNanos: 2,
+            durationNanos: '2',
             startTime: 1,
             highlighted: false,
             resourceAttributes: {},

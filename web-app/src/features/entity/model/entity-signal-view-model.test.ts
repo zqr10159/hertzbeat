@@ -73,16 +73,26 @@ describe('entity signal view model', () => {
   });
 
   it('uses a Gantt query only when an exact trace identity is present', () => {
-    const plan = createEntitySignalPlan(detail, window, 'UTC', ' trace-1 ', ' span-2 ');
+    const plan = createEntitySignalPlan(
+      detail,
+      window,
+      'UTC',
+      ' 0123456789abcdef0123456789abcdef ',
+      ' fedcba9876543210 '
+    );
 
-    expect(plan.anchor).toMatchObject({ traceId: 'trace-1', spanId: 'span-2' });
-    expect(plan.logsQuery).toMatchObject({ traceId: 'trace-1', spanId: 'span-2' });
-    expect(plan.tracesQuery).toMatchObject({ queryKind: 'gantt', traceId: 'trace-1', spanId: 'span-2' });
+    expect(plan.anchor).toMatchObject({ traceId: '0123456789abcdef0123456789abcdef', spanId: 'fedcba9876543210' });
+    expect(plan.logsQuery).toMatchObject({ traceId: '0123456789abcdef0123456789abcdef', spanId: 'fedcba9876543210' });
+    expect(plan.tracesQuery).toMatchObject({
+      queryKind: 'gantt',
+      traceId: '0123456789abcdef0123456789abcdef',
+      spanId: 'fedcba9876543210'
+    });
     expect(buildEntitySignalHandoffPath(plan, 'traces')).toBe(
-      '/explore?signal=traces&entityId=7&start=1750000000000&end=1750000060000&timeZone=UTC&traceId=trace-1&spanId=span-2'
+      '/explore?signal=traces&entityId=7&start=1750000000000&end=1750000060000&timeZone=UTC&traceId=0123456789abcdef0123456789abcdef&spanId=fedcba9876543210'
     );
     expect(buildEntitySignalHandoffPath(plan, 'logs')).toBe(
-      '/explore?signal=logs&entityId=7&start=1750000000000&end=1750000060000&timeZone=UTC&traceId=trace-1&spanId=span-2'
+      '/explore?signal=logs&entityId=7&start=1750000000000&end=1750000060000&timeZone=UTC&traceId=0123456789abcdef0123456789abcdef&spanId=fedcba9876543210'
     );
   });
 
@@ -161,7 +171,7 @@ describe('entity signal view model', () => {
   });
 
   it('correlates each signal against its actual trace scope without upgrading entity-wide RED evidence', () => {
-    const plan = createEntitySignalPlan(detail, window, 'UTC', 'trace-1', 'span-2');
+    const plan = createEntitySignalPlan(detail, window, 'UTC', '0123456789abcdef0123456789abcdef', 'fedcba9876543210');
     const evidence = resolveEntitySignalEvidence(
       plan,
       detail,
@@ -171,17 +181,39 @@ describe('entity signal view model', () => {
         traces: {
           state: 'ready',
           data: {
-            traceId: 'trace-1',
-            rootSpanId: null,
-            serviceName: null,
+            traceId: '0123456789abcdef0123456789abcdef',
+            rootSpanId: '0123456789abcdef',
+            serviceName: 'checkout',
             serviceNamespace: null,
-            rootSpanName: null,
-            durationNanos: null,
-            status: null,
-            startTime: null,
+            rootSpanName: 'POST /checkout',
+            durationNanos: '0',
+            status: 'OK',
+            startTime: 1,
             errorSpanCount: 0,
-            resourceAttributes: null,
-            spans: []
+            resourceAttributes: {},
+            spans: [
+              {
+                traceId: '0123456789abcdef0123456789abcdef',
+                spanId: '0123456789abcdef',
+                parentSpanId: null,
+                spanName: 'POST /checkout',
+                serviceName: 'checkout',
+                status: 'OK',
+                statusMessage: null,
+                spanKind: 'SERVER',
+                traceState: null,
+                scopeName: null,
+                scopeVersion: null,
+                durationNanos: '0',
+                startTime: 1,
+                highlighted: false,
+                resourceAttributes: {},
+                spanAttributes: {},
+                events: [],
+                links: [],
+                codeNavigationHint: null
+              }
+            ]
           },
           truncated: false
         }

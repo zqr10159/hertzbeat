@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { ApiMessageError, apiMessageGet } from '@/core/http/api-message';
+import { apiMessageGet } from '@/core/http/api-message';
 import { openBrowserEventStream } from '@/core/http/event-stream';
 import { QUERY_CONTEXT_FIELDS } from '@/shared/query-context';
 
@@ -35,10 +35,24 @@ import {
   parseMetricStep,
   parseTraceDuration
 } from '../model/explore-field-contract';
-import { ExploreSignalContractError, ExploreSignalMissingError } from '../model/explore-signal-contract';
-import { parseLogOverview, parseLogPage, parseLogRow, parseLogStreamGap, parseLogTrend } from './explore-log-schema';
+import {
+  ExploreSignalContractError,
+  ExploreSignalMissingError,
+  ExploreSignalUnavailableError
+} from '../model/explore-signal-contract';
+import { buildTraceInvestigationApiPath, loadTraceInvestigation } from './explore-investigation-api';
+import {
+  parseLiveLogRow,
+  parseLogOverview,
+  parseLogPage,
+  parseLogStreamGap,
+  parseLogTrend
+} from './explore-log-schema';
 import { parseMetricConsole, parseMetricInventory } from './explore-metric-schema';
-import { parseTraceDetail, parseTracePage, parseTraceSpans } from './explore-trace-schema';
+import { parseTracePage } from './explore-trace-schema';
+import { traceDetailWindow, toExploreTraceDetail } from './explore-signal-api-model';
+
+export { classifyExploreSignalError } from './explore-signal-api-model';
 
 export async function loadMetricSignal(query: MetricExploreQuery, signal?: AbortSignal) {
   const observedAt = Date.now();
@@ -78,39 +92,17 @@ export async function loadTraceSignal(query: TraceExploreQuery, signal?: AbortSi
 
 export async function loadTraceDetail(query: TraceExploreQuery, traceId: string, signal?: AbortSignal) {
   if (!traceId) throw new ExploreSignalContractError('traceId is required');
-  const observedAt = Date.now();
-  const [detail, spans] = await Promise.all([
-    apiMessageGet(buildTraceDetailApiPath(query, traceId, false, observedAt), requestSignal(signal)),
-    apiMessageGet(buildTraceDetailApiPath(query, traceId, true, observedAt), requestSignal(signal))
-  ]);
-  return { ...parseTraceDetail(detail, traceId), spans: parseTraceSpans(spans, traceId) };
+  const window = traceDetailWindow(query, Date.now());
+  const snapshot = await loadTraceInvestigation(traceId, query.spanId, window, signal);
+  if (snapshot.gantt.state === 'empty') throw new ExploreSignalMissingError();
+  if (snapshot.gantt.state === 'unavailable' || !snapshot.gantt.detail) throw new ExploreSignalUnavailableError();
+  return toExploreTraceDetail(traceId, snapshot.gantt.detail);
 }
 
-export function buildTraceDetailApiPath(query: TraceExploreQuery, traceId: string, spans = false, now = Date.now()) {
+export function buildTraceDetailApiPath(query: TraceExploreQuery, traceId: string, now = Date.now()) {
   requireQueryableScope(query);
   if (!traceId) throw new ExploreSignalContractError('traceId is required');
-  const params = sharedSignalParams(query, now);
-  setValue(params, 'spanId', query.spanId);
-  setValue(params, 'resourceFilter', query.resourceFilter);
-  setValue(params, 'attributeFilter', query.attributeFilter);
-  if (query.minDurationMs != null) params.set('minDurationMs', String(query.minDurationMs));
-  if (query.maxDurationMs != null) params.set('maxDurationMs', String(query.maxDurationMs));
-  return `/api/traces/${encodeURIComponent(traceId)}${spans ? '/spans' : ''}?${params.toString()}`;
-}
-
-export function classifyExploreSignalError(
-  reason: unknown
-): 'missing' | 'permission' | 'transport_error' | 'contract_error' | 'error' {
-  if (reason instanceof ExploreSignalMissingError) return 'missing';
-  if (reason instanceof ExploreSignalContractError) return 'contract_error';
-  if (reason instanceof ApiMessageError) {
-    if (reason.status === 404 || (reason.status === 200 && reason.code === 3)) return 'missing';
-    if (reason.status === 401 || reason.status === 403) return 'permission';
-    if (reason.cause !== undefined || reason.status === undefined || [0, 502, 503, 504].includes(reason.status)) {
-      return 'transport_error';
-    }
-  }
-  return 'error';
+  return buildTraceInvestigationApiPath(traceId, query.spanId, traceDetailWindow(query, now));
 }
 
 export function buildSignalApiPath(query: ExploreQuery, now = Date.now()) {
@@ -190,7 +182,7 @@ export function openLogStream(
   path: string,
   handlers: {
     onOpen: () => void;
-    onLog: (row: ReturnType<typeof parseLogRow>) => void;
+    onLog: (row: ReturnType<typeof parseLiveLogRow>) => void;
     onGap: (gap: ReturnType<typeof parseLogStreamGap>) => void;
     onRetrying: () => void;
     onUnavailable: () => void;
@@ -206,7 +198,7 @@ export function openLogStream(
       try {
         const value = JSON.parse(data) as unknown;
         if (name === 'LOG_STREAM_GAP') handlers.onGap(parseLogStreamGap(value));
-        else handlers.onLog(parseLogRow(value));
+        else handlers.onLog(parseLiveLogRow(value));
       } catch (error) {
         if (error instanceof ExploreSignalContractError || error instanceof SyntaxError) {
           handlers.onContractError();

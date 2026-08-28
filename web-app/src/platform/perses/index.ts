@@ -4,6 +4,7 @@ export { PersesTimeSeries } from './runtime/perses-time-series';
 export { queryHertzBeatData, HERTZBEAT_QUERY_LIMITS } from './datasource/hertzbeat-query-client';
 export type {
   HertzBeatLogTableQuery,
+  HertzBeatMetricQuery,
   HertzBeatTraceGanttQuery,
   HertzBeatTraceTableQuery
 } from './datasource/hertzbeat-query-contract';

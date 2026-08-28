@@ -42,6 +42,7 @@ import type {
   HistoricalEvidence
 } from '../model/explore-result-model';
 import { metricResultState } from '../model/explore-signal-model';
+import { exploreInvestigationRoute } from '../model/explore-investigation-model';
 import { useExploreHistory } from './use-explore-history';
 import { useCanonicalExploreLocation } from './use-canonical-explore-location';
 import { useExploreRouteTime } from './use-explore-route-time';
@@ -58,8 +59,10 @@ export function useExplorePageController() {
   const fixedWindow = exactWindow(parsedQuery);
   const query = parsedQuery;
   const handoff = exploreHandoffState(query);
+  const investigationRoute = exploreInvestigationRoute(query);
   const context = sharedContext?.context ?? exploreQueryContext(query);
-  const historical = handoff !== 'invalid' && !(query.signal === 'logs' && query.live);
+  const historical =
+    handoff !== 'invalid' && investigationRoute.kind === 'inactive' && !(query.signal === 'logs' && query.live);
   const { queryResult, evidence } = useExploreHistory(query, fixedWindow, historical, sharedTime?.refreshRevision ?? 0);
   const updateQuery = (changes: ExploreQueryPatch) => {
     const next = mergeExploreQuery(query, mergeExploreContextChanges(context, changes));
@@ -81,6 +84,7 @@ export function useExplorePageController() {
   return {
     query,
     handoff,
+    investigationRoute,
     submission,
     result: resolveResult(query, handoff, queryResult.isPending, queryResult.isFetching, queryResult.error, evidence),
     time,

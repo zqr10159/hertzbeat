@@ -12,10 +12,10 @@ import { usePublishShellInvestigation } from '@/shared/investigation';
 import { useSharedTimeOptional } from '@/shared/time';
 
 import { ExploreResultFrame } from '../components/explore-state-panel';
-import { TraceResult } from '../components/trace-result';
-import { useTraceDetailController } from '../controller/use-trace-detail-controller';
+import { TraceResult, type TraceDetailView } from '../components/trace-result';
 import { materializeTraceInvestigation } from '../model/explore-agent-handoff';
-import type { TraceExploreQuery } from '../model/explore-model';
+import { buildTraceInvestigationPath } from '../model/explore-investigation-model';
+import { buildExplorePath, type TraceExploreQuery } from '../model/explore-model';
 import type { ExplorePageResult, TraceRow } from '../model/explore-signal-contract';
 
 export function ExploreTracePanel({
@@ -30,23 +30,45 @@ export function ExploreTracePanel({
   evidenceCurrent: boolean;
 }) {
   const { t } = useTranslation();
-  const trace = useTraceDetailController(query, openPath, evidenceCurrent);
   const sharedTime = useSharedTimeOptional();
-  const readyTraceId = trace.state.kind === 'ready' ? trace.state.detail.traceId : undefined;
-  const readySpanId = trace.state.kind === 'ready' ? trace.state.selected?.spanId : undefined;
   const investigation = useMemo(
-    () =>
-      materializeTraceInvestigation(
-        query,
-        readyTraceId ? { traceId: readyTraceId, spanId: readySpanId ?? undefined } : undefined,
-        sharedTime?.window
-      ),
-    [query, readySpanId, readyTraceId, sharedTime?.window]
+    () => materializeTraceInvestigation(query, undefined, sharedTime?.window),
+    [query, sharedTime?.window]
   );
   usePublishShellInvestigation(investigation);
+  const trace: TraceDetailView = {
+    state: { kind: 'closed' },
+    openTrace: traceId => {
+      const row = data.content.find(item => item.traceId === traceId);
+      if (!evidenceCurrent || !sharedTime?.window || !row) return;
+      openPath(
+        buildTraceInvestigationPath(
+          query,
+          {
+            traceId: row.traceId,
+            selectedSpanId: row.rootSpanId,
+            startTime: row.startTime,
+            durationNanos: row.durationNanos
+          },
+          sharedTime.window,
+          browserTimeZone()
+        )
+      );
+    },
+    close: () => undefined,
+    selectSpan: () => undefined,
+    retry: () => Promise.resolve(),
+    changePage: page => openPath(buildExplorePath({ ...query, pageIndex: page - 1 || undefined })),
+    openRelatedLogs: () => undefined,
+    openRelatedMetrics: () => undefined
+  };
   return (
     <ExploreResultFrame>
       <TraceResult data={data} t={t} trace={trace} evidenceCurrent={evidenceCurrent} />
     </ExploreResultFrame>
   );
+}
+
+function browserTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }

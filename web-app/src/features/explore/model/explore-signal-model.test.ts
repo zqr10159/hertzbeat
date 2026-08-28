@@ -136,14 +136,15 @@ describe('explore API contracts', () => {
 
   it('uses the established trace nanosecond duration contract', () => {
     expect(traceDurationMs({ durationNanos: 3_000_000_000 })).toBe(3000);
+    expect(traceDurationMs({ durationNanos: '3000000000' })).toBe(3000);
     expect(
       traceSpanLayout(
         traceDetail({
           startTime: 1000,
-          durationNanos: 1_000_000_000,
+          durationNanos: '1000000000',
           spans: [
-            traceSpan({ spanId: 'root', startTime: 1000, durationNanos: 1_000_000_000 }),
-            traceSpan({ spanId: 'child', parentSpanId: 'root', startTime: 1250, durationNanos: 500_000_000 })
+            traceSpan({ spanId: 'root', startTime: 1000, durationNanos: '1000000000' }),
+            traceSpan({ spanId: 'child', parentSpanId: 'root', startTime: 1250, durationNanos: '500000000' })
           ]
         })
       )
@@ -158,10 +159,10 @@ describe('explore API contracts', () => {
       traceDetail({
         spans: [
           traceSpan({ spanId: 'missing', startTime: null, durationNanos: null }),
-          traceSpan({ spanId: 'missing-start', startTime: null, durationNanos: 1_000_000 }),
+          traceSpan({ spanId: 'missing-start', startTime: null, durationNanos: '1000000' }),
           traceSpan({ spanId: 'missing-duration', startTime: 1_000, durationNanos: null }),
-          traceSpan({ spanId: 'instant', startTime: 1_000, durationNanos: 0 }),
-          traceSpan({ spanId: 'measured', startTime: 1_000, durationNanos: 1_000_000 })
+          traceSpan({ spanId: 'instant', startTime: 1_000, durationNanos: '0' }),
+          traceSpan({ spanId: 'measured', startTime: 1_000, durationNanos: '1000000' })
         ]
       })
     );
@@ -220,7 +221,7 @@ describe('explore API contracts', () => {
     const row = logRow({ resource: { 'service.name': 'checkout' }, body: { event: 'paid' } });
     expect(logServiceName(row)).toBe('checkout');
     expect(logBody(row)).toBe('{"event":"paid"}');
-    expect(logTimestampMs(logRow({ timeUnixNano: 1_750_000_000_000_000_000 }))).toBe(1_750_000_000_000);
+    expect(logTimestampMs(logRow({ timeUnixNano: '1750000000000000000' }))).toBe(1_750_000_000_000);
   });
 });
 
@@ -295,6 +296,7 @@ function logRow(
   override: Partial<import('./explore-signal-contract').LogRow> = {}
 ): import('./explore-signal-contract').LogRow {
   return {
+    logRecordUid: null,
     timeUnixNano: null,
     observedTimeUnixNano: null,
     severityNumber: null,

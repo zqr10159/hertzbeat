@@ -69,7 +69,7 @@ export type TraceSpan = {
   traceState: string | null;
   scopeName: string | null;
   scopeVersion: string | null;
-  durationNanos: number | null;
+  durationNanos: string | null;
   startTime: number | null;
   highlighted: boolean;
   resourceAttributes: Record<string, string> | null;
@@ -78,11 +78,12 @@ export type TraceSpan = {
   links: TraceLink[] | null;
   codeNavigationHint: CodeNavigationHint | null;
 };
-export type TraceDetail = TraceSummary & { spans: TraceSpan[] | null };
+export type TraceDetail = Omit<TraceSummary, 'durationNanos'> & {
+  durationNanos: string | null;
+  spans: TraceSpan[] | null;
+};
 
-export type LogRow = {
-  timeUnixNano: number | null;
-  observedTimeUnixNano: number | null;
+type SharedLogRow = {
   severityNumber: number | null;
   severityText: string | null;
   body: JsonValue;
@@ -100,6 +101,15 @@ export type LogRow = {
     droppedAttributesCount: number | null;
   } | null;
   scopeSchemaUrl: string | null;
+};
+export type LogRow = SharedLogRow & {
+  logRecordUid: string | null;
+  timeUnixNano: string | null;
+  observedTimeUnixNano: string | null;
+};
+export type LiveLogRow = SharedLogRow & {
+  timeUnixNano: number | null;
+  observedTimeUnixNano: number | null;
 };
 export type LogStreamGap = {
   observedAt: number;
@@ -167,5 +177,11 @@ export class ExploreSignalMissingError extends Error {
   constructor() {
     super('Explore signal detail is missing');
     this.name = 'ExploreSignalMissingError';
+  }
+}
+export class ExploreSignalUnavailableError extends Error {
+  constructor() {
+    super('Explore signal evidence is unavailable');
+    this.name = 'ExploreSignalUnavailableError';
   }
 }

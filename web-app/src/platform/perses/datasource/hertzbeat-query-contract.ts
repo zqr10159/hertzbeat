@@ -9,6 +9,8 @@ import { z } from 'zod';
 
 const boundedText = z.string().trim().min(1).max(512);
 const identifier = z.string().trim().min(1).max(256);
+const traceIdentifier = z.string().regex(/^[0-9a-f]{32}$/u);
+const spanIdentifier = z.string().regex(/^[0-9a-f]{16}$/u);
 const JAVA_LONG_MAX = '9223372036854775807';
 const entityId = z
   .string()
@@ -111,15 +113,10 @@ const traceGanttQuerySchema = z
     signal: z.literal('traces'),
     queryKind: z.literal('gantt'),
     ...baseQueryShape,
-    traceId: identifier,
-    spanId: identifier.optional(),
-    minDurationMs: z.number().int().nonnegative().safe().optional(),
-    maxDurationMs: z.number().int().nonnegative().safe().optional()
+    traceId: traceIdentifier,
+    spanId: spanIdentifier.optional()
   })
-  .strict()
-  .refine(
-    query => query.minDurationMs == null || query.maxDurationMs == null || query.minDurationMs <= query.maxDurationMs
-  );
+  .strict();
 
 export const hertzBeatQuerySchema = z.union([
   metricQuerySchema,

@@ -92,6 +92,11 @@ const nullableNonNegativeDecimalSchema = z
       value.length < OTLP_UINT64_MAX.length || (value.length === OTLP_UINT64_MAX.length && value <= OTLP_UINT64_MAX)
   )
   .nullable();
+const nullableNonNegativeLongDecimalSchema = z
+  .string()
+  .regex(/^(0|[1-9]\d{0,18})$/u)
+  .refine(value => value.length < 19 || value <= '9223372036854775807')
+  .nullable();
 
 const traceEventSchema = z.object({
   timeUnixNano: nullableNonNegativeDecimalSchema,
@@ -128,7 +133,7 @@ const traceSpanSchema: z.ZodType<TraceSpan> = z.object({
   traceState: nullableStringSchema,
   scopeName: nullableStringSchema,
   scopeVersion: nullableStringSchema,
-  durationNanos: nullableJavaLongSchema,
+  durationNanos: nullableNonNegativeLongDecimalSchema,
   startTime: nullableNonNegativeIntegerSchema,
   highlighted: z.boolean(),
   resourceAttributes: nullableStringMapSchema,
@@ -140,6 +145,7 @@ const traceSpanSchema: z.ZodType<TraceSpan> = z.object({
 
 const traceDetailSchema: z.ZodType<TraceDetail> = z.object({
   ...traceSummaryShape,
+  durationNanos: nullableNonNegativeLongDecimalSchema,
   spans: z.array(traceSpanSchema).nullable()
 });
 

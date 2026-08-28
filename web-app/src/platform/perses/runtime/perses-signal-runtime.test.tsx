@@ -101,7 +101,7 @@ describe('PersesSignalRuntime', () => {
           kind: 'tracing-gantt-chart',
           title: 'Trace detail',
           timeWindow,
-          selectedSpanId: 'span-1',
+          selectedSpanId: '0123456789abcdef',
           data: { trace: { resourceSpans: [] } }
         },
         panelKind: 'TracingGanttChart',
@@ -119,7 +119,7 @@ describe('PersesSignalRuntime', () => {
       expect(query?.spec.plugin.kind).toBe(item.snapshotKind);
       expect(runtimeContract.pluginLoaders.at(-1)).toBe(hertzBeatPersesMultiSignalPluginLoader);
       if (item.props.kind === 'tracing-gantt-chart') {
-        expect(panel?.spec.plugin.spec).toMatchObject({ selectedSpanId: 'span-1' });
+        expect(panel?.spec.plugin.spec).toMatchObject({ selectedSpanId: '0123456789abcdef' });
       }
       view.unmount();
     }

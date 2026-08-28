@@ -21,14 +21,24 @@ const javaLong = z
   .refine(Number.isInteger)
   .refine(value => value >= 0);
 const nullableJavaLong = javaLong.nullable();
-const OTLP_UINT64_MAX = '18446744073709551615';
-const nullableNonNegativeDecimal = z
+const positiveUint64Decimal = z
   .string()
-  .regex(/^(0|[1-9]\d*)$/)
-  .refine(
-    value =>
-      value.length < OTLP_UINT64_MAX.length || (value.length === OTLP_UINT64_MAX.length && value <= OTLP_UINT64_MAX)
-  )
+  .regex(/^[1-9]\d{0,19}$/u)
+  .refine(value => value.length < 20 || value <= '18446744073709551615');
+const nullablePositiveLongDecimal = z
+  .string()
+  .regex(/^[1-9]\d{0,18}$/u)
+  .refine(value => value.length < 19 || value <= '9223372036854775807')
+  .nullable();
+const nonNegativeLongDecimal = z
+  .string()
+  .regex(/^(0|[1-9]\d{0,18})$/u)
+  .refine(value => value.length < 19 || value <= '9223372036854775807');
+const compositeTraceId = z.string().regex(/^[0-9a-f]{32}$/u);
+const compositeSpanId = z.string().regex(/^[0-9a-f]{16}$/u);
+const nullableLogRecordUid = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u)
   .nullable();
 const stringMap = z.record(z.string(), z.string());
 const nullableStringMap = stringMap.nullable();
@@ -97,8 +107,9 @@ const instrumentationScope = z.object({
   droppedAttributesCount: nullableNonNegativeInteger
 });
 const logRowSchema = z.object({
-  timeUnixNano: nullableJavaLong,
-  observedTimeUnixNano: nullableJavaLong,
+  logRecordUid: nullableLogRecordUid,
+  timeUnixNano: nullablePositiveLongDecimal,
+  observedTimeUnixNano: nullablePositiveLongDecimal,
   severityNumber: nullableNonNegativeInteger,
   severityText: nullableText,
   body: jsonValue,
@@ -155,49 +166,6 @@ const traceRowSchema = z.object(traceRowShape).superRefine((row, context) => {
     context.addIssue({ code: 'custom', message: 'Trace service statistics do not match trace totals' });
   }
 });
-const traceEvent = z.object({
-  timeUnixNano: nullableNonNegativeDecimal,
-  name: nullableText,
-  attributes: nullableJsonMap,
-  droppedAttributesCount: nullableNonNegativeInteger
-});
-const traceLink = z.object({
-  traceId: nullableText,
-  spanId: nullableText,
-  traceState: nullableText,
-  attributes: nullableJsonMap,
-  droppedAttributesCount: nullableNonNegativeInteger
-});
-const codeNavigationHint = z.object({
-  repositoryUrl: nullableText,
-  provider: nullableText,
-  defaultPath: nullableText,
-  searchQuery: nullableText,
-  label: nullableText
-});
-const traceSpan = z.object({
-  traceId: nullableText,
-  spanId: nullableText,
-  parentSpanId: nullableText,
-  spanName: nullableText,
-  serviceName: nullableText,
-  status: nullableText,
-  spanKind: nullableText,
-  statusMessage: nullableText,
-  traceState: nullableText,
-  scopeName: nullableText,
-  scopeVersion: nullableText,
-  durationNanos: nullableJavaLong,
-  startTime: nullableNonNegativeInteger,
-  highlighted: z.boolean(),
-  resourceAttributes: nullableStringMap,
-  spanAttributes: nullableStringMap,
-  events: z.array(traceEvent).nullable(),
-  links: z.array(traceLink).nullable(),
-  codeNavigationHint: codeNavigationHint.nullable()
-});
-const traceDetail = z.object({ ...traceSummaryShape, spans: z.array(traceSpan).nullable() });
-
 type HertzBeatMetricSeries = {
   key: string;
   name: string;
@@ -212,7 +180,6 @@ export type HertzBeatMetricData = {
 };
 export type HertzBeatLogRow = z.infer<typeof logRowSchema>;
 export type HertzBeatTraceRow = z.infer<typeof traceRowSchema>;
-export type HertzBeatTraceDetail = z.infer<typeof traceDetail>;
 export type HertzBeatTableData<T> = { rows: T[]; total: number };
 
 export class HertzBeatResponseContractError extends Error {
@@ -311,17 +278,185 @@ export function parseTraceTable(value: unknown, limit: number): HertzBeatTableDa
   return result.data.content.length > 0 ? { rows: result.data.content, total: result.data.totalElements } : undefined;
 }
 
-export function parseTraceGantt(value: unknown, traceId: string): HertzBeatTraceDetail | undefined {
-  if (value == null) return undefined;
-  const result = traceDetail.safeParse(value);
-  if (!result.success || result.data.traceId !== traceId) throw new HertzBeatResponseContractError();
-  const spanIds = result.data.spans?.map(span => {
-    if (!span.spanId || (span.traceId !== null && span.traceId !== traceId)) throw new HertzBeatResponseContractError();
-    return span.spanId;
-  });
-  if (spanIds && new Set(spanIds).size !== spanIds.length) throw new HertzBeatResponseContractError();
-  return result.data;
+export function parseTraceGantt(
+  value: unknown,
+  traceId: string,
+  selectedSpanId: string | undefined,
+  window: ExactTimeWindow
+): HertzBeatTraceDetail | undefined {
+  const result = traceCompositeSchema.safeParse(value);
+  if (
+    !result.success ||
+    result.data.traceId !== traceId ||
+    result.data.selectedSpanId !== (selectedSpanId ?? null) ||
+    result.data.window.start !== window.from ||
+    result.data.window.end !== window.to
+  ) {
+    throw new HertzBeatResponseContractError();
+  }
+  if (result.data.gantt.state === 'empty') return undefined;
+  if (result.data.gantt.state === 'unavailable') throw new HertzBeatResponseStateError('unavailable');
+  return compositeTraceDetail(result.data.gantt.detail, traceId);
 }
+
+const boundedText = z.string().trim().min(1).max(2_048);
+const boundedStringMap = z.record(z.string().trim().min(1).max(192), z.string().max(4_096));
+const compositeEvent = z
+  .object({
+    timeUnixNano: positiveUint64Decimal,
+    name: z.string().max(512).nullable(),
+    attributes: boundedStringMap,
+    droppedAttributesCount: nullableNonNegativeInteger
+  })
+  .strict();
+const compositeLink = z
+  .object({
+    traceId: compositeTraceId,
+    spanId: compositeSpanId,
+    traceState: z.string().max(512).nullable(),
+    attributes: boundedStringMap,
+    droppedAttributesCount: nullableNonNegativeInteger
+  })
+  .strict();
+const compositeCodeHint = z
+  .object({
+    repositoryUrl: z.string().max(2_048).nullable(),
+    provider: z.string().max(128).nullable(),
+    defaultPath: z.string().max(2_048).nullable(),
+    searchQuery: z.string().max(2_048).nullable(),
+    label: z.string().max(256).nullable()
+  })
+  .strict();
+const compositeSpan = z
+  .object({
+    spanId: compositeSpanId,
+    parentSpanId: compositeSpanId.nullable(),
+    spanName: boundedText,
+    serviceName: boundedText,
+    serviceNamespace: z.string().max(256).nullable(),
+    deploymentEnvironment: z.string().max(128).nullable(),
+    entityId: z.string().max(20).nullable(),
+    entityType: z.string().max(64).nullable(),
+    status: boundedText,
+    statusMessage: z.string().max(2_048).nullable(),
+    spanKind: z.string().max(64).nullable(),
+    traceState: z.string().max(512).nullable(),
+    scopeName: z.string().max(256).nullable(),
+    scopeVersion: z.string().max(128).nullable(),
+    durationNanos: nonNegativeLongDecimal,
+    startTime: safeInteger.positive(),
+    highlighted: z.boolean(),
+    resourceAttributes: boundedStringMap,
+    spanAttributes: boundedStringMap,
+    events: z.array(compositeEvent).max(1_024),
+    links: z.array(compositeLink).max(1_024),
+    codeNavigationHint: compositeCodeHint.nullable()
+  })
+  .strict();
+const compositeDetail = z
+  .object({
+    rootSpanId: compositeSpanId,
+    serviceName: boundedText,
+    serviceNamespace: z.string().max(256).nullable(),
+    deploymentEnvironment: z.string().max(128).nullable(),
+    entityId: z.string().max(20).nullable(),
+    entityType: z.string().max(64).nullable(),
+    rootSpanName: boundedText,
+    durationNanos: nonNegativeLongDecimal,
+    status: boundedText,
+    startTime: safeInteger.positive(),
+    errorSpanCount: nonNegativeInteger,
+    resourceAttributes: boundedStringMap,
+    spans: z.array(compositeSpan).min(1).max(10_000)
+  })
+  .strict();
+const compositeGantt = z.discriminatedUnion('state', [
+  z
+    .object({
+      state: z.literal('ready'),
+      reason: z.literal('observed'),
+      source: z.literal('greptime_traces'),
+      detail: compositeDetail
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal('empty'),
+      reason: z.literal('no_data'),
+      source: z.literal('greptime_traces'),
+      detail: z.null()
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal('unavailable'),
+      reason: z.enum([
+        'storage_unavailable',
+        'malformed_data',
+        'limit_exceeded',
+        'identity_unavailable',
+        'upstream_unavailable',
+        'query_strategy_unavailable'
+      ]),
+      source: z.literal('greptime_traces'),
+      detail: z.null()
+    })
+    .strict()
+]);
+const traceCompositeSchema = z
+  .object({
+    traceId: compositeTraceId,
+    selectedSpanId: compositeSpanId.nullable(),
+    window: z.object({ start: safeInteger.positive(), end: safeInteger.positive() }).strict(),
+    gantt: compositeGantt,
+    sameTraceLogs: z.unknown(),
+    red: z.unknown(),
+    metrics: z.unknown(),
+    dependencies: z.unknown()
+  })
+  .strict();
+
+function compositeTraceDetail(detail: z.infer<typeof compositeDetail>, traceId: string) {
+  const spanIds = detail.spans.map(span => span.spanId);
+  if (new Set(spanIds).size !== spanIds.length || !spanIds.includes(detail.rootSpanId)) {
+    throw new HertzBeatResponseContractError();
+  }
+  return {
+    traceId,
+    rootSpanId: detail.rootSpanId,
+    serviceName: detail.serviceName,
+    serviceNamespace: detail.serviceNamespace,
+    rootSpanName: detail.rootSpanName,
+    durationNanos: detail.durationNanos,
+    status: detail.status,
+    startTime: detail.startTime,
+    errorSpanCount: detail.errorSpanCount,
+    resourceAttributes: detail.resourceAttributes,
+    spans: detail.spans.map(span => ({
+      traceId,
+      spanId: span.spanId,
+      parentSpanId: span.parentSpanId,
+      spanName: span.spanName,
+      serviceName: span.serviceName,
+      status: span.status,
+      statusMessage: span.statusMessage,
+      spanKind: span.spanKind,
+      traceState: span.traceState,
+      scopeName: span.scopeName,
+      scopeVersion: span.scopeVersion,
+      durationNanos: span.durationNanos,
+      startTime: span.startTime,
+      highlighted: span.highlighted,
+      resourceAttributes: span.resourceAttributes,
+      spanAttributes: span.spanAttributes,
+      events: span.events,
+      links: span.links,
+      codeNavigationHint: span.codeNavigationHint
+    }))
+  };
+}
+
+export type HertzBeatTraceDetail = ReturnType<typeof compositeTraceDetail>;
 
 function metricSeries(frame: z.infer<typeof metricFrame>, index: number): HertzBeatMetricSeries {
   if (!frame.schema?.fields || !frame.schema.labels || !frame.data) throw new HertzBeatResponseContractError();

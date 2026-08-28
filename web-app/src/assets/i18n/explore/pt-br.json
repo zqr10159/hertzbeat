@@ -2,6 +2,72 @@
   "exploreTrace": {
     "closeDetail": "Fechar detalhes"
   },
+  "exploreInvestigation": {
+    "title": "Investigação focada",
+    "exactWindow": "Janela exata da investigação",
+    "availability": "Disponibilidade dos sinais da investigação",
+    "sections": {
+      "traces": "Traces",
+      "logs": "Logs no trace",
+      "metrics": "Métricas",
+      "topology": "Topologia",
+      "selectedLog": "Log selecionado",
+      "nearbyLogs": "Logs próximos"
+    },
+    "states": {
+      "available": "Disponível",
+      "empty": "Nenhuma evidência nesta janela.",
+      "unavailable": "Esta evidência não está disponível.",
+      "noTraceContext": "Este log não tem contexto de trace. Nenhuma consulta de trace foi enviada."
+    },
+    "actions": {
+      "backToResults": "Voltar aos resultados",
+      "openLogs": "Abrir logs",
+      "openMetrics": "Abrir métricas",
+      "openTopology": "Abrir topologia",
+      "focusTrace": "Focar no trace"
+    },
+    "trace": {
+      "summary": "Resumo do trace",
+      "traceId": "ID do trace",
+      "duration": "Duração",
+      "spanCount": "Quantidade de spans",
+      "errorCount": "Quantidade de erros",
+      "spanInspector": "Inspetor de span",
+      "selectSpan": "Selecione um span para inspecionar suas evidências."
+    },
+    "logs": {
+      "anchor": "Âncora da investigação",
+      "exactTrace": "Correlação exata do trace",
+      "nearbyScope": "Logs próximos ao registro selecionado nesta janela exata."
+    },
+    "metrics": {
+      "red": "Resumo RED",
+      "service": "Métricas do serviço",
+      "requestRate": "Taxa de solicitações",
+      "errorRate": "Taxa de erros",
+      "latencyP95": "Latência P95",
+      "requests": "Solicitações"
+    },
+    "topology": {
+      "scope": "Dependências do trace exato são evidências relacionadas, não prova da mesma entidade.",
+      "logScope": "A topologia está restrita à identidade de serviço verificada do log selecionado e à janela exata.",
+      "upstream": "A montante",
+      "downstream": "A jusante"
+    },
+    "query": {
+      "loading": "Carregando evidência dos sinais…",
+      "empty": "Sem evidência nesta janela.",
+      "truncated": "Exibindo um subconjunto limitado da evidência correspondente.",
+      "truncationUnknown": "A completude do resultado é desconhecida.",
+      "runtimeError": "O runtime de visualização não conseguiu renderizar esta evidência.",
+      "invalid": "A solicitação do sinal é inválida.",
+      "permission": "Você não tem permissão para inspecionar este sinal.",
+      "overloaded": "O armazenamento de sinais está ocupado. Tente novamente.",
+      "unavailable": "O armazenamento de sinais está indisponível.",
+      "contract": "O armazenamento de sinais retornou uma resposta inválida."
+    }
+  },
   "explore": {
     "exactWindow": "Intervalo de tempo fixo",
     "instanceId": "ID da instância do serviço",

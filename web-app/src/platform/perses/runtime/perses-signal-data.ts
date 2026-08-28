@@ -30,7 +30,7 @@ export function toPersesLogData(data: HertzBeatTableData<HertzBeatLogRow>, windo
     if (observedNanos == null) throw new PersesSignalDataError();
     if (typeof row.body !== 'string') assertSafeJsonNumbers(row.body);
     return {
-      timestamp: observedNanos / 1_000_000_000,
+      timestamp: unixNanoSeconds(observedNanos),
       line: typeof row.body === 'string' ? row.body : JSON.stringify(row.body),
       labels: logLabels(row)
     };
@@ -42,6 +42,15 @@ export function toPersesLogData(data: HertzBeatTableData<HertzBeatLogRow>, windo
     hasMore: data.total > entries.length,
     direction: 'backward'
   };
+}
+
+function unixNanoSeconds(value: string) {
+  if (!/^(0|[1-9]\d{0,19})$/u.test(value)) throw new PersesSignalDataError();
+  const nanos = BigInt(value);
+  if (nanos > 18_446_744_073_709_551_615n) throw new PersesSignalDataError();
+  const seconds = nanos / 1_000_000_000n;
+  const remainder = nanos % 1_000_000_000n;
+  return Number(seconds) + Number(remainder) / 1_000_000_000;
 }
 
 function assertSafeJsonNumbers(value: unknown): void {
@@ -214,7 +223,13 @@ function millisecondsToNanos(value: number) {
   return (toBigInt(value) * 1_000_000n).toString();
 }
 
-function toBigInt(value: number) {
+function toBigInt(value: number | string) {
+  if (typeof value === 'string') {
+    if (!/^(0|[1-9]\d{0,18})$/u.test(value) || value > '9223372036854775807') {
+      throw new PersesSignalDataError();
+    }
+    return BigInt(value);
+  }
   // JSON numbers above this bound have already lost integer precision. Never
   // present a rounded value to the official OTLP model as exact nanoseconds.
   if (!Number.isSafeInteger(value) || value < 0) throw new PersesSignalDataError();

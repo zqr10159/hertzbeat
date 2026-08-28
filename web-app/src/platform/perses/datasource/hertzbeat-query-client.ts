@@ -86,7 +86,12 @@ async function executeQuery(query: HertzBeatQuery, signal?: AbortSignal): Promis
       ? { state: 'ready', data, truncated: data.total > data.rows.length }
       : { state: 'empty', truncated: false };
   }
-  const data = parseTraceGantt(await request(buildTraceGanttPath(query), signal), query.traceId);
+  const data = parseTraceGantt(
+    await request(buildTraceGanttPath(query), signal),
+    query.traceId,
+    query.spanId,
+    query.timeWindow
+  );
   return data ? { state: 'ready', data, truncated: false } : { state: 'empty', truncated: false };
 }
 
@@ -132,10 +137,11 @@ function buildTraceTablePath(query: HertzBeatTraceTableQuery, limit: number) {
 }
 
 function buildTraceGanttPath(query: HertzBeatTraceGanttQuery) {
-  const params = baseParams(query, false);
+  const params = new URLSearchParams({
+    start: String(query.timeWindow.from),
+    end: String(query.timeWindow.to)
+  });
   set(params, 'spanId', query.spanId);
-  setNumber(params, 'minDurationMs', query.minDurationMs);
-  setNumber(params, 'maxDurationMs', query.maxDurationMs);
   return `/api/traces/${encodeURIComponent(query.traceId)}?${params.toString()}`;
 }
 

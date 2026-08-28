@@ -30,15 +30,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 import java.util.Map;
-import org.apache.hertzbeat.common.observability.dto.trace.TraceDetailDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceListItemDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceOverviewDto;
-import org.apache.hertzbeat.common.observability.dto.trace.TraceSpanEventDto;
-import org.apache.hertzbeat.common.observability.dto.trace.TraceSpanNodeDto;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext;
 import org.apache.hertzbeat.common.support.exception.TelemetryStorageUnavailableException;
 import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService;
-import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService.TraceDetailQuery;
 import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,11 +55,16 @@ class TraceQueryControllerTest {
     @Mock
     private EntityTraceQueryService entityTraceQueryService;
 
+    @Mock
+    private org.apache.hertzbeat.observability.investigation.service.TraceInvestigationReadModelService
+            investigationReadModelService;
+
     @BeforeEach
     void setUp() {
         AuthTokenRequestContext.bindWorkspaceId("team-a");
         TraceQueryController controller = new TraceQueryController(entityTraceQueryService,
-                new ObservabilityQueryAdmissionService(8, 8, 8, 4, 8, Duration.ofMillis(100)));
+                new ObservabilityQueryAdmissionService(8, 8, 8, 4, 8, Duration.ofMillis(100)),
+                investigationReadModelService);
         this.mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -80,8 +81,7 @@ class TraceQueryControllerTest {
                 "/api/traces/list",
                 "/api/traces/stats/overview",
                 "/api/traces/stats/group-by?groupBy=service",
-                "/api/traces/trace-7",
-                "/api/traces/trace-7/spans")) {
+                "/api/traces/0123456789abcdef0123456789abcdef?start=1000&end=2000")) {
             Exception exception = assertThrows(Exception.class, () -> mockMvc.perform(get(path)));
             Throwable rootCause = exception;
             while (rootCause.getCause() != null) {
@@ -90,6 +90,14 @@ class TraceQueryControllerTest {
             assertInstanceOf(TelemetryStorageUnavailableException.class, rootCause);
         }
         verifyNoInteractions(entityTraceQueryService);
+    }
+
+    @Test
+    void rejectsNonLowerHexSelectionBeforeInvestigationQuery() {
+        assertThrows(Exception.class, () -> mockMvc.perform(get(
+                "/api/traces/0123456789ABCDEF0123456789ABCDEF?start=1000&end=2000")));
+
+        verifyNoInteractions(investigationReadModelService);
     }
 
     @Test
@@ -208,80 +216,6 @@ class TraceQueryControllerTest {
                 "team-a", null, 100L, 200L, null, false, "checkout", "commerce", "prod",
                 "service.instance.id=\"checkout-7d9\"", null, null, null, 0, 20, null, null,
                 "http.route=\"/checkout\"");
-    }
-
-    @Test
-    void shouldForwardVerifiedContextToTraceDetailQuery() throws Exception {
-        TraceDetailQuery query = new TraceDetailQuery(
-                7L,
-                "trace-7",
-                "span-7",
-                100L,
-                200L,
-                "checkout",
-                "commerce",
-                "prod",
-                "hertzbeat.collector.id=\"collector-a\" and service.instance.id=\"checkout-7d9\"",
-                "http.route=\"/checkout\"",
-                10L,
-                500L);
-        TraceSpanNodeDto span = new TraceSpanNodeDto();
-        span.setEvents(List.of(new TraceSpanEventDto(
-                "1710000000000000123", "exception", Map.of(), 0)));
-        TraceDetailDto detail = new TraceDetailDto();
-        detail.setTraceId("trace-7");
-        detail.setSpans(List.of(span));
-        when(entityTraceQueryService.getTraceDetail("team-a", query)).thenReturn(detail);
-
-        mockMvc.perform(get("/api/traces/trace-7")
-                        .param("entityId", "7")
-                        .param("start", "100")
-                        .param("end", "200")
-                        .param("spanId", "span-7")
-                        .param("serviceName", "checkout")
-                        .param("serviceNamespace", "commerce")
-                        .param("environment", "prod")
-                        .param("collectorId", "collector-a")
-                        .param("instance", "checkout-7d9")
-                        .param("endpoint", "/checkout")
-                        .param("minDurationMs", "10")
-                        .param("maxDurationMs", "500"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.spans[0].events[0].timeUnixNano")
-                        .value("1710000000000000123"));
-
-        verify(entityTraceQueryService).getTraceDetail("team-a", query);
-    }
-
-    @Test
-    void shouldNotBypassVerifiedContextWhenQueryingTraceSpans() throws Exception {
-        TraceDetailQuery query = new TraceDetailQuery(
-                7L,
-                "trace-7",
-                null,
-                100L,
-                200L,
-                "checkout",
-                "commerce",
-                "prod",
-                "hertzbeat.collector.id=\"collector-a\" and service.instance.id=\"checkout-7d9\"",
-                "http.route=\"/checkout\"",
-                null,
-                null);
-
-        mockMvc.perform(get("/api/traces/trace-7/spans")
-                        .param("entityId", "7")
-                        .param("start", "100")
-                        .param("end", "200")
-                        .param("serviceName", "checkout")
-                        .param("serviceNamespace", "commerce")
-                        .param("environment", "prod")
-                        .param("collectorId", "collector-a")
-                        .param("instance", "checkout-7d9")
-                        .param("endpoint", "/checkout"))
-                .andExpect(status().isOk());
-
-        verify(entityTraceQueryService).getTraceDetail("team-a", query);
     }
 
     @Test

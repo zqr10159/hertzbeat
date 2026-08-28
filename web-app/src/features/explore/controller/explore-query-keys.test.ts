@@ -51,6 +51,29 @@ const metricQuery: ExploreQuery = {
 };
 
 describe('Explore Query Key factory', () => {
+  it('owns investigation caches by context, exact window, identity, and refresh revision', () => {
+    expect(exploreQueryKeys.traceInvestigation(context, window, 'trace-1', 'span-1', 4)).toEqual([
+      'explore-investigation',
+      'trace',
+      {
+        context: '["","","","collector-east","checkout","commerce","prod","checkout-1","/checkout"]',
+        window: '1000:2000',
+        refreshRevision: 4
+      },
+      { traceId: 'trace-1', spanId: 'span-1' }
+    ]);
+    expect(exploreQueryKeys.logInvestigation(context, window, 'record-1', 5)).toEqual([
+      'explore-investigation',
+      'log',
+      {
+        context: '["","","","collector-east","checkout","commerce","prod","checkout-1","/checkout"]',
+        window: '1000:2000',
+        refreshRevision: 5
+      },
+      { logRecordUid: 'record-1' }
+    ]);
+  });
+
   it('builds trace detail identity from both evidence scope and trace id', () => {
     expect(exploreQueryKeys.detail('scope-a', undefined)).toEqual(['trace-detail', 'scope-a', undefined]);
     expect(exploreQueryKeys.detail('scope-a', 'trace-1')).toEqual(['trace-detail', 'scope-a', 'trace-1']);

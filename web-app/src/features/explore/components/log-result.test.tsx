@@ -50,8 +50,21 @@ describe('LogResult', () => {
 
     fireEvent.click(screen.getByRole('button', { name: i18n.t('exploreLog.openTrace') }));
     expect(navigate).toHaveBeenCalledWith(expect.stringContaining('signal=traces'));
-    expect(navigate).toHaveBeenCalledWith(expect.stringContaining('traceId=trace-1'));
+    expect(navigate).toHaveBeenCalledWith(expect.stringContaining('traceId=0123456789abcdef0123456789abcdef'));
     expect(navigate).toHaveBeenCalledWith(expect.stringContaining('timeRange=last-30m'));
+  });
+
+  it('delegates historical selection to the focused route callback without opening a local detail drawer', () => {
+    const onSelectLog = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Subject onSelectLog={onSelectLog} />
+      </I18nextProvider>
+    );
+
+    fireEvent.click(screen.getByRole('row', { name: /payment timeout/ }));
+    expect(onSelectLog).toHaveBeenCalledWith(expect.objectContaining({ logRecordUid: 'log-1' }));
+    expect(screen.queryByRole('dialog', { name: i18n.t('exploreLog.detail') })).toBeNull();
   });
 
   it('closes selected log evidence when the query scope changes', async () => {
@@ -266,10 +279,12 @@ describe('LogResult', () => {
 
 function Subject({
   navigate = vi.fn(),
-  query = defaultLogQuery
+  query = defaultLogQuery,
+  onSelectLog
 }: {
   navigate?: (path: string) => void;
   query?: typeof defaultLogQuery & { serviceName?: string | undefined };
+  onSelectLog?: React.ComponentProps<typeof LogResult>['onSelectLog'];
 }) {
   const { t } = useTranslation();
   return (
@@ -277,14 +292,15 @@ function Subject({
       data={{
         content: [
           {
-            timeUnixNano: 1_750_000_000_000_000_000,
+            logRecordUid: 'log-1',
+            timeUnixNano: '1750000000000000000',
             observedTimeUnixNano: null,
             severityNumber: null,
             severityText: 'ERROR',
             body: 'payment timeout',
             droppedAttributesCount: null,
-            traceId: 'trace-1',
-            spanId: 'span-1',
+            traceId: '0123456789abcdef0123456789abcdef',
+            spanId: '0123456789abcdef',
             traceFlags: null,
             resource: { 'service.name': 'checkout', 'service.version': '1.2.3' },
             attributes: { 'retry.count': 2 },
@@ -301,6 +317,7 @@ function Subject({
       query={query}
       t={t}
       navigate={navigate}
+      onSelectLog={onSelectLog}
     />
   );
 }

@@ -53,7 +53,7 @@ describe('TraceResult', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Related logs' }));
     expect(navigate).toHaveBeenCalledWith(expect.stringContaining('signal=logs'));
-    expect(navigate).toHaveBeenCalledWith(expect.stringContaining('traceId=trace-1'));
+    expect(navigate).toHaveBeenCalledWith(expect.stringContaining('traceId=0123456789abcdef0123456789abcdef'));
   });
 
   it('keeps an out-of-range nonzero page ready with authoritative total', () => {
@@ -118,7 +118,7 @@ describe('TraceResult', () => {
       <I18nextProvider i18n={i18n}>
         <Subject
           navigate={navigate}
-          row={{ ...incompleteDetail, spanCount: 2, serviceStats: traceServiceStats }}
+          row={{ ...traceListRow, status: 'OK', spanCount: 2, serviceStats: traceServiceStats }}
           detail={incompleteDetail}
         />
       </I18nextProvider>
@@ -138,18 +138,18 @@ describe('TraceResult', () => {
   it('renders an actual zero-duration span as an instant instead of unavailable timing', () => {
     const instantDetail: TraceDetail = {
       ...traceDetail,
-      durationNanos: 0,
+      durationNanos: '0',
       spans: (traceDetail.spans ?? []).map(span => ({
         ...span,
         spanName: 'instant span',
-        durationNanos: 0
+        durationNanos: '0'
       }))
     };
     render(
       <I18nextProvider i18n={i18n}>
         <Subject
           navigate={vi.fn()}
-          row={{ ...instantDetail, spanCount: 2, serviceStats: traceServiceStats }}
+          row={{ ...traceListRow, durationNanos: 0, spanCount: 2, serviceStats: traceServiceStats }}
           detail={instantDetail}
         />
       </I18nextProvider>
@@ -169,7 +169,7 @@ describe('TraceResult', () => {
       <I18nextProvider i18n={i18n}>
         <Subject
           navigate={vi.fn()}
-          row={{ ...traceDetail, startTime: 0, spanCount: 2, serviceStats: traceServiceStats }}
+          row={{ ...traceListRow, startTime: 0, spanCount: 2, serviceStats: traceServiceStats }}
         />
       </I18nextProvider>
     );
@@ -177,16 +177,19 @@ describe('TraceResult', () => {
   });
 
   it('renders loading without leaking old trace detail', () => {
-    renderState({ kind: 'loading', traceId: 'trace-2' });
+    renderState({ kind: 'loading', traceId: 'fedcba9876543210fedcba9876543210' });
     expect(document.querySelector('.ant-skeleton')).not.toBeNull();
     expect(screen.queryByText('http.status_code')).not.toBeInTheDocument();
   });
 
   it.each([
-    [{ kind: 'missing', traceId: 'trace-1' } as const, 'explore.empty.traces'],
-    [{ kind: 'permission', traceId: 'trace-1' } as const, 'common.permission.roleRequiredDescription'],
-    [{ kind: 'unavailable', traceId: 'trace-1' } as const, 'common.unavailable'],
-    [{ kind: 'error', traceId: 'trace-1' } as const, 'exploreTrace.loadFailed']
+    [{ kind: 'missing', traceId: '0123456789abcdef0123456789abcdef' } as const, 'explore.empty.traces'],
+    [
+      { kind: 'permission', traceId: '0123456789abcdef0123456789abcdef' } as const,
+      'common.permission.roleRequiredDescription'
+    ],
+    [{ kind: 'unavailable', traceId: '0123456789abcdef0123456789abcdef' } as const, 'common.unavailable'],
+    [{ kind: 'error', traceId: '0123456789abcdef0123456789abcdef' } as const, 'exploreTrace.loadFailed']
   ])('renders truthful detail state $state.kind', (state, messageKey) => {
     renderState(state);
     expect(screen.getByText(i18n.t(messageKey))).toBeInTheDocument();
@@ -280,25 +283,25 @@ function closedTrace() {
 }
 
 const traceDetail: TraceDetail = {
-  traceId: 'trace-1',
-  rootSpanId: 'span-1',
+  traceId: '0123456789abcdef0123456789abcdef',
+  rootSpanId: '0123456789abcdef',
   rootSpanName: 'POST /checkout',
   serviceName: 'checkout',
   serviceNamespace: null,
   startTime: 1_750_000_000_000,
-  durationNanos: 3_000_000_000,
+  durationNanos: '3000000000',
   errorSpanCount: 1,
   status: 'ERROR',
   resourceAttributes: null,
   spans: [
     {
-      traceId: 'trace-1',
-      spanId: 'span-1',
+      traceId: '0123456789abcdef0123456789abcdef',
+      spanId: '0123456789abcdef',
       parentSpanId: null,
       spanName: 'POST /checkout',
       serviceName: 'checkout',
       startTime: 1_750_000_000_000,
-      durationNanos: 3_000_000_000,
+      durationNanos: '3000000000',
       status: 'error',
       spanKind: null,
       statusMessage: null,
@@ -323,7 +326,16 @@ const traceDetail: TraceDetail = {
 };
 
 const traceListRow: TraceRow = {
-  ...traceDetail,
+  traceId: traceDetail.traceId,
+  rootSpanId: traceDetail.rootSpanId,
+  rootSpanName: traceDetail.rootSpanName,
+  serviceName: traceDetail.serviceName,
+  serviceNamespace: traceDetail.serviceNamespace,
+  startTime: traceDetail.startTime,
+  durationNanos: 3_000_000_000,
+  errorSpanCount: traceDetail.errorSpanCount,
+  status: traceDetail.status,
+  resourceAttributes: traceDetail.resourceAttributes,
   spanCount: traceDetail.spans?.length ?? 0,
   serviceStats: { checkout: { spanCount: 1, errorCount: 1 } }
 };

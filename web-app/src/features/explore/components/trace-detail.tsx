@@ -19,7 +19,8 @@ import { Button, Descriptions, Empty, Typography } from 'antd';
 import type { TFunction } from 'i18next';
 
 import type { TraceSpan } from '../model/explore-signal-contract';
-import { traceDurationMs, type TraceDetailState, type TraceSpanTiming } from '../model/explore-signal-model';
+import { investigationDurationNanoToMillis } from '../model/explore-investigation-model';
+import type { TraceDetailState, TraceSpanTiming } from '../model/explore-signal-model';
 import { OtlpAttributeList, OtlpAttributeSection } from './otlp-attribute-list';
 import { TraceDetailStatus } from './trace-detail-status';
 import { formatTraceDuration } from './trace-display';
@@ -77,7 +78,7 @@ function TraceDetailContent({
     <>
       <div className={styles.detailToolbar}>
         <div className={styles.traceSummary}>
-          <strong>{formatTraceDuration(traceDurationMs(detail))}</strong>
+          <strong>{formatTraceDuration(directTraceDurationMs(detail.durationNanos))}</strong>
           <span>
             {spans.length} {t('exploreTrace.spans')}
           </span>
@@ -106,7 +107,9 @@ function TraceDetailContent({
               <small>{span.spanName ?? '—'}</small>
             </span>
             <SpanTimeline timing={span.timing} error={span.status === 'error'} durationLabel={t('explore.duration')} />
-            <span className={styles.spanDuration}>{formatTraceDuration(traceDurationMs(span))}</span>
+            <span className={styles.spanDuration}>
+              {formatTraceDuration(directTraceDurationMs(span.durationNanos))}
+            </span>
           </button>
         ))}
       </div>
@@ -144,6 +147,10 @@ function SpanTimeline({
       />
     </span>
   );
+}
+
+function directTraceDurationMs(value: string | null) {
+  return value == null ? undefined : investigationDurationNanoToMillis(value);
 }
 
 function SpanDetail({ span, t }: { span: TraceSpan; t: TFunction }) {

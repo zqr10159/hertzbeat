@@ -19,24 +19,24 @@ package org.apache.hertzbeat.observability.traces.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.List;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
+import java.util.regex.Pattern;
 import org.apache.hertzbeat.common.entity.dto.Message;
-import org.apache.hertzbeat.common.observability.dto.trace.TraceDetailDto;
+import org.apache.hertzbeat.common.observability.dto.investigation.InvestigationWindow;
+import org.apache.hertzbeat.common.observability.dto.investigation.TraceInvestigationView;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceListItemDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceOverviewDto;
-import org.apache.hertzbeat.common.observability.dto.trace.TraceSpanNodeDto;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenScopes;
 import org.apache.hertzbeat.common.support.exception.TelemetryStorageUnavailableException;
 import org.apache.hertzbeat.observability.ingestion.semantic.OtlpResourceSemanticAttributes;
 import org.apache.hertzbeat.observability.shared.query.CollectorResourceScope;
 import org.apache.hertzbeat.observability.shared.query.TelemetryQueryContextScope;
+import org.apache.hertzbeat.observability.investigation.service.TraceInvestigationReadModelService;
 import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService;
-import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService.TraceDetailQuery;
 import org.apache.hertzbeat.warehouse.query.admission.ObservabilityQueryAdmissionService;
 import org.springframework.data.domain.Page;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,11 +51,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping(path = "/api/traces", produces = "application/json")
 @Tag(name = "Trace Query Controller")
-@RequiredArgsConstructor
 public class TraceQueryController {
+
+    private static final Pattern TRACE_ID = Pattern.compile("[0-9a-f]{32}");
+    private static final Pattern SPAN_ID = Pattern.compile("[0-9a-f]{16}");
 
     private final EntityTraceQueryService entityTraceQueryService;
     private final ObservabilityQueryAdmissionService queryAdmissionService;
+    private final TraceInvestigationReadModelService traceInvestigationReadModelService;
+
+    @Autowired
+    public TraceQueryController(EntityTraceQueryService entityTraceQueryService,
+                                ObservabilityQueryAdmissionService queryAdmissionService,
+                                TraceInvestigationReadModelService traceInvestigationReadModelService) {
+        this.entityTraceQueryService = entityTraceQueryService;
+        this.queryAdmissionService = queryAdmissionService;
+        this.traceInvestigationReadModelService = traceInvestigationReadModelService;
+    }
 
     @GetMapping("/list")
     @Operation(summary = "Query traces with entity context and canonical resource filters")
@@ -161,101 +173,26 @@ public class TraceQueryController {
     }
 
     @GetMapping("/{traceId}")
-    @Operation(summary = "Query single trace detail")
-    public ResponseEntity<Message<TraceDetailDto>> detail(@PathVariable("traceId") String traceId,
-                                                          @RequestParam(value = "entityId", required = false) Long entityId,
-                                                          @RequestParam(value = "start", required = false) Long start,
-                                                          @RequestParam(value = "end", required = false) Long end,
-                                                          @RequestParam(value = "spanId", required = false) String spanId,
-                                                          @RequestParam(value = "serviceName", required = false)
-                                                          String serviceName,
-                                                          @RequestParam(value = "serviceNamespace", required = false)
-                                                          String serviceNamespace,
-                                                          @RequestParam(value = "environment", required = false)
-                                                          String environment,
-                                                          @RequestParam(value = "collectorId", required = false)
-                                                          String collectorId,
-                                                          @RequestParam(value = "instance", required = false)
-                                                          String instance,
-                                                          @RequestParam(value = "endpoint", required = false)
-                                                          String endpoint,
-                                                          @RequestParam(value = "resourceFilter", required = false)
-                                                          String resourceFilter,
-                                                          @RequestParam(value = "attributeFilter", required = false)
-                                                          String attributeFilter,
-                                                          @RequestParam(value = "minDurationMs", required = false)
-                                                          Long minDurationMs,
-                                                          @RequestParam(value = "maxDurationMs", required = false)
-                                                          Long maxDurationMs) {
+    @Operation(summary = "Query one bounded Trace investigation")
+    public ResponseEntity<Message<TraceInvestigationView>> detail(
+            @PathVariable("traceId") String traceId,
+            @RequestParam("start") long start,
+            @RequestParam("end") long end,
+            @RequestParam(value = "spanId", required = false) String spanId) {
+        validateInvestigationSelection(traceId, spanId, start, end);
         String workspaceId = trustedWorkspaceId();
-        TraceDetailQuery query = detailQuery(
-                entityId, traceId, spanId, start, end, serviceName, serviceNamespace, environment, collectorId,
-                instance, endpoint, resourceFilter, attributeFilter, minDurationMs, maxDurationMs);
         return ResponseEntity.ok(Message.success(queryAdmissionService.execute("traces",
-                () -> entityTraceQueryService.getTraceDetail(workspaceId, query))));
+                () -> traceInvestigationReadModelService.query(workspaceId, traceId, spanId, start, end))));
     }
 
-    @GetMapping("/{traceId}/spans")
-    @Operation(summary = "Query spans by trace id")
-    public ResponseEntity<Message<List<TraceSpanNodeDto>>> spans(@PathVariable("traceId") String traceId,
-                                                                 @RequestParam(value = "entityId", required = false)
-                                                                 Long entityId,
-                                                                 @RequestParam(value = "start", required = false)
-                                                                 Long start,
-                                                                 @RequestParam(value = "end", required = false)
-                                                                 Long end,
-                                                                 @RequestParam(value = "spanId", required = false)
-                                                                 String spanId,
-                                                                 @RequestParam(value = "serviceName", required = false)
-                                                                 String serviceName,
-                                                                 @RequestParam(value = "serviceNamespace", required = false)
-                                                                 String serviceNamespace,
-                                                                 @RequestParam(value = "environment", required = false)
-                                                                 String environment,
-                                                                 @RequestParam(value = "collectorId", required = false)
-                                                                 String collectorId,
-                                                                 @RequestParam(value = "instance", required = false)
-                                                                 String instance,
-                                                                 @RequestParam(value = "endpoint", required = false)
-                                                                 String endpoint,
-                                                                 @RequestParam(value = "resourceFilter", required = false)
-                                                                 String resourceFilter,
-                                                                 @RequestParam(value = "attributeFilter", required = false)
-                                                                 String attributeFilter,
-                                                                 @RequestParam(value = "minDurationMs", required = false)
-                                                                 Long minDurationMs,
-                                                                 @RequestParam(value = "maxDurationMs", required = false)
-                                                                 Long maxDurationMs) {
-        String workspaceId = trustedWorkspaceId();
-        TraceDetailQuery query = detailQuery(
-                entityId, traceId, spanId, start, end, serviceName, serviceNamespace, environment, collectorId,
-                instance, endpoint, resourceFilter, attributeFilter, minDurationMs, maxDurationMs);
-        TraceDetailDto detail = queryAdmissionService.execute("traces",
-                () -> entityTraceQueryService.getTraceDetail(workspaceId, query));
-        return ResponseEntity.ok(Message.success(detail == null ? List.of() : detail.getSpans()));
-    }
-
-    private TraceDetailQuery detailQuery(
-            Long entityId,
-            String traceId,
-            String spanId,
-            Long start,
-            Long end,
-            String serviceName,
-            String serviceNamespace,
-            String environment,
-            String collectorId,
-            String instance,
-            String endpoint,
-            String resourceFilter,
-            String attributeFilter,
-            Long minDurationMs,
-            Long maxDurationMs) {
-        ScopedFilters scopedFilters = scopeFilters(
-                entityId, null, collectorId, instance, endpoint, resourceFilter, attributeFilter);
-        return new TraceDetailQuery(
-                entityId, traceId, spanId, start, end, serviceName, serviceNamespace, environment,
-                scopedFilters.resourceFilter(), scopedFilters.attributeFilter(), minDurationMs, maxDurationMs);
+    private static void validateInvestigationSelection(String traceId, String spanId, long start, long end) {
+        if (traceId == null || !TRACE_ID.matcher(traceId).matches()) {
+            throw new IllegalArgumentException("traceId must be 32 lowercase hexadecimal characters");
+        }
+        if (spanId != null && !SPAN_ID.matcher(spanId).matches()) {
+            throw new IllegalArgumentException("spanId must be 16 lowercase hexadecimal characters");
+        }
+        new InvestigationWindow(start, end);
     }
 
     private String mergeEntityContextResourceFilter(Long entityId, String entityType, String resourceFilter) {

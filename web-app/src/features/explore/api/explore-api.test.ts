@@ -62,13 +62,13 @@ describe('explore API paths', () => {
       instance: 'checkout-7d9',
       endpoint: '/checkout',
       query: 'timeout',
-      traceId: 'trace-1'
+      traceId: '0123456789abcdef0123456789abcdef'
     };
     expect(buildSignalApiPath(base, 1_000_000)).toBe(
-      '/api/logs/list?serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-7d9&endpoint=%2Fcheckout&start=100000&end=1000000&pageIndex=0&pageSize=20&search=timeout&traceId=trace-1'
+      '/api/logs/list?serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-7d9&endpoint=%2Fcheckout&start=100000&end=1000000&pageIndex=0&pageSize=20&search=timeout&traceId=0123456789abcdef0123456789abcdef'
     );
     expect(buildSignalApiPath({ ...base, signal: 'traces' }, 1_000_000)).toBe(
-      '/api/traces/list?serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-7d9&endpoint=%2Fcheckout&start=100000&end=1000000&pageIndex=0&pageSize=20&operationName=timeout&traceId=trace-1'
+      '/api/traces/list?serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-7d9&endpoint=%2Fcheckout&start=100000&end=1000000&pageIndex=0&pageSize=20&operationName=timeout&traceId=0123456789abcdef0123456789abcdef'
     );
     expect(buildSignalApiPath({ ...base, signal: 'metrics' }, 1_000_000)).toBe(
       '/api/ingestion/otlp/metrics/console?serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-7d9&endpoint=%2Fcheckout&start=100000&end=1000000&query=timeout'
@@ -77,7 +77,7 @@ describe('explore API paths', () => {
       '&query=timeout&operationName=POST+%2Fcheckout'
     );
     expect(buildLogStreamPath(base)).toBe(
-      '/api/logs/sse/subscribe?serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-7d9&endpoint=%2Fcheckout&logContent=timeout&traceId=trace-1'
+      '/api/logs/sse/subscribe?serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-7d9&endpoint=%2Fcheckout&logContent=timeout&traceId=0123456789abcdef0123456789abcdef'
     );
   });
 
@@ -95,8 +95,8 @@ describe('explore API paths', () => {
       serviceName: 'checkout',
       query: 'timeout',
       severityText: 'ERROR',
-      traceId: 'trace-1',
-      spanId: 'span-1',
+      traceId: '0123456789abcdef0123456789abcdef',
+      spanId: '0123456789abcdef',
       resourceFilter: 'service.version=1.2.3',
       attributeFilter: 'http.route:/checkout',
       hideInternal: true,
@@ -107,7 +107,7 @@ describe('explore API paths', () => {
         '&hideInternal=true&hideNoise=true'
     );
     expect(buildLogStreamPath(query)).toBe(
-      '/api/logs/sse/subscribe?serviceName=checkout&logContent=timeout&traceId=trace-1&spanId=span-1' +
+      '/api/logs/sse/subscribe?serviceName=checkout&logContent=timeout&traceId=0123456789abcdef0123456789abcdef&spanId=0123456789abcdef' +
         '&severityText=ERROR&resourceFilter=service.version%3D1.2.3&attributeFilter=http.route%3A%2Fcheckout' +
         '&hideInternal=true&hideNoise=true'
     );
@@ -135,7 +135,7 @@ describe('explore API paths', () => {
       {
         signal: 'traces',
         timeRange: 'last-1h',
-        traceId: 'trace-1',
+        traceId: '0123456789abcdef0123456789abcdef',
         spanId: 'span-selection-only',
         resourceFilter: 'cloud.region=ap-southeast-1',
         attributeFilter: 'http.route=/checkout',
@@ -148,7 +148,7 @@ describe('explore API paths', () => {
       4_000_000
     );
     expect(tracePath).toContain(
-      'traceId=trace-1&resourceFilter=cloud.region%3Dap-southeast-1' +
+      'traceId=0123456789abcdef0123456789abcdef&resourceFilter=cloud.region%3Dap-southeast-1' +
         '&attributeFilter=http.route%3D%2Fcheckout&minDurationMs=100&maxDurationMs=5000' +
         '&errorOnly=true&spanScope=root&hideInternal=true'
     );
@@ -263,46 +263,50 @@ describe('explore API paths', () => {
     expect(openBrowserEventStream).not.toHaveBeenCalled();
   });
 
-  it('loads encoded trace detail through the parser boundary', async () => {
+  it('loads canonical trace detail through the parser boundary', async () => {
     const signal = new AbortController().signal;
     const query = parseExploreQuery(
       new URLSearchParams(
         'signal=traces&serviceName=checkout&serviceNamespace=commerce&environment=prod' +
-          '&instance=checkout-1&endpoint=%2Fcheckout&traceId=trace%20%2F%201&spanId=span-1' +
+          '&instance=checkout-1&endpoint=%2Fcheckout&traceId=0123456789abcdef0123456789abcdef&spanId=0123456789abcdef' +
           '&resourceFilter=service.version%3D1&attributeFilter=http.route%3D%2Fcheckout' +
-          '&minDurationMs=100&maxDurationMs=200&start=1000&end=2000'
+          '&minDurationMs=100&maxDurationMs=200&start=1000&end=2000&timeZone=UTC'
       )
     );
     if (query.signal !== 'traces') throw new Error('trace query expected');
-    apiMessageGet.mockResolvedValueOnce({ ...traceRow('trace / 1'), spans: null }).mockResolvedValueOnce([]);
+    apiMessageGet.mockResolvedValueOnce(
+      traceInvestigationResponse('0123456789abcdef0123456789abcdef', '0123456789abcdef')
+    );
 
-    await expect(loadTraceDetail(query, 'trace / 1', signal)).resolves.toMatchObject({
-      traceId: 'trace / 1',
-      spans: []
+    await expect(loadTraceDetail(query, '0123456789abcdef0123456789abcdef', signal)).resolves.toMatchObject({
+      traceId: '0123456789abcdef0123456789abcdef',
+      spans: [{ spanId: '0123456789abcdef' }]
     });
-    const context =
-      'serviceName=checkout&serviceNamespace=commerce&environment=prod&instance=checkout-1' +
-      '&endpoint=%2Fcheckout&start=1000&end=2000&spanId=span-1&resourceFilter=service.version%3D1' +
-      '&attributeFilter=http.route%3D%2Fcheckout&minDurationMs=100&maxDurationMs=200';
-    expect(apiMessageGet).toHaveBeenNthCalledWith(1, `/api/traces/trace%20%2F%201?${context}`, { signal });
-    expect(apiMessageGet).toHaveBeenNthCalledWith(2, `/api/traces/trace%20%2F%201/spans?${context}`, { signal });
-    expect(buildTraceDetailApiPath(query, 'trace / 1', false, 9_999)).toContain('start=1000&end=2000');
+    expect(apiMessageGet).toHaveBeenCalledOnce();
+    expect(apiMessageGet).toHaveBeenCalledWith(
+      '/api/traces/0123456789abcdef0123456789abcdef?start=1000&end=2000&spanId=0123456789abcdef',
+      { signal }
+    );
+    expect(buildTraceDetailApiPath(query, '0123456789abcdef0123456789abcdef', 9_999)).toContain('start=1000&end=2000');
   });
 
   it('uses one relative time snapshot for trace detail and spans', async () => {
     const dateNow = vi.spyOn(Date, 'now').mockReturnValueOnce(4_000_000).mockReturnValueOnce(9_000_000);
     try {
-      apiMessageGet.mockResolvedValueOnce({ ...traceRow('trace-1'), spans: null }).mockResolvedValueOnce([]);
+      apiMessageGet.mockResolvedValueOnce(
+        traceInvestigationResponse('0123456789abcdef0123456789abcdef', null, { start: 2_200_000, end: 4_000_000 })
+      );
 
-      await loadTraceDetail({ signal: 'traces', timeRange: 'last-30m' }, 'trace-1');
+      await loadTraceDetail({ signal: 'traces', timeRange: 'last-30m' }, '0123456789abcdef0123456789abcdef');
 
       expect(dateNow).toHaveBeenCalledTimes(1);
-      expect(apiMessageGet).toHaveBeenNthCalledWith(1, '/api/traces/trace-1?start=2200000&end=4000000', {
-        signal: null
-      });
-      expect(apiMessageGet).toHaveBeenNthCalledWith(2, '/api/traces/trace-1/spans?start=2200000&end=4000000', {
-        signal: null
-      });
+      expect(apiMessageGet).toHaveBeenCalledOnce();
+      expect(apiMessageGet).toHaveBeenCalledWith(
+        '/api/traces/0123456789abcdef0123456789abcdef?start=2200000&end=4000000',
+        {
+          signal: null
+        }
+      );
     } finally {
       dateNow.mockRestore();
     }
@@ -322,7 +326,7 @@ describe('explore API paths', () => {
         errorMessage: null
       })
       .mockResolvedValueOnce(stableLogPage([]))
-      .mockResolvedValueOnce(springPage([traceRow('trace-1')]));
+      .mockResolvedValueOnce(springPage([traceRow('0123456789abcdef0123456789abcdef')]));
     await loadMetricSignal({ signal: 'metrics', timeRange: 'last-15m', query: 'up' }, signal);
     await loadLogSignal({ signal: 'logs', timeRange: 'last-15m', pageIndex: 0 }, signal);
     await loadTraceSignal({ signal: 'traces', timeRange: 'last-15m', pageIndex: 0 }, signal);
@@ -442,7 +446,7 @@ describe('explore API paths', () => {
         }
       | undefined;
 
-    transportHandlers?.onEvent('LOG_EVENT', JSON.stringify(logRow('valid')));
+    transportHandlers?.onEvent('LOG_EVENT', JSON.stringify(liveLogRow('valid')));
     transportHandlers?.onEvent('LOG_EVENT', '{private malformed body');
     transportHandlers?.onEvent(
       'LOG_STREAM_GAP',
@@ -499,9 +503,86 @@ function traceRow(traceId: string) {
   };
 }
 
+function traceInvestigationResponse(
+  traceId: string,
+  selectedSpanId: string | null,
+  window = { start: 1_000, end: 2_000 }
+) {
+  const spanId = '0123456789abcdef';
+  return {
+    traceId,
+    selectedSpanId,
+    window,
+    gantt: {
+      state: 'ready',
+      reason: 'observed',
+      source: 'greptime_traces',
+      detail: {
+        rootSpanId: spanId,
+        serviceName: 'checkout',
+        serviceNamespace: 'commerce',
+        deploymentEnvironment: 'prod',
+        entityId: '7',
+        entityType: 'service',
+        rootSpanName: 'POST /checkout',
+        durationNanos: '1000000',
+        status: 'OK',
+        startTime: window.start,
+        errorSpanCount: 0,
+        resourceAttributes: {},
+        spans: [
+          {
+            spanId,
+            parentSpanId: null,
+            spanName: 'POST /checkout',
+            serviceName: 'checkout',
+            serviceNamespace: 'commerce',
+            deploymentEnvironment: 'prod',
+            entityId: '7',
+            entityType: 'service',
+            status: 'OK',
+            statusMessage: null,
+            spanKind: 'SERVER',
+            traceState: null,
+            scopeName: 'checkout',
+            scopeVersion: '1.0.0',
+            durationNanos: '1000000',
+            startTime: window.start,
+            highlighted: selectedSpanId === spanId,
+            resourceAttributes: {},
+            spanAttributes: {},
+            events: [],
+            links: [],
+            codeNavigationHint: null
+          }
+        ]
+      }
+    },
+    sameTraceLogs: { state: 'empty', reason: 'no_data', source: 'greptime_logs', truncated: false, logs: [] },
+    red: {
+      state: 'unavailable',
+      reason: 'identity_unavailable',
+      source: 'greptime_flow',
+      resolutionSeconds: 60,
+      identity: null,
+      summary: null,
+      series: []
+    },
+    metrics: {
+      state: 'unavailable',
+      reason: 'query_strategy_unavailable',
+      source: 'otlp_metrics',
+      truncated: false,
+      series: []
+    },
+    dependencies: { state: 'empty', reason: 'no_data', source: 'greptime_traces', truncated: false, edges: [] }
+  };
+}
+
 function logRow(body: string) {
   return {
-    timeUnixNano: 1_750_000_000_000_000_000,
+    logRecordUid: 'event-1',
+    timeUnixNano: '1750000000000000000',
     observedTimeUnixNano: null,
     severityNumber: 9,
     severityText: 'INFO',
@@ -515,5 +596,25 @@ function logRow(body: string) {
     resourceSchemaUrl: null,
     instrumentationScope: null,
     scopeSchemaUrl: null
+  };
+}
+
+function liveLogRow(body: string) {
+  const row = logRow(body);
+  return {
+    timeUnixNano: 1_750_000_000_000_000_000,
+    observedTimeUnixNano: row.observedTimeUnixNano,
+    severityNumber: row.severityNumber,
+    severityText: row.severityText,
+    body: row.body,
+    attributes: row.attributes,
+    droppedAttributesCount: row.droppedAttributesCount,
+    traceId: row.traceId,
+    spanId: row.spanId,
+    traceFlags: row.traceFlags,
+    resource: row.resource,
+    resourceSchemaUrl: row.resourceSchemaUrl,
+    instrumentationScope: row.instrumentationScope,
+    scopeSchemaUrl: row.scopeSchemaUrl
   };
 }
