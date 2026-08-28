@@ -18,6 +18,10 @@ test('Perses has one public platform boundary with the required runtime ownershi
   assert.ok(existsSync(join(persesRoot, 'index.ts')), 'src/platform/perses/index.ts must own the public API');
   assert.ok(existsSync(join(persesRoot, 'runtime')), 'src/platform/perses/runtime must own React integration');
   assert.ok(existsSync(join(persesRoot, 'plugins')), 'src/platform/perses/plugins must own plugin registration');
+  assert.ok(
+    existsSync(join(persesRoot, 'datasource')),
+    'src/platform/perses/datasource must own HertzBeat API queries'
+  );
 });
 
 test('production code imports Perses packages only inside the platform boundary', () => {
