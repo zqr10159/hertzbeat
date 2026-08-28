@@ -336,6 +336,106 @@
       }
     },
     "explore": { "metrics": "メトリクスを検索", "logs": "ログを検索", "traces": "トレースを検索" },
+    "signals": {
+      "title": "エンティティシグナル調査",
+      "availability": "シグナルの可用性",
+      "invalidWindow": "24 時間以内の有効な時間範囲を選択してください。",
+      "openExplore": "Explore で開く",
+      "items": "{{count}} 件",
+      "traceDetail": "トレース詳細",
+      "boundMonitors": "バインド済みモニター",
+      "boundMonitorsState": {
+        "unknown": "モニターのバインド証拠を利用できません。",
+        "empty": "バインド済みモニターはありません。"
+      },
+      "sections": {
+        "metrics": "メトリクス",
+        "logs": "ログ",
+        "traces": "トレース",
+        "topology": "トポロジー",
+        "collection": "収集",
+        "alerts": "アラート"
+      },
+      "states": { "available": "利用可能", "empty": "データなし", "unavailable": "利用不可", "unknown": "不明" },
+      "compact": {
+        "metrics": {
+          "empty": "この時間範囲に RED メトリクスはありません",
+          "unavailable": "RED メトリクスは利用できません",
+          "unknown": "RED メトリクスの可用性は不明です"
+        },
+        "redMetrics": {
+          "empty": "この時間範囲に RED メトリクスはなく、他のメトリクスソースは不明です",
+          "unavailable": "RED メトリクスは利用できず、他のメトリクスソースは不明です"
+        },
+        "logs": {
+          "empty": "この時間範囲にログはありません",
+          "unavailable": "ログは利用できません",
+          "unknown": "ログの可用性は不明です"
+        },
+        "traces": {
+          "empty": "この時間範囲にトレースはありません",
+          "unavailable": "トレースは利用できません",
+          "unknown": "トレースの可用性は不明です"
+        },
+        "topology": {
+          "empty": "関連エンティティはありません",
+          "unavailable": "トポロジーは利用できません",
+          "unknown": "トポロジーの可用性は不明です"
+        },
+        "collection": {
+          "empty": "この時間範囲に収集実行はありません",
+          "unavailable": "収集実行の証拠は利用できません",
+          "unknown": "このビューでは収集実行の証拠を利用できません"
+        },
+        "alerts": {
+          "empty": "この時間範囲にアラート証拠はありません",
+          "unavailable": "アラート証拠は利用できません",
+          "unknown": "時間範囲内のアラート証拠は不明です"
+        }
+      },
+      "red": {
+        "requestRate": "リクエスト率",
+        "errorRate": "エラー率",
+        "latencyP95": "P95 レイテンシ",
+        "requests": "リクエスト数"
+      },
+      "aria": {
+        "requestRate": "リクエスト率の可視化",
+        "errorRate": "エラー率の可視化",
+        "latencyP95": "P95 レイテンシの可視化",
+        "logs": "ログ証拠の可視化",
+        "traces": "トレース証拠の可視化",
+        "traceDetail": "トレース詳細の可視化"
+      },
+      "evidence": {
+        "title": "証拠",
+        "empty": "この時間範囲に関連付けられた証拠はありません。",
+        "greptimeFlow": "Greptime Flow · {{resolution}} 秒",
+        "reasons": {
+          "exact-span": "正確な Span",
+          "exact-trace": "正確な Trace",
+          "same-entity": "同じエンティティ",
+          "bound-monitor": "バインド済みモニター",
+          "canonical-otel-identity": "標準 OpenTelemetry ID",
+          "topology-related": "トポロジー関係",
+          "time-proximity": "時間的近接"
+        },
+        "confidence": { "exact": "完全一致", "high": "高い信頼度", "medium": "中程度の信頼度", "low": "低い信頼度" }
+      },
+      "alertsCurrentOnly": "現在のアクティブアラート数は、選択した時間範囲の証拠として表示されません。",
+      "query": {
+        "loading": "シグナル証拠を読み込んでいます…",
+        "empty": "この時間範囲に証拠はありません。",
+        "truncated": "一致する証拠の制限された一部を表示しています。",
+        "truncationUnknown": "結果の完全性は不明です。",
+        "runtimeError": "可視化ランタイムはこの証拠を描画できませんでした。",
+        "invalid": "シグナル要求が無効です。",
+        "permission": "このシグナルを確認する権限がありません。",
+        "overloaded": "シグナルストレージが混雑しています。再試行してください。",
+        "unavailable": "シグナルストレージを利用できません。",
+        "contract": "シグナルストレージが無効な応答を返しました。"
+      }
+    },
     "topology": { "view": "トポロジーを表示" },
     "discovery": {
       "action": "リソースを検出",

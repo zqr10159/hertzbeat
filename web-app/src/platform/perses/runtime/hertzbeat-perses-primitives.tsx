@@ -16,6 +16,13 @@ import type {
   HertzBeatTraceGanttQuery,
   HertzBeatTraceTableQuery
 } from '../datasource/hertzbeat-query-contract';
+import type {
+  HertzBeatLogRow,
+  HertzBeatMetricData,
+  HertzBeatTableData,
+  HertzBeatTraceDetail,
+  HertzBeatTraceRow
+} from '../datasource/hertzbeat-query-schema';
 import {
   PersesSignalDataError,
   toPersesLogData,
@@ -46,6 +53,12 @@ type SharedPrimitiveProps = {
 
 type PrimitiveState<T> =
   { kind: 'loading'; queryKey: string } | { kind: 'resolved'; queryKey: string; outcome: HertzBeatQueryOutcome<T> };
+
+export type HertzBeatMetricQueryOutcome = HertzBeatQueryOutcome<HertzBeatMetricData>;
+export type HertzBeatLogQueryOutcome = HertzBeatQueryOutcome<HertzBeatTableData<HertzBeatLogRow>>;
+export type HertzBeatTraceTableQueryOutcome = HertzBeatQueryOutcome<HertzBeatTableData<HertzBeatTraceRow>>;
+export type HertzBeatTraceGanttQueryOutcome = HertzBeatQueryOutcome<HertzBeatTraceDetail>;
+export type HertzBeatTraceQueryOutcome = HertzBeatTraceTableQueryOutcome | HertzBeatTraceGanttQueryOutcome;
 
 async function loadPersesSignalRuntime() {
   const module = await loadPersesRuntime('multi-signal');
@@ -93,6 +106,61 @@ export function HertzBeatTracingGanttChart(props: SharedPrimitiveProps & { query
     data: toPersesTraceDetailData(outcome.data),
     selectedSpanId: props.query.spanId
   }));
+}
+
+export function HertzBeatMetricTimeSeriesResult(
+  props: SharedPrimitiveProps & { query: HertzBeatMetricQuery; outcome: ReadyOutcome<HertzBeatMetricData> }
+) {
+  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+    kind: 'metric-time-series' as const,
+    title: props.title,
+    timeWindow: props.query.timeWindow,
+    data: toPersesTimeSeriesData(outcome.data.series, props.query.timeWindow)
+  }));
+}
+
+export function HertzBeatLogsTableResult(
+  props: SharedPrimitiveProps & {
+    query: HertzBeatLogTableQuery;
+    outcome: ReadyOutcome<HertzBeatTableData<HertzBeatLogRow>>;
+  }
+) {
+  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+    kind: 'logs-table' as const,
+    title: props.title,
+    timeWindow: props.query.timeWindow,
+    data: toPersesLogData(outcome.data, props.query.timeWindow)
+  }));
+}
+
+export function HertzBeatTraceTableResult(
+  props: SharedPrimitiveProps & {
+    query: HertzBeatTraceTableQuery;
+    outcome: ReadyOutcome<HertzBeatTableData<HertzBeatTraceRow>>;
+  }
+) {
+  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+    kind: 'trace-table' as const,
+    title: props.title,
+    timeWindow: props.query.timeWindow,
+    data: toPersesTraceSearchData(outcome.data, outcome.truncated === true)
+  }));
+}
+
+export function HertzBeatTracingGanttChartResult(
+  props: SharedPrimitiveProps & { query: HertzBeatTraceGanttQuery; outcome: ReadyOutcome<HertzBeatTraceDetail> }
+) {
+  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+    kind: 'tracing-gantt-chart' as const,
+    title: props.title,
+    timeWindow: props.query.timeWindow,
+    data: toPersesTraceDetailData(outcome.data),
+    selectedSpanId: props.query.spanId
+  }));
+}
+
+function resolvedState<Query, Data>(query: Query, outcome: ReadyOutcome<Data>): PrimitiveState<Data> {
+  return { kind: 'resolved', queryKey: JSON.stringify(query), outcome };
 }
 
 function executeMetricQuery(query: HertzBeatMetricQuery, signal: AbortSignal) {

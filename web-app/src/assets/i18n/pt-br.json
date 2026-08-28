@@ -342,6 +342,116 @@
       }
     },
     "explore": { "metrics": "Explorar métricas", "logs": "Explorar logs", "traces": "Explorar traces" },
+    "signals": {
+      "title": "Investigação de sinais da entidade",
+      "availability": "Disponibilidade dos sinais",
+      "invalidWindow": "Escolha uma janela válida de até 24 horas.",
+      "openExplore": "Abrir no Explore",
+      "items": "{{count}} itens",
+      "traceDetail": "Detalhes do trace",
+      "boundMonitors": "Monitores vinculados",
+      "boundMonitorsState": {
+        "unknown": "A evidência de vínculo de monitores está indisponível.",
+        "empty": "Nenhum monitor vinculado."
+      },
+      "sections": {
+        "metrics": "Métricas",
+        "logs": "Logs",
+        "traces": "Traces",
+        "topology": "Topologia",
+        "collection": "Coleta",
+        "alerts": "Alertas"
+      },
+      "states": {
+        "available": "Disponível",
+        "empty": "Sem dados",
+        "unavailable": "Indisponível",
+        "unknown": "Desconhecido"
+      },
+      "compact": {
+        "metrics": {
+          "empty": "Sem métricas RED nesta janela",
+          "unavailable": "As métricas RED estão indisponíveis",
+          "unknown": "A disponibilidade das métricas RED é desconhecida"
+        },
+        "redMetrics": {
+          "empty": "Sem métricas RED nesta janela; as outras fontes de métricas são desconhecidas",
+          "unavailable": "As métricas RED estão indisponíveis; as outras fontes de métricas são desconhecidas"
+        },
+        "logs": {
+          "empty": "Sem logs nesta janela",
+          "unavailable": "Os logs estão indisponíveis",
+          "unknown": "A disponibilidade dos logs é desconhecida"
+        },
+        "traces": {
+          "empty": "Sem traces nesta janela",
+          "unavailable": "Os traces estão indisponíveis",
+          "unknown": "A disponibilidade dos traces é desconhecida"
+        },
+        "topology": {
+          "empty": "Sem entidades relacionadas",
+          "unavailable": "A topologia está indisponível",
+          "unknown": "A disponibilidade da topologia é desconhecida"
+        },
+        "collection": {
+          "empty": "Nenhuma execução de coleta nesta janela",
+          "unavailable": "A evidência de execução da coleta está indisponível",
+          "unknown": "A evidência de execução da coleta não está disponível nesta visão"
+        },
+        "alerts": {
+          "empty": "Sem evidência de alertas nesta janela",
+          "unavailable": "A evidência de alertas está indisponível",
+          "unknown": "A evidência de alertas da janela é desconhecida"
+        }
+      },
+      "red": {
+        "requestRate": "Taxa de requisições",
+        "errorRate": "Taxa de erros",
+        "latencyP95": "Latência P95",
+        "requests": "Requisições"
+      },
+      "aria": {
+        "requestRate": "Visualização da taxa de requisições",
+        "errorRate": "Visualização da taxa de erros",
+        "latencyP95": "Visualização da latência P95",
+        "logs": "Visualização da evidência de logs",
+        "traces": "Visualização da evidência de traces",
+        "traceDetail": "Visualização dos detalhes do trace"
+      },
+      "evidence": {
+        "title": "Evidência",
+        "empty": "Nenhuma evidência correlacionada está disponível nesta janela.",
+        "greptimeFlow": "Greptime Flow · {{resolution}}s",
+        "reasons": {
+          "exact-span": "Span exato",
+          "exact-trace": "Trace exato",
+          "same-entity": "Mesma entidade",
+          "bound-monitor": "Monitor vinculado",
+          "canonical-otel-identity": "Identidade OpenTelemetry canônica",
+          "topology-related": "Relação de topologia",
+          "time-proximity": "Proximidade temporal"
+        },
+        "confidence": {
+          "exact": "Correspondência exata",
+          "high": "Alta confiança",
+          "medium": "Confiança média",
+          "low": "Baixa confiança"
+        }
+      },
+      "alertsCurrentOnly": "As contagens atuais de alertas ativos não são exibidas como evidência da janela selecionada.",
+      "query": {
+        "loading": "Carregando evidência dos sinais…",
+        "empty": "Sem evidência nesta janela.",
+        "truncated": "Exibindo um subconjunto limitado da evidência correspondente.",
+        "truncationUnknown": "A completude do resultado é desconhecida.",
+        "runtimeError": "O runtime de visualização não conseguiu renderizar esta evidência.",
+        "invalid": "A solicitação do sinal é inválida.",
+        "permission": "Você não tem permissão para inspecionar este sinal.",
+        "overloaded": "O armazenamento de sinais está ocupado. Tente novamente.",
+        "unavailable": "O armazenamento de sinais está indisponível.",
+        "contract": "O armazenamento de sinais retornou uma resposta inválida."
+      }
+    },
     "topology": { "view": "Ver topologia" },
     "discovery": {
       "action": "Descobrir recursos",

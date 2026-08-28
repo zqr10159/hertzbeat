@@ -207,6 +207,20 @@ describe('explore API paths', () => {
     expect(buildSignalApiPath(scoped, 4_000_000)).toContain('start=1710000000000&end=1710000005000');
   });
 
+  it('queries an exact entity Metrics handoff without synthetic ingestion dimensions', () => {
+    const query = parseExploreQuery(
+      new URLSearchParams(
+        'signal=metrics&entityId=677625915133184&start=1750000000000&end=1750000060000' +
+          '&timeZone=Asia%2FShanghai&query=request_rate_per_second'
+      )
+    );
+
+    expect(buildSignalApiPath(query)).toBe(
+      '/api/ingestion/otlp/metrics/console?entityId=677625915133184&start=1750000000000' +
+        '&end=1750000060000&query=request_rate_per_second'
+    );
+  });
+
   it.each([
     ['metrics', '/api/ingestion/otlp/metrics/console?'],
     ['logs', '/api/logs/list?'],

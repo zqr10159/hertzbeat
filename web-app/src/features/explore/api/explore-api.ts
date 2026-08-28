@@ -222,6 +222,7 @@ function sharedSignalParams(query: ExploreQuery, now: number) {
   const params = new URLSearchParams();
   const scoped = exploreHandoffState(query) === 'scoped';
   const exact = exploreUsesExactWindow(query);
+  setValue(params, QUERY_CONTEXT_FIELDS.entityId, query.entityId);
   setValue(params, 'serviceName', query.serviceName);
   setValue(params, 'serviceNamespace', query.serviceNamespace);
   setValue(params, 'environment', query.environment);

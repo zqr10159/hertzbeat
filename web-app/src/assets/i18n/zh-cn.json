@@ -336,6 +336,86 @@
       }
     },
     "explore": { "metrics": "查询指标", "logs": "查询日志", "traces": "查询链路" },
+    "signals": {
+      "title": "实体信号调查",
+      "availability": "信号可用性",
+      "invalidWindow": "请选择不超过 24 小时的有效时间窗口。",
+      "openExplore": "在探索中打开",
+      "items": "{{count}} 项",
+      "traceDetail": "链路详情",
+      "boundMonitors": "绑定监控",
+      "boundMonitorsState": { "unknown": "监控绑定证据不可用。", "empty": "没有绑定监控。" },
+      "sections": {
+        "metrics": "指标",
+        "logs": "日志",
+        "traces": "链路",
+        "topology": "拓扑",
+        "collection": "采集",
+        "alerts": "告警"
+      },
+      "states": { "available": "可用", "empty": "无数据", "unavailable": "不可用", "unknown": "未知" },
+      "compact": {
+        "metrics": {
+          "empty": "该时间窗口没有 RED 指标",
+          "unavailable": "RED 指标不可用",
+          "unknown": "RED 指标可用性未知"
+        },
+        "redMetrics": {
+          "empty": "该时间窗口没有 RED 指标，其他指标源状态未知",
+          "unavailable": "RED 指标不可用，其他指标源状态未知"
+        },
+        "logs": { "empty": "该时间窗口没有日志", "unavailable": "日志不可用", "unknown": "日志可用性未知" },
+        "traces": { "empty": "该时间窗口没有链路", "unavailable": "链路不可用", "unknown": "链路可用性未知" },
+        "topology": { "empty": "没有关联实体", "unavailable": "拓扑不可用", "unknown": "拓扑可用性未知" },
+        "collection": {
+          "empty": "该时间窗口没有采集执行记录",
+          "unavailable": "采集执行证据不可用",
+          "unknown": "当前视图没有采集执行证据"
+        },
+        "alerts": {
+          "empty": "该时间窗口没有告警证据",
+          "unavailable": "告警证据不可用",
+          "unknown": "时间窗口内的告警证据未知"
+        }
+      },
+      "red": { "requestRate": "请求速率", "errorRate": "错误率", "latencyP95": "P95 延迟", "requests": "请求数" },
+      "aria": {
+        "requestRate": "请求速率可视化",
+        "errorRate": "错误率可视化",
+        "latencyP95": "P95 延迟可视化",
+        "logs": "日志证据可视化",
+        "traces": "链路证据可视化",
+        "traceDetail": "链路详情可视化"
+      },
+      "evidence": {
+        "title": "证据",
+        "empty": "该时间窗口没有可关联的证据。",
+        "greptimeFlow": "Greptime Flow · {{resolution}} 秒",
+        "reasons": {
+          "exact-span": "精确 Span",
+          "exact-trace": "精确 Trace",
+          "same-entity": "同一实体",
+          "bound-monitor": "绑定监控",
+          "canonical-otel-identity": "标准 OpenTelemetry 身份",
+          "topology-related": "拓扑关系",
+          "time-proximity": "时间邻近"
+        },
+        "confidence": { "exact": "精确匹配", "high": "高置信度", "medium": "中等置信度", "low": "低置信度" }
+      },
+      "alertsCurrentOnly": "当前活跃告警数不作为所选时间窗口的证据展示。",
+      "query": {
+        "loading": "正在加载信号证据…",
+        "empty": "该时间窗口没有证据。",
+        "truncated": "当前展示匹配证据的有界子集。",
+        "truncationUnknown": "结果完整性未知。",
+        "runtimeError": "可视化运行时无法渲染该证据。",
+        "invalid": "信号请求无效。",
+        "permission": "没有权限查看该信号。",
+        "overloaded": "信号存储繁忙，请重试。",
+        "unavailable": "信号存储不可用。",
+        "contract": "信号存储返回了无效响应。"
+      }
+    },
     "topology": { "view": "查看拓扑" },
     "discovery": {
       "action": "发现资源",

@@ -342,6 +342,108 @@
       }
     },
     "explore": { "metrics": "Explore metrics", "logs": "Explore logs", "traces": "Explore traces" },
+    "signals": {
+      "title": "Entity signal investigation",
+      "availability": "Signal availability",
+      "invalidWindow": "Choose a valid window of 24 hours or less to inspect signals.",
+      "openExplore": "Open in Explore",
+      "items": "{{count}} items",
+      "traceDetail": "Trace detail",
+      "boundMonitors": "Bound monitors",
+      "boundMonitorsState": { "unknown": "Monitor binding evidence is unavailable.", "empty": "No bound monitors." },
+      "sections": {
+        "metrics": "Metrics",
+        "logs": "Logs",
+        "traces": "Traces",
+        "topology": "Topology",
+        "collection": "Collection",
+        "alerts": "Alerts"
+      },
+      "states": { "available": "Available", "empty": "Empty", "unavailable": "Unavailable", "unknown": "Unknown" },
+      "compact": {
+        "metrics": {
+          "empty": "No RED metrics in this window",
+          "unavailable": "RED metrics are unavailable",
+          "unknown": "RED metric availability is unknown"
+        },
+        "redMetrics": {
+          "empty": "No RED metrics in this window; other metric sources are unknown",
+          "unavailable": "RED metrics are unavailable; other metric sources are unknown"
+        },
+        "logs": {
+          "empty": "No logs in this window",
+          "unavailable": "Logs are unavailable",
+          "unknown": "Log availability is unknown"
+        },
+        "traces": {
+          "empty": "No traces in this window",
+          "unavailable": "Traces are unavailable",
+          "unknown": "Trace availability is unknown"
+        },
+        "topology": {
+          "empty": "No related entities",
+          "unavailable": "Topology is unavailable",
+          "unknown": "Topology availability is unknown"
+        },
+        "collection": {
+          "empty": "No collection executions in this window",
+          "unavailable": "Collection execution evidence is unavailable",
+          "unknown": "Collection execution evidence is not available in this view"
+        },
+        "alerts": {
+          "empty": "No alert evidence in this window",
+          "unavailable": "Alert evidence is unavailable",
+          "unknown": "Window-scoped alert evidence is unknown"
+        }
+      },
+      "red": {
+        "requestRate": "Request rate",
+        "errorRate": "Error rate",
+        "latencyP95": "P95 latency",
+        "requests": "Requests"
+      },
+      "aria": {
+        "requestRate": "Request rate visualization",
+        "errorRate": "Error rate visualization",
+        "latencyP95": "P95 latency visualization",
+        "logs": "Log evidence visualization",
+        "traces": "Trace evidence visualization",
+        "traceDetail": "Trace detail visualization"
+      },
+      "evidence": {
+        "title": "Evidence",
+        "empty": "No correlated evidence is available for this window.",
+        "greptimeFlow": "Greptime Flow · {{resolution}}s",
+        "reasons": {
+          "exact-span": "Exact span",
+          "exact-trace": "Exact trace",
+          "same-entity": "Same entity",
+          "bound-monitor": "Bound monitor",
+          "canonical-otel-identity": "Canonical OpenTelemetry identity",
+          "topology-related": "Topology relationship",
+          "time-proximity": "Time proximity"
+        },
+        "confidence": {
+          "exact": "Exact match",
+          "high": "High confidence",
+          "medium": "Medium confidence",
+          "low": "Low confidence"
+        }
+      },
+      "alertsCurrentOnly": "Current active-alert counts are not presented as evidence for the selected time window.",
+      "query": {
+        "loading": "Loading signal evidence…",
+        "empty": "No evidence in this window.",
+        "truncated": "Showing a bounded subset of matching evidence.",
+        "truncationUnknown": "Result completeness is unknown.",
+        "runtimeError": "The visualization runtime could not render this evidence.",
+        "invalid": "The signal request is invalid.",
+        "permission": "You do not have permission to inspect this signal.",
+        "overloaded": "Signal storage is busy. Try again.",
+        "unavailable": "Signal storage is unavailable.",
+        "contract": "Signal storage returned an invalid response."
+      }
+    },
     "topology": { "view": "View topology" },
     "discovery": {
       "action": "Discover resources",

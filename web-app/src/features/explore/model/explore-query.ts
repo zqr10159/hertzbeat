@@ -131,6 +131,8 @@ export function timeRangeMilliseconds(timeRange: ExploreTimeRange) {
 }
 
 export function exploreHandoffState(query: ExploreQuery): 'none' | 'scoped' | 'invalid' {
+  const entityInvestigation = entityInvestigationHandoffState(query);
+  if (entityInvestigation) return entityInvestigation;
   if ([query.entityId, query.monitorId, query.timeZone].some(isPresent)) {
     return [query.entityId, query.monitorId, query.serviceName, query.timeZone].every(isPresent) &&
       validExactWindow(query.start, query.end)
@@ -150,6 +152,11 @@ export function exploreHandoffState(query: ExploreQuery): 'none' | 'scoped' | 'i
   if (query.windowMode === 'preset') {
     return !isPresent(query.start) && !isPresent(query.end) ? 'scoped' : 'invalid';
   }
+  return validExactWindow(query.start, query.end) ? 'scoped' : 'invalid';
+}
+
+function entityInvestigationHandoffState(query: ExploreQuery): 'scoped' | 'invalid' | undefined {
+  if (!isPresent(query.entityId) || isPresent(query.monitorId) || !isPresent(query.timeZone)) return undefined;
   return validExactWindow(query.start, query.end) ? 'scoped' : 'invalid';
 }
 

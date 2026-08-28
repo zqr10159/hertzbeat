@@ -49,6 +49,10 @@ describe('Refine shell resource registry', () => {
       timePolicy: 'none'
     });
     expect(shellMeta('monitors')?.actionTimePolicies).toBeUndefined();
+    expect(shellMeta('entities')).toMatchObject({
+      timePolicy: 'none',
+      actionTimePolicies: { show: 'global' }
+    });
     expect(refineResources.find(resource => resource.name === 'monitors')).toMatchObject({
       create: '/monitors/new',
       edit: '/monitors/:monitorId/edit',

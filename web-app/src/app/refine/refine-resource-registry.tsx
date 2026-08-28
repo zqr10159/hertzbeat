@@ -167,7 +167,8 @@ const staticRefineResources: ResourceProps[] = [
     icon: <DatabaseOutlined />,
     order: 10,
     show: getAppRoute('entity-detail').path,
-    timePolicy: 'none'
+    timePolicy: 'none',
+    actionTimePolicies: { show: 'global' }
   }),
   routedNavigationResource('topology', {
     parent: 'shell-resources',

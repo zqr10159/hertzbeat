@@ -60,6 +60,23 @@ describe('explore query state', () => {
     );
   });
 
+  it('accepts an exact entity investigation without inventing monitor or ingestion identity', () => {
+    const query = parseExploreQuery(
+      new URLSearchParams(
+        'signal=metrics&entityId=677625915133184&start=1750000000000&end=1750000060000' + '&timeZone=Asia%2FShanghai'
+      )
+    );
+
+    expect(exploreHandoffState(query)).toBe('scoped');
+    expect(exploreUsesExactWindow(query)).toBe(true);
+    expect(buildExplorePath(query)).toBe(
+      '/explore?signal=metrics&timeRange=last-30m&start=1750000000000&end=1750000060000' +
+        '&timeZone=Asia%2FShanghai&entityId=677625915133184'
+    );
+    expect(query.monitorId).toBeUndefined();
+    expect(query.serviceName).toBeUndefined();
+  });
+
   it('keeps only supported values and trims empty context', () => {
     const query = parseExploreQuery(
       new URLSearchParams('signal=logs&timeRange=last-1h&serviceName=%20checkout%20&query=timeout&errorOnly=true')
