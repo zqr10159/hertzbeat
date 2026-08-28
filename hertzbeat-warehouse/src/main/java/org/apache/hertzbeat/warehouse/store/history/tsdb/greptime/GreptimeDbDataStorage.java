@@ -67,6 +67,7 @@ import org.apache.hertzbeat.common.entity.dto.Value;
 import org.apache.hertzbeat.common.entity.event.CollectionExecutionEvent;
 import org.apache.hertzbeat.common.entity.log.LogEntry;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
+import org.apache.hertzbeat.common.entity.metric.NativeMetricSystemContext;
 import org.apache.hertzbeat.common.support.exception.TelemetryStorageUnavailableException;
 import org.apache.hertzbeat.common.runtime.ConditionalOnNormalBusinessRuntime;
 import org.apache.hertzbeat.common.util.Base64Util;
@@ -79,6 +80,7 @@ import org.apache.hertzbeat.warehouse.store.history.tsdb.AbstractHistoryDataStor
 import org.apache.hertzbeat.warehouse.store.history.tsdb.HistoryDataReader.ServerAvailability;
 import org.apache.hertzbeat.warehouse.store.history.tsdb.vm.PromQlQueryContent;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
@@ -147,21 +149,42 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
     private final GreptimeSqlQueryExecutor greptimeSqlQueryExecutor;
     private final GreptimeQueryGuard queryGuard;
     private final GreptimeServerAvailabilityProbe serverAvailabilityProbe;
+    private final NativeMetricSystemContextResolver nativeMetricSystemContextResolver;
 
-    @Autowired
     public GreptimeDbDataStorage(
             GreptimeProperties greptimeProperties,
             @Qualifier(WarehouseConstants.GREPTIME_QUERY_REST_TEMPLATE) RestTemplate restTemplate,
             GreptimeSqlQueryExecutor greptimeSqlQueryExecutor,
             GreptimeQueryGuard queryGuard) {
         this(greptimeProperties, restTemplate, greptimeSqlQueryExecutor, queryGuard,
-                createServerAvailabilityProbe(greptimeProperties));
+                createServerAvailabilityProbe(greptimeProperties), (metricsData, intrinsic) -> intrinsic);
+    }
+
+    @Autowired
+    public GreptimeDbDataStorage(
+            GreptimeProperties greptimeProperties,
+            @Qualifier(WarehouseConstants.GREPTIME_QUERY_REST_TEMPLATE) RestTemplate restTemplate,
+            GreptimeSqlQueryExecutor greptimeSqlQueryExecutor,
+            GreptimeQueryGuard queryGuard,
+            ObjectProvider<NativeMetricSystemContextResolver> nativeMetricSystemContextResolverProvider) {
+        this(greptimeProperties, restTemplate, greptimeSqlQueryExecutor, queryGuard,
+                createServerAvailabilityProbe(greptimeProperties),
+                nativeMetricSystemContextResolverProvider.getIfAvailable(() -> (metricsData, intrinsic) -> intrinsic));
     }
 
     GreptimeDbDataStorage(GreptimeProperties greptimeProperties, RestTemplate restTemplate,
                           GreptimeSqlQueryExecutor greptimeSqlQueryExecutor,
                           GreptimeQueryGuard queryGuard,
                           GreptimeServerAvailabilityProbe serverAvailabilityProbe) {
+        this(greptimeProperties, restTemplate, greptimeSqlQueryExecutor, queryGuard, serverAvailabilityProbe,
+                (metricsData, intrinsic) -> intrinsic);
+    }
+
+    GreptimeDbDataStorage(GreptimeProperties greptimeProperties, RestTemplate restTemplate,
+                          GreptimeSqlQueryExecutor greptimeSqlQueryExecutor,
+                          GreptimeQueryGuard queryGuard,
+                          GreptimeServerAvailabilityProbe serverAvailabilityProbe,
+                          NativeMetricSystemContextResolver nativeMetricSystemContextResolver) {
         if (greptimeProperties == null) {
             log.error("init error, please config Warehouse GreptimeDB props in application.yml");
             throw new IllegalArgumentException("please config Warehouse GreptimeDB props");
@@ -171,6 +194,7 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
         this.greptimeSqlQueryExecutor = greptimeSqlQueryExecutor;
         this.queryGuard = Objects.requireNonNull(queryGuard);
         this.serverAvailabilityProbe = Objects.requireNonNull(serverAvailabilityProbe);
+        this.nativeMetricSystemContextResolver = Objects.requireNonNull(nativeMetricSystemContextResolver);
         serverAvailable = initGreptimeDbClient(greptimeProperties);
         if (serverAvailable) {
             applyDatabaseTtlIfConfigured(greptimeProperties);
@@ -253,36 +277,35 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
                     metricsData.getId(), metricsData.getMetrics());
             return;
         }
-        String instance = metricsData.getInstance();
         String app = metricsData.getApp();
         String tableName = getTableName(app, metricsData.getMetrics());
         List<CollectRep.Field> fields = metricsData.getFields();
-        Table table = Table.from(metricSchemaCache.getOrCreate(tableName, fields));
+        GreptimeMetricSchemaCache.ResolvedSchema resolvedSchema = metricSchemaCache.resolve(tableName, fields);
+        Table table = Table.from(resolvedSchema.schema());
+        if (resolvedSchema.schemaChanged() && !resolvedSchema.rejectedNames().isEmpty()) {
+            log.warn("[warehouse greptime] ignored Collector fields that collide with system dimensions: {}",
+                    resolvedSchema.rejectedNames());
+        }
         long collectionTime = metricsData.getTime();
         long timestamp = collectionTime > 0 ? collectionTime : System.currentTimeMillis();
-        Object[] values = new Object[2 + fields.size()];
-        values[0] = instance;
-        values[1] = timestamp;
+        Object[] systemTagValues = resolveNativeMetricSystemContext(metricsData).tagValues();
+        int fieldOffset = systemTagValues.length + 1;
         RowWrapper rowWrapper = metricsData.readRow();
         while (rowWrapper.hasNextRow()) {
             rowWrapper = rowWrapper.nextRow();
-            int index = 0;
+            Object[] values = new Object[fieldOffset + resolvedSchema.sourceIndexes().size()];
+            System.arraycopy(systemTagValues, 0, values, 0, systemTagValues.length);
+            values[systemTagValues.length] = timestamp;
+            int sourceIndex = 0;
+            int acceptedIndex = 0;
             while (rowWrapper.hasNextCell()) {
                 ArrowCell cell = rowWrapper.nextCell();
-                if (CommonConstants.NULL_VALUE.equals(cell.getValue())) {
-                    values[2 + index] = null;
-                } else {
-                    Boolean label = cell.getMetadataAsBoolean(MetricDataConstants.LABEL);
-                    Byte type = cell.getMetadataAsByte(MetricDataConstants.TYPE);
-                    if (label) {
-                        values[2 + index] = cell.getValue();
-                    } else if (type == CommonConstants.TYPE_NUMBER) {
-                        values[2 + index] = Double.parseDouble(cell.getValue());
-                    } else if (type == CommonConstants.TYPE_STRING) {
-                        values[2 + index] = cell.getValue();
-                    }
+                if (acceptedIndex < resolvedSchema.sourceIndexes().size()
+                        && resolvedSchema.sourceIndexes().get(acceptedIndex) == sourceIndex) {
+                    values[fieldOffset + acceptedIndex] = metricCellValue(cell);
+                    acceptedIndex++;
                 }
-                index++;
+                sourceIndex++;
             }
 
             table.addRow(values);
@@ -299,6 +322,33 @@ public class GreptimeDbDataStorage extends AbstractHistoryDataStorage {
         } catch (Throwable throwable) {
             log.error("[warehouse greptime]--Error occurred: {}", throwable.getMessage());
         }
+    }
+
+    private NativeMetricSystemContext resolveNativeMetricSystemContext(CollectRep.MetricsData metricsData) {
+        NativeMetricSystemContext intrinsic = NativeMetricSystemContext.from(metricsData);
+        try {
+            NativeMetricSystemContext resolved = nativeMetricSystemContextResolver.resolve(metricsData, intrinsic);
+            return resolved == null ? intrinsic : resolved;
+        } catch (RuntimeException exception) {
+            log.warn("[warehouse greptime] native metric entity authority unavailable for monitor {}: {}",
+                    metricsData.getId(), exception.getClass().getSimpleName());
+            return intrinsic;
+        }
+    }
+
+    private Object metricCellValue(ArrowCell cell) {
+        if (CommonConstants.NULL_VALUE.equals(cell.getValue())) {
+            return null;
+        }
+        Boolean label = cell.getMetadataAsBoolean(MetricDataConstants.LABEL);
+        Byte type = cell.getMetadataAsByte(MetricDataConstants.TYPE);
+        if (Boolean.TRUE.equals(label) || type != null && type == CommonConstants.TYPE_STRING) {
+            return cell.getValue();
+        }
+        if (type != null && type == CommonConstants.TYPE_NUMBER) {
+            return Double.parseDouble(cell.getValue());
+        }
+        return null;
     }
 
     @Override
