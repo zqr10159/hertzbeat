@@ -1564,6 +1564,94 @@
       "resizeHistory": "Redimensionar painel de histórico"
     }
   },
+  "monitorSignals": {
+    "title": "Evidências de sinais do monitor",
+    "availability": "Disponibilidade dos sinais",
+    "window": "Janela da investigação: {{start}} – {{end}} · {{timeZone}}",
+    "windowUnavailable": "A janela da investigação está indisponível.",
+    "source": "Fonte",
+    "capabilities": {
+      "nativeMetrics": "Métricas nativas",
+      "currentAlerts": "Alertas atuais",
+      "collection": "Saúde da coleta",
+      "boundEntity": "Entidade vinculada",
+      "otlpEvidence": "Evidências OTLP"
+    },
+    "states": { "ready": "Disponível", "empty": "Sem dados", "unavailable": "Indisponível", "unknown": "Desconhecido" },
+    "sections": {
+      "currentAlerts": "Alertas atuais",
+      "collectionHealth": "Saúde da coleta",
+      "boundEntity": "Entidade vinculada",
+      "otelEvidence": "Evidências OTLP relacionadas"
+    },
+    "alerts": {
+      "scope": "Estado atual · não é o histórico da janela selecionada",
+      "notRecorded": "Não registrado",
+      "activeCount_one": "{{count}} alerta ativo no momento",
+      "activeCount_other": "{{count}} alertas ativos no momento",
+      "empty": "Não há alertas ativos agora. Isso não descreve o histórico da janela selecionada.",
+      "unavailable": "As evidências dos alertas atuais estão indisponíveis.",
+      "unknown": "As evidências dos alertas atuais ainda não foram determinadas."
+    },
+    "collection": {
+      "last": "Última coleta",
+      "duration": "Duração",
+      "outcome": "Resultado",
+      "collector": "Coletor",
+      "notRecorded": "Não registrado",
+      "failurePhase": "Fase da falha",
+      "failureClass": "Classe da falha",
+      "empty": "Nenhuma execução de coleta foi observada nesta janela.",
+      "unavailable": "As evidências de execução da coleta estão indisponíveis.",
+      "unknown": "As evidências de execução da coleta ainda não foram determinadas.",
+      "outcomes": { "success": "Concluída", "failure": "Falhou" },
+      "phases": {
+        "UNKNOWN": "Fase desconhecida",
+        "RESOLVE": "Resolução",
+        "CONNECT": "Conexão",
+        "AUTHENTICATE": "Autenticação",
+        "QUERY": "Consulta",
+        "PARSE": "Análise",
+        "CONVERT": "Conversão",
+        "DISPATCH": "Envio"
+      },
+      "failureClasses": {
+        "NONE": "Sem falha",
+        "UNAVAILABLE": "Indisponível",
+        "UNREACHABLE": "Inalcançável",
+        "UNCONNECTABLE": "Falha de conexão",
+        "COLLECTION": "Falha na coleta",
+        "TIMEOUT": "Tempo esgotado",
+        "UNKNOWN": "Falha desconhecida"
+      }
+    },
+    "entity": {
+      "serviceName": "Nome do serviço",
+      "type": "Tipo de entidade",
+      "id": "ID da entidade",
+      "namespace": "Namespace do serviço",
+      "environment": "Ambiente",
+      "open": "Abrir entidade",
+      "empty": "Este monitor não está vinculado a uma entidade.",
+      "unavailable": "As evidências do vínculo da entidade estão indisponíveis.",
+      "unknown": "As evidências do vínculo da entidade ainda não foram determinadas."
+    },
+    "otel": {
+      "scope": "Somente os sinais observados neste vínculo exato estão disponíveis. O Explore preserva a janela e o fuso horário.",
+      "open": "Abrir {{signal}} no Explore",
+      "empty": "Nenhum sinal OTLP relacionado foi observado neste vínculo.",
+      "noEntity": "Uma entidade vinculada é necessária para correlacionar evidências OTLP com segurança.",
+      "unavailable": "As evidências OTLP relacionadas estão indisponíveis.",
+      "unknown": "As evidências OTLP relacionadas ainda não foram determinadas."
+    },
+    "signals": { "metrics": "Métricas OTLP", "logs": "Logs", "traces": "Traces" },
+    "sources": {
+      "currentAlerts": "alertas atuais",
+      "collection": "eventos de coleta do Greptime",
+      "entityBinding": "vínculo entre monitor e entidade",
+      "otelBinding": "sinais observados no vínculo"
+    }
+  },
   "settingsNavigation": {
     "receivers": "Destinatários",
     "rules": "Regras de envio",

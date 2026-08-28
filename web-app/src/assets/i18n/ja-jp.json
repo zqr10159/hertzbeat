@@ -1541,6 +1541,94 @@
       "resizeHistory": "履歴パネルの高さを変更"
     }
   },
+  "monitorSignals": {
+    "title": "モニターシグナルの証拠",
+    "availability": "シグナルの可用性",
+    "window": "調査ウィンドウ：{{start}} – {{end}} · {{timeZone}}",
+    "windowUnavailable": "調査ウィンドウを利用できません。",
+    "source": "ソース",
+    "capabilities": {
+      "nativeMetrics": "ネイティブメトリクス",
+      "currentAlerts": "現在のアラート",
+      "collection": "収集状態",
+      "boundEntity": "関連エンティティ",
+      "otlpEvidence": "OTLP 証拠"
+    },
+    "states": { "ready": "利用可能", "empty": "データなし", "unavailable": "利用不可", "unknown": "不明" },
+    "sections": {
+      "currentAlerts": "現在のアラート",
+      "collectionHealth": "収集状態",
+      "boundEntity": "関連エンティティ",
+      "otelEvidence": "関連 OTLP 証拠"
+    },
+    "alerts": {
+      "scope": "現在の状態 · 選択ウィンドウの履歴ではありません",
+      "notRecorded": "記録なし",
+      "activeCount_one": "現在 {{count}} 件のアクティブアラート",
+      "activeCount_other": "現在 {{count}} 件のアクティブアラート",
+      "empty": "現在アクティブなアラートはありません。選択ウィンドウの履歴を示すものではありません。",
+      "unavailable": "現在のアラート証拠を利用できません。",
+      "unknown": "現在のアラート証拠は未確定です。"
+    },
+    "collection": {
+      "last": "最終収集",
+      "duration": "所要時間",
+      "outcome": "結果",
+      "collector": "コレクター",
+      "notRecorded": "記録なし",
+      "failurePhase": "失敗フェーズ",
+      "failureClass": "失敗クラス",
+      "empty": "この調査ウィンドウでは収集実行が観測されませんでした。",
+      "unavailable": "収集実行の証拠を利用できません。",
+      "unknown": "収集実行の証拠は未確定です。",
+      "outcomes": { "success": "成功", "failure": "失敗" },
+      "phases": {
+        "UNKNOWN": "不明なフェーズ",
+        "RESOLVE": "名前解決",
+        "CONNECT": "接続",
+        "AUTHENTICATE": "認証",
+        "QUERY": "クエリ",
+        "PARSE": "解析",
+        "CONVERT": "変換",
+        "DISPATCH": "配信"
+      },
+      "failureClasses": {
+        "NONE": "失敗なし",
+        "UNAVAILABLE": "利用不可",
+        "UNREACHABLE": "到達不能",
+        "UNCONNECTABLE": "接続失敗",
+        "COLLECTION": "収集失敗",
+        "TIMEOUT": "タイムアウト",
+        "UNKNOWN": "不明な失敗"
+      }
+    },
+    "entity": {
+      "serviceName": "サービス名",
+      "type": "エンティティ種別",
+      "id": "エンティティ ID",
+      "namespace": "サービス名前空間",
+      "environment": "環境",
+      "open": "エンティティを開く",
+      "empty": "このモニターはエンティティに関連付けられていません。",
+      "unavailable": "エンティティ関連付けの証拠を利用できません。",
+      "unknown": "エンティティ関連付けの証拠は未確定です。"
+    },
+    "otel": {
+      "scope": "この関連付けで実際に観測されたシグナルのみ利用できます。Explore では調査ウィンドウとタイムゾーンを維持します。",
+      "open": "Explore で{{signal}}を開く",
+      "empty": "この関連付けでは OTLP シグナルが観測されませんでした。",
+      "noEntity": "OTLP 証拠を安全に関連付けるにはエンティティが必要です。",
+      "unavailable": "関連 OTLP 証拠を利用できません。",
+      "unknown": "関連 OTLP 証拠は未確定です。"
+    },
+    "signals": { "metrics": "OTLP メトリクス", "logs": "ログ", "traces": "トレース" },
+    "sources": {
+      "currentAlerts": "現在のアラート",
+      "collection": "Greptime 収集イベント",
+      "entityBinding": "モニターとエンティティの関連付け",
+      "otelBinding": "観測済み関連シグナル"
+    }
+  },
   "settingsNavigation": {
     "receivers": "通知先",
     "rules": "配信ルール",

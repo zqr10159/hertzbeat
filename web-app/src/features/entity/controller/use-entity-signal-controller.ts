@@ -26,7 +26,8 @@ type EntitySignalSource = EntityDetail | EntityRecord;
 export function useEntitySignalController(source: EntitySignalSource | undefined) {
   const time = useSharedTimeOptional();
   const [params] = useSearchParams();
-  const timeZone = useMemo(() => resolveBrowserTimeZone(), []);
+  const routedTimeZone = params.get('timeZone');
+  const timeZone = useMemo(() => resolveInvestigationTimeZone(routedTimeZone), [routedTimeZone]);
   const plan = useMemo(
     () => safeSignalPlan(source, time?.window, timeZone, params.get('traceId'), params.get('spanId')),
     [source, params, time?.window, timeZone]
@@ -169,6 +170,10 @@ function safeSignalPlan(
 function resolveBrowserTimeZone() {
   const candidate = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return normalizeInvestigationTimeZone(candidate) ?? 'UTC';
+}
+
+function resolveInvestigationTimeZone(routedTimeZone: string | null) {
+  return normalizeInvestigationTimeZone(routedTimeZone) ?? resolveBrowserTimeZone();
 }
 
 function exactSignalScope(scope: string, traceId?: string, spanId?: string) {

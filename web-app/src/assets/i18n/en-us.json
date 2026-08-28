@@ -1546,6 +1546,99 @@
       "resizeHistory": "Resize history panel"
     }
   },
+  "monitorSignals": {
+    "title": "Monitor signal evidence",
+    "availability": "Signal availability",
+    "window": "Investigation window: {{start}} – {{end}} · {{timeZone}}",
+    "windowUnavailable": "The investigation window is unavailable.",
+    "source": "Source",
+    "capabilities": {
+      "nativeMetrics": "Native Metrics",
+      "currentAlerts": "Current Alerts",
+      "collection": "Collection Health",
+      "boundEntity": "Bound Entity",
+      "otlpEvidence": "OTLP Evidence"
+    },
+    "states": {
+      "ready": "Available",
+      "empty": "Empty",
+      "unavailable": "Unavailable",
+      "unknown": "Unknown"
+    },
+    "sections": {
+      "currentAlerts": "Current Alerts",
+      "collectionHealth": "Collection Health",
+      "boundEntity": "Bound Entity",
+      "otelEvidence": "Related OTLP Evidence"
+    },
+    "alerts": {
+      "scope": "Current state · not history for the selected window",
+      "notRecorded": "Not recorded",
+      "activeCount_one": "{{count}} current active alert",
+      "activeCount_other": "{{count}} current active alerts",
+      "empty": "No alerts are currently active. This does not describe alert history for the selected window.",
+      "unavailable": "Current alert evidence is unavailable.",
+      "unknown": "Current alert evidence has not been resolved."
+    },
+    "collection": {
+      "last": "Last collection",
+      "duration": "Duration",
+      "outcome": "Outcome",
+      "collector": "Collector",
+      "notRecorded": "Not recorded",
+      "failurePhase": "Failure phase",
+      "failureClass": "Failure class",
+      "empty": "No collection execution was observed in this investigation window.",
+      "unavailable": "Collection execution evidence is unavailable.",
+      "unknown": "Collection execution evidence has not been resolved.",
+      "outcomes": { "success": "Succeeded", "failure": "Failed" },
+      "phases": {
+        "UNKNOWN": "Unknown phase",
+        "RESOLVE": "Resolve",
+        "CONNECT": "Connect",
+        "AUTHENTICATE": "Authenticate",
+        "QUERY": "Query",
+        "PARSE": "Parse",
+        "CONVERT": "Convert",
+        "DISPATCH": "Dispatch"
+      },
+      "failureClasses": {
+        "NONE": "No failure",
+        "UNAVAILABLE": "Unavailable",
+        "UNREACHABLE": "Unreachable",
+        "UNCONNECTABLE": "Connection failed",
+        "COLLECTION": "Collection failed",
+        "TIMEOUT": "Timed out",
+        "UNKNOWN": "Unknown failure"
+      }
+    },
+    "entity": {
+      "serviceName": "Service name",
+      "type": "Entity type",
+      "id": "Entity ID",
+      "namespace": "Service namespace",
+      "environment": "Environment",
+      "open": "Open Entity",
+      "empty": "This monitor is not bound to an Entity.",
+      "unavailable": "Entity binding evidence is unavailable.",
+      "unknown": "Entity binding evidence has not been resolved."
+    },
+    "otel": {
+      "scope": "Only signals observed for this exact binding are available. Explore preserves the investigation window and time zone.",
+      "open": "Open {{signal}} in Explore",
+      "empty": "No related OTLP signal was observed for this binding.",
+      "noEntity": "A bound Entity is required for a safe OTLP correlation.",
+      "unavailable": "Related OTLP evidence is unavailable.",
+      "unknown": "Related OTLP evidence has not been resolved."
+    },
+    "signals": { "metrics": "OTLP Metrics", "logs": "Logs", "traces": "Traces" },
+    "sources": {
+      "currentAlerts": "current alerts",
+      "collection": "Greptime collection events",
+      "entityBinding": "monitor-to-Entity binding",
+      "otelBinding": "observed binding signals"
+    }
+  },
   "settingsNavigation": {
     "receivers": "Receivers",
     "rules": "Delivery rules",

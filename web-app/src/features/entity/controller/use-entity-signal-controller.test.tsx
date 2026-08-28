@@ -179,6 +179,20 @@ describe('useEntitySignalController', () => {
       expect.any(Object)
     );
   });
+
+  it.each([
+    ['America/New_York', 'America/New_York'],
+    ['not/a-zone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC']
+  ])('uses a valid routed time zone and falls back safely for %s', async (routedTimeZone, expectedTimeZone) => {
+    window.history.replaceState({}, '', `/entities/7?timeZone=${encodeURIComponent(routedTimeZone)}`);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const { result } = renderHook(() => useEntitySignalController(detail), { wrapper: browserWrapper(client) });
+
+    await waitFor(() => expect(result.current.state?.kind).toBe('ready'));
+    expect(result.current.state).toMatchObject({
+      plan: { anchor: { window: { timeZone: expectedTimeZone } } }
+    });
+  });
 });
 
 function wrapper(client: QueryClient) {

@@ -1518,6 +1518,94 @@
       "resizeHistory": "調整歷史區高度"
     }
   },
+  "monitorSignals": {
+    "title": "監控訊號證據",
+    "availability": "訊號可用性",
+    "window": "調查視窗：{{start}} – {{end}} · {{timeZone}}",
+    "windowUnavailable": "調查視窗不可用。",
+    "source": "來源",
+    "capabilities": {
+      "nativeMetrics": "原生指標",
+      "currentAlerts": "目前告警",
+      "collection": "採集狀態",
+      "boundEntity": "綁定實體",
+      "otlpEvidence": "OTLP 證據"
+    },
+    "states": { "ready": "可用", "empty": "無資料", "unavailable": "不可用", "unknown": "未知" },
+    "sections": {
+      "currentAlerts": "目前告警",
+      "collectionHealth": "採集狀態",
+      "boundEntity": "綁定實體",
+      "otelEvidence": "相關 OTLP 證據"
+    },
+    "alerts": {
+      "scope": "目前狀態 · 不是所選視窗內的歷史記錄",
+      "notRecorded": "未記錄",
+      "activeCount_one": "目前 {{count}} 則活躍告警",
+      "activeCount_other": "目前 {{count}} 則活躍告警",
+      "empty": "目前沒有活躍告警；這不代表所選視窗內沒有歷史告警。",
+      "unavailable": "目前告警證據不可用。",
+      "unknown": "尚未確定目前告警證據。"
+    },
+    "collection": {
+      "last": "最近採集",
+      "duration": "耗時",
+      "outcome": "結果",
+      "collector": "採集器",
+      "notRecorded": "未記錄",
+      "failurePhase": "失敗階段",
+      "failureClass": "失敗類型",
+      "empty": "此調查視窗內沒有觀測到採集執行。",
+      "unavailable": "採集執行證據不可用。",
+      "unknown": "尚未確定採集執行證據。",
+      "outcomes": { "success": "成功", "failure": "失敗" },
+      "phases": {
+        "UNKNOWN": "未知階段",
+        "RESOLVE": "解析",
+        "CONNECT": "連線",
+        "AUTHENTICATE": "驗證",
+        "QUERY": "查詢",
+        "PARSE": "解析回應",
+        "CONVERT": "轉換",
+        "DISPATCH": "分派"
+      },
+      "failureClasses": {
+        "NONE": "無失敗",
+        "UNAVAILABLE": "不可用",
+        "UNREACHABLE": "無法到達",
+        "UNCONNECTABLE": "連線失敗",
+        "COLLECTION": "採集失敗",
+        "TIMEOUT": "逾時",
+        "UNKNOWN": "未知失敗"
+      }
+    },
+    "entity": {
+      "serviceName": "服務名稱",
+      "type": "實體類型",
+      "id": "實體 ID",
+      "namespace": "服務命名空間",
+      "environment": "環境",
+      "open": "開啟實體",
+      "empty": "此監控尚未綁定實體。",
+      "unavailable": "實體綁定證據不可用。",
+      "unknown": "尚未確定實體綁定證據。"
+    },
+    "otel": {
+      "scope": "僅提供此精確綁定中實際觀測到的訊號；探索跳轉會保留調查視窗和時區。",
+      "open": "在探索中開啟{{signal}}",
+      "empty": "此綁定未觀測到相關 OTLP 訊號。",
+      "noEntity": "必須綁定實體才能安全關聯 OTLP 證據。",
+      "unavailable": "相關 OTLP 證據不可用。",
+      "unknown": "尚未確定相關 OTLP 證據。"
+    },
+    "signals": { "metrics": "OTLP 指標", "logs": "日誌", "traces": "鏈路" },
+    "sources": {
+      "currentAlerts": "目前告警",
+      "collection": "Greptime 採集事件",
+      "entityBinding": "監控與實體綁定",
+      "otelBinding": "已觀測綁定訊號"
+    }
+  },
   "settingsNavigation": {
     "receivers": "接收人",
     "rules": "傳送規則",
