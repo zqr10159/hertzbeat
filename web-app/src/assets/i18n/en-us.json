@@ -504,6 +504,7 @@
     "datasource": "Data source",
     "queryMode": "Query mode",
     "trend": "Metric trend",
+    "chartUnavailable": "The metric chart is unavailable. Samples remain available below.",
     "filter": "Label filter, key=value",
     "groupBy": "Group by label",
     "aggregation": "Aggregation",

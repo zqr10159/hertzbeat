@@ -507,6 +507,7 @@
     "datasource": "Fonte de dados",
     "queryMode": "Modo de consulta",
     "trend": "Tendência da métrica",
+    "chartUnavailable": "O gráfico de métricas está indisponível. As amostras continuam disponíveis abaixo.",
     "filter": "Filtro de rótulo key=value",
     "groupBy": "Agrupar por rótulo",
     "aggregation": "Agregação",

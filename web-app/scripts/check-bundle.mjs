@@ -27,7 +27,8 @@ const dist = join(root, 'dist');
 const manifestPath = join(dist, '.vite', 'manifest.json');
 const chunkRawLimit = bundleLimits.chunkWarningKilobytes * 1024;
 const shellGzipLimit = bundleLimits.shellGzipBytes;
-const totalRawLimit = bundleLimits.totalJavaScriptBytes;
+const totalRawLimit = bundleLimits.baseApplicationJavaScriptBytes + bundleLimits.persesRuntimeJavaScriptAllowanceBytes;
+const persesRuntimeSource = 'src/platform/perses/runtime/perses-time-series-runtime.tsx';
 
 if (!existsSync(manifestPath)) {
   console.error('Bundle budget failed: dist manifest is missing. Run pnpm build first.');
@@ -50,6 +51,7 @@ const javaScriptAssets = readdirSync(assetDirectory)
   .map(file => ({ file, size: statSync(join(assetDirectory, file)).size }));
 const totalRaw = javaScriptAssets.reduce((total, asset) => total + asset.size, 0);
 const failures = [];
+const persesRuntimeEntry = manifest[persesRuntimeSource];
 
 javaScriptAssets
   .filter(asset => asset.size > chunkRawLimit)
@@ -58,7 +60,16 @@ if (entryGzip > shellGzipLimit) {
   failures.push(`shell ${entryGzip} bytes gzip exceeds ${shellGzipLimit}`);
 }
 if (totalRaw > totalRawLimit) {
-  failures.push(`total JavaScript ${totalRaw} bytes exceeds ${totalRawLimit}`);
+  failures.push(
+    `total JavaScript ${totalRaw} bytes exceeds ${totalRawLimit} ` +
+      `(${bundleLimits.baseApplicationJavaScriptBytes} base + ` +
+      `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes} Perses runtime allowance)`
+  );
+}
+if (!persesRuntimeEntry?.isDynamicEntry) {
+  failures.push(`${persesRuntimeSource} must remain a dynamic production entry`);
+} else if (staticImportClosure(manifest, 'index.html').has(persesRuntimeSource)) {
+  failures.push(`${persesRuntimeSource} must not enter the shell's static import closure`);
 }
 
 if (failures.length > 0) {
@@ -69,5 +80,17 @@ if (failures.length > 0) {
 
 console.log(
   `Bundle budget passed: ${basename(entry.file)} is ${entryRaw} bytes raw / ${entryGzip} bytes gzip; ` +
-    `total JavaScript is ${totalRaw} bytes.`
+    `total JavaScript is ${totalRaw} bytes including a bounded ` +
+    `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes}-byte Perses allowance.`
 );
+
+function staticImportClosure(buildManifest, root) {
+  const visited = new Set();
+  const visit = key => {
+    if (visited.has(key) || !buildManifest[key]) return;
+    visited.add(key);
+    buildManifest[key].imports?.forEach(visit);
+  };
+  visit(root);
+  return visited;
+}

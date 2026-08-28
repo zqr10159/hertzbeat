@@ -1,0 +1,45 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0.
+ */
+
+import type { PluginModuleResource, TimeSeriesQueryPlugin } from '@perses-dev/plugin-system';
+import type { TimeSeriesData } from '@perses-dev/spec';
+
+export const HERTZBEAT_SNAPSHOT_QUERY_KIND = 'HertzBeatSnapshotTimeSeriesQuery';
+
+export type HertzBeatSnapshotQuerySpec = {
+  data: TimeSeriesData;
+};
+
+const emptyData: TimeSeriesData = {
+  timeRange: { start: new Date(0), end: new Date(1) },
+  stepMs: 15_000,
+  series: []
+};
+
+export const HertzBeatSnapshotTimeSeriesQuery: TimeSeriesQueryPlugin<HertzBeatSnapshotQuerySpec> = {
+  createInitialOptions: () => ({ data: emptyData }),
+  getTimeSeriesData: spec => Promise.resolve(spec.data)
+};
+
+export const hertzBeatSnapshotPluginModule: PluginModuleResource = {
+  kind: 'PluginModule',
+  metadata: { name: 'hertzbeat-perses-runtime', version: '2.0.0' },
+  spec: {
+    plugins: [
+      {
+        kind: 'TimeSeriesQuery',
+        spec: {
+          name: HERTZBEAT_SNAPSHOT_QUERY_KIND,
+          display: {
+            name: 'HertzBeat metric snapshot',
+            description: 'Renders an authorized metric response already loaded through the HertzBeat API.'
+          }
+        }
+      }
+    ]
+  }
+};

@@ -3,5 +3,6 @@
   "vendorChunkMinBytes": 512000,
   "vendorChunkMaxBytes": 614400,
   "shellGzipBytes": 460800,
-  "totalJavaScriptBytes": 7100000
+  "baseApplicationJavaScriptBytes": 7100000,
+  "persesRuntimeJavaScriptAllowanceBytes": 1400000
 }

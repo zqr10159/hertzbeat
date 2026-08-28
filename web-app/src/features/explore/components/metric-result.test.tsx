@@ -25,8 +25,38 @@ import type { MetricConsole } from '../model/explore-signal-contract';
 import { metricSeries, type MetricResultState } from '../model/explore-signal-model';
 import { MetricResult } from './metric-result';
 
+const persesRuntime = vi.hoisted(() => ({ failed: false }));
+
+vi.mock('@/platform/perses', () => ({
+  PersesTimeSeries: ({
+    ariaLabel,
+    className,
+    errorFallback,
+    series
+  }: {
+    ariaLabel: string;
+    className?: string;
+    errorFallback: string;
+    series: Array<{ key: string }>;
+  }) => {
+    if (persesRuntime.failed) return <div role="status">{errorFallback}</div>;
+    return (
+      <div
+        role="img"
+        aria-label={ariaLabel}
+        className={className}
+        data-visualization-runtime="perses"
+        data-series-count={series.length}
+      />
+    );
+  }
+}));
+
 describe('MetricResult', () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    persesRuntime.failed = false;
+  });
 
   beforeAll(async () => {
     Object.defineProperty(globalThis, 'ResizeObserver', { value: ResizeObserverStub, configurable: true });
@@ -41,9 +71,8 @@ describe('MetricResult', () => {
       </I18nextProvider>
     );
     expect(screen.getByRole('heading', { name: 'Metrics' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Metric trend' })).toHaveAttribute('viewBox', '0 0 1000 220');
-    expect(screen.getByRole('img', { name: 'Metric trend' })).toHaveAttribute('preserveAspectRatio', 'none');
-    expect(screen.getByText('http.server.duration · checkout')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Metric trend' })).toHaveAttribute('data-visualization-runtime', 'perses');
+    expect(screen.getByRole('img', { name: 'Metric trend' })).toHaveAttribute('data-series-count', '1');
     expect(screen.getByText('125 ms')).toBeInTheDocument();
     expect(screen.getAllByText('method=POST')).toHaveLength(2);
     expect(screen.queryByText('__name__=http.server.duration')).not.toBeInTheDocument();
@@ -74,7 +103,7 @@ describe('MetricResult', () => {
     expect(screen.queryByText('No metric series for this context.')).not.toBeInTheDocument();
   });
 
-  it('limits the trend to six consistently colored series', () => {
+  it('passes every authorized series to the Perses runtime', () => {
     const series = Array.from({ length: 7 }, (_, index) => ({
       key: `series-${index}`,
       name: `series-${index}`,
@@ -88,10 +117,23 @@ describe('MetricResult', () => {
     );
 
     const trend = screen.getByRole('img', { name: 'Metric trend' });
-    expect(trend.querySelectorAll('path')).toHaveLength(6);
-    expect(trend.previousElementSibling).toHaveTextContent('series-5');
-    expect(trend.previousElementSibling).not.toHaveTextContent('series-6');
+    expect(trend).toHaveAttribute('data-series-count', '7');
     expect(screen.getByText('series-6')).toBeInTheDocument();
+  });
+
+  it('keeps sample evidence visible when the Perses runtime fails', () => {
+    persesRuntime.failed = true;
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Subject data={metricData} state={{ kind: 'ready', series: metricSeries(metricData) }} />
+      </I18nextProvider>
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The metric chart is unavailable. Samples remain available below.'
+    );
+    expect(screen.getByText('125 ms')).toBeInTheDocument();
+    expect(screen.getAllByText('method=POST')).toHaveLength(2);
   });
 
   it('shows only the latest one hundred samples in reverse order', () => {

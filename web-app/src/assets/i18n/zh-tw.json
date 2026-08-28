@@ -498,6 +498,7 @@
     "datasource": "資料來源",
     "queryMode": "查詢模式",
     "trend": "指標趨勢",
+    "chartUnavailable": "指標圖表暫時無法使用，取樣資料仍可在下方查看。",
     "filter": "標籤條件 key=value",
     "groupBy": "按標籤分組",
     "aggregation": "聚合方式",

@@ -22,7 +22,6 @@ import {
   logBody,
   logServiceName,
   logTimestampMs,
-  metricPath,
   metricPoints,
   metricResultState,
   metricSeries,
@@ -190,7 +189,7 @@ describe('explore API contracts', () => {
     expect(traceHealthState({ status: 'UNSET', errorSpanCount: 0 })).toBe('unknown');
   });
 
-  it('creates a bounded plot from numeric and numeric-string samples', () => {
+  it('normalizes numeric and numeric-string samples without inventing points', () => {
     const points = metricPoints({
       key: 'one',
       name: 'latency',
@@ -215,7 +214,6 @@ describe('explore API contracts', () => {
       { timestamp: 2001, value: 0 },
       { timestamp: 2002, value: 12.5 }
     ]);
-    expect(metricPath(points, 100, 40)).toBe('M0.00,40.00 L50.00,40.00 L100.00,0.00');
   });
 
   it('reads service context and structured bodies from OTLP logs', () => {

@@ -97,25 +97,6 @@ export function metricPoints(series: MetricSeries): MetricPoint[] {
   });
 }
 
-export function metricPath(points: MetricPoint[], width: number, height: number) {
-  if (points.length === 0) return '';
-  const timestamps = points.map(point => point.timestamp);
-  const values = points.map(point => point.value);
-  const minTimestamp = Math.min(...timestamps);
-  const maxTimestamp = Math.max(...timestamps);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const timestampRange = maxTimestamp - minTimestamp || 1;
-  const valueRange = maxValue - minValue || 1;
-  return points
-    .map((point, index) => {
-      const x = ((point.timestamp - minTimestamp) / timestampRange) * width;
-      const y = height - ((point.value - minValue) / valueRange) * height;
-      return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(' ');
-}
-
 export function traceDurationMs(row: Pick<TraceRow, 'durationNanos'>) {
   return row.durationNanos == null ? undefined : row.durationNanos / 1_000_000;
 }

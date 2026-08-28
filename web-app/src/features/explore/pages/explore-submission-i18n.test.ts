@@ -34,6 +34,13 @@ describe('Explore submission locale contract', () => {
     expect(pt.exploreMetric.step).toBe('Passo em segundos, por exemplo 60');
   });
 
+  it('localizes the visible metric chart failure fallback', () => {
+    for (const locale of runtimeLocales) {
+      expect(locale.exploreMetric.chartUnavailable).toEqual(expect.any(String));
+      expect(locale.exploreMetric.chartUnavailable).not.toBe('');
+    }
+  });
+
   it('localizes every visible signal-parity filter and enum option', () => {
     for (const locale of runtimeLocales) {
       expect(Object.values(locale.exploreMetric.temporalAggregationValues)).toHaveLength(4);
@@ -79,6 +86,7 @@ type LocaleRoot = {
   explore: { submissionErrors: Record<(typeof submissionErrorKeys)[number], string> };
   exploreMetric: {
     step: string;
+    chartUnavailable: string;
     temporalAggregation: string;
     temporalAggregationContext: string;
     temporalAggregationValues: Record<'raw' | 'rate' | 'increase' | 'delta', string>;

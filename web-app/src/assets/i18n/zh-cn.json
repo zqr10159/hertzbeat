@@ -498,6 +498,7 @@
     "datasource": "数据源",
     "queryMode": "查询模式",
     "trend": "指标趋势",
+    "chartUnavailable": "指标图表暂时不可用，采样数据仍可在下方查看。",
     "filter": "标签条件 key=value",
     "groupBy": "按标签分组",
     "aggregation": "聚合方式",

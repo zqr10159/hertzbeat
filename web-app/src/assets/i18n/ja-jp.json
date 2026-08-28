@@ -501,6 +501,7 @@
     "datasource": "データソース",
     "queryMode": "クエリモード",
     "trend": "メトリクストレンド",
+    "chartUnavailable": "メトリクスチャートを表示できません。サンプルは下の表で確認できます。",
     "filter": "ラベル条件 key=value",
     "groupBy": "ラベルでグループ化",
     "aggregation": "集計",
