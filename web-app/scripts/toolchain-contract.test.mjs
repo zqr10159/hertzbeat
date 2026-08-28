@@ -47,9 +47,12 @@ test('the Perses runtime boundary uses fixed supported packages without deprecat
       // plugin-system's published aggregate runtime resolves Explore even though
       // the HertzBeat snapshot adapter does not import or render Explore itself.
       '@perses-dev/explore': '0.54.0',
+      '@perses-dev/logs-table-plugin': '0.3.0',
       '@perses-dev/plugin-system': '0.54.0',
       '@perses-dev/spec': '0.2.0',
-      '@perses-dev/timeseries-chart-plugin': '0.13.0'
+      '@perses-dev/timeseries-chart-plugin': '0.13.0',
+      '@perses-dev/trace-table-plugin': '0.11.0',
+      '@perses-dev/tracing-gantt-chart-plugin': '0.13.0'
     }
   );
   assert.equal(packageManifest.dependencies['@perses-dev/core'], undefined);

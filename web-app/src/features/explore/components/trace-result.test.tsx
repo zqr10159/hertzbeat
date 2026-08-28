@@ -22,7 +22,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initializeI18n, loadLocale } from '@/core/i18n/i18n';
 
-import type { TraceDetail } from '../model/explore-signal-contract';
+import type { TraceDetail, TraceRow } from '../model/explore-signal-contract';
 import { traceSpanLayout, type TraceDetailState } from '../model/explore-signal-model';
 import { TraceResult } from './trace-result';
 
@@ -71,13 +71,13 @@ describe('TraceResult', () => {
   });
 
   it('uses neutral status unless health or failure is explicit', () => {
-    const unknownRow: TraceDetail = { ...traceDetail, traceId: 'unknown', status: null, errorSpanCount: 0 };
-    const countErrorRow: TraceDetail = { ...traceDetail, traceId: 'count-error', status: null, errorSpanCount: 1 };
+    const unknownRow: TraceRow = { ...traceListRow, traceId: 'unknown', status: null, errorSpanCount: 0 };
+    const countErrorRow: TraceRow = { ...traceListRow, traceId: 'count-error', status: null, errorSpanCount: 1 };
     const cases = [
       { row: unknownRow, text: '—', tone: 'neutral' },
-      { row: { ...traceDetail, traceId: 'ok', status: 'OK', errorSpanCount: 0 }, text: 'OK', tone: 'green' },
+      { row: { ...traceListRow, traceId: 'ok', status: 'OK', errorSpanCount: 0 }, text: 'OK', tone: 'green' },
       {
-        row: { ...traceDetail, traceId: 'status-error', status: 'ERROR', errorSpanCount: 0 },
+        row: { ...traceListRow, traceId: 'status-error', status: 'ERROR', errorSpanCount: 0 },
         text: 'ERROR',
         tone: 'red'
       },
@@ -88,7 +88,7 @@ describe('TraceResult', () => {
       const navigate = vi.fn();
       render(
         <I18nextProvider i18n={i18n}>
-          <Subject navigate={navigate} row={testCase.row} detail={testCase.row} />
+          <Subject navigate={navigate} row={testCase.row} detail={traceDetail} />
         </I18nextProvider>
       );
       const tag = screen.getByText(testCase.text, { selector: '.ant-tag' });
@@ -116,7 +116,11 @@ describe('TraceResult', () => {
     };
     render(
       <I18nextProvider i18n={i18n}>
-        <Subject navigate={navigate} row={incompleteDetail} detail={incompleteDetail} />
+        <Subject
+          navigate={navigate}
+          row={{ ...incompleteDetail, spanCount: 2, serviceStats: traceServiceStats }}
+          detail={incompleteDetail}
+        />
       </I18nextProvider>
     );
 
@@ -143,7 +147,11 @@ describe('TraceResult', () => {
     };
     render(
       <I18nextProvider i18n={i18n}>
-        <Subject navigate={vi.fn()} row={instantDetail} detail={instantDetail} />
+        <Subject
+          navigate={vi.fn()}
+          row={{ ...instantDetail, spanCount: 2, serviceStats: traceServiceStats }}
+          detail={instantDetail}
+        />
       </I18nextProvider>
     );
 
@@ -159,7 +167,10 @@ describe('TraceResult', () => {
   it('renders epoch startTime zero instead of treating it as absent', () => {
     render(
       <I18nextProvider i18n={i18n}>
-        <Subject navigate={vi.fn()} row={{ ...traceDetail, startTime: 0 }} />
+        <Subject
+          navigate={vi.fn()}
+          row={{ ...traceDetail, startTime: 0, spanCount: 2, serviceStats: traceServiceStats }}
+        />
       </I18nextProvider>
     );
     expect(screen.getByText(new Date(0).toLocaleString())).toBeInTheDocument();
@@ -208,7 +219,7 @@ function renderState(state: TraceDetailState) {
   return render(
     <I18nextProvider i18n={i18n}>
       <TraceResult
-        data={{ content: [traceDetail], totalElements: 1, totalPages: 1, number: 0, size: 20 }}
+        data={{ content: [traceListRow], totalElements: 1, totalPages: 1, number: 0, size: 20 }}
         t={i18n.t}
         trace={{ ...closedTrace(), state }}
       />
@@ -218,11 +229,11 @@ function renderState(state: TraceDetailState) {
 
 function Subject({
   navigate,
-  row = traceDetail,
+  row = traceListRow,
   detail = traceDetail
 }: {
   navigate: (path: string) => void;
-  row?: TraceDetail;
+  row?: TraceRow;
   detail?: TraceDetail;
 }) {
   const { t } = useTranslation();
@@ -310,6 +321,14 @@ const traceDetail: TraceDetail = {
     }
   ]
 };
+
+const traceListRow: TraceRow = {
+  ...traceDetail,
+  spanCount: traceDetail.spans?.length ?? 0,
+  serviceStats: { checkout: { spanCount: 1, errorCount: 1 } }
+};
+
+const traceServiceStats = { checkout: { spanCount: 2, errorCount: 1 } };
 
 class ResizeObserverStub {
   observe() {}

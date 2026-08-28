@@ -27,8 +27,10 @@ const dist = join(root, 'dist');
 const manifestPath = join(dist, '.vite', 'manifest.json');
 const chunkRawLimit = bundleLimits.chunkWarningKilobytes * 1024;
 const shellGzipLimit = bundleLimits.shellGzipBytes;
-const totalRawLimit = bundleLimits.baseApplicationJavaScriptBytes + bundleLimits.persesRuntimeJavaScriptAllowanceBytes;
-const persesRuntimeSource = 'src/platform/perses/runtime/perses-time-series-runtime.tsx';
+const totalRawLimit =
+  bundleLimits.baseApplicationJavaScriptBytes +
+  bundleLimits.persesRuntimeJavaScriptAllowanceBytes +
+  bundleLimits.persesMultiSignalJavaScriptAllowanceBytes;
 
 if (!existsSync(manifestPath)) {
   console.error('Bundle budget failed: dist manifest is missing. Run pnpm build first.');
@@ -51,7 +53,6 @@ const javaScriptAssets = readdirSync(assetDirectory)
   .map(file => ({ file, size: statSync(join(assetDirectory, file)).size }));
 const totalRaw = javaScriptAssets.reduce((total, asset) => total + asset.size, 0);
 const failures = [];
-const persesRuntimeEntry = manifest[persesRuntimeSource];
 
 javaScriptAssets
   .filter(asset => asset.size > chunkRawLimit)
@@ -63,13 +64,17 @@ if (totalRaw > totalRawLimit) {
   failures.push(
     `total JavaScript ${totalRaw} bytes exceeds ${totalRawLimit} ` +
       `(${bundleLimits.baseApplicationJavaScriptBytes} base + ` +
-      `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes} Perses runtime allowance)`
+      `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes} Perses time-series allowance + ` +
+      `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes} Perses multi-signal allowance)`
   );
 }
-if (!persesRuntimeEntry?.isDynamicEntry) {
-  failures.push(`${persesRuntimeSource} must remain a dynamic production entry`);
-} else if (staticImportClosure(manifest, 'index.html').has(persesRuntimeSource)) {
-  failures.push(`${persesRuntimeSource} must not enter the shell's static import closure`);
+const shellStaticClosure = staticImportClosure(manifest, 'index.html');
+for (const runtimeSource of bundleLimits.persesDynamicRuntimeSources) {
+  if (!manifest[runtimeSource]?.isDynamicEntry) {
+    failures.push(`${runtimeSource} must remain a dynamic production entry`);
+  } else if (shellStaticClosure.has(runtimeSource)) {
+    failures.push(`${runtimeSource} must not enter the shell's static import closure`);
+  }
 }
 
 if (failures.length > 0) {
@@ -80,8 +85,9 @@ if (failures.length > 0) {
 
 console.log(
   `Bundle budget passed: ${basename(entry.file)} is ${entryRaw} bytes raw / ${entryGzip} bytes gzip; ` +
-    `total JavaScript is ${totalRaw} bytes including a bounded ` +
-    `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes}-byte Perses allowance.`
+    `total JavaScript is ${totalRaw} bytes including bounded ` +
+    `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes}-byte time-series and ` +
+    `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes}-byte multi-signal Perses allowances.`
 );
 
 function staticImportClosure(buildManifest, root) {

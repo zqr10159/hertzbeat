@@ -67,8 +67,6 @@ export async function queryHertzBeatData(
   }
 }
 
-export const hertzBeatPersesQueryClient = { query: queryHertzBeatData };
-
 async function executeQuery(query: HertzBeatQuery, signal?: AbortSignal): Promise<HertzBeatQueryOutcome<unknown>> {
   if (query.signal === 'metrics') {
     const data = parseMetricResponse(await request(buildMetricPath(query), signal), query.timeWindow);
@@ -124,7 +122,6 @@ function buildTraceTablePath(query: HertzBeatTraceTableQuery, limit: number) {
   const params = baseParams(query, true);
   params.set('pageIndex', '0');
   params.set('pageSize', String(limit));
-  set(params, 'traceId', query.traceId);
   set(params, 'operationName', query.operationName);
   setBoolean(params, 'errorOnly', query.errorOnly);
   setNumber(params, 'minDurationMs', query.minDurationMs);

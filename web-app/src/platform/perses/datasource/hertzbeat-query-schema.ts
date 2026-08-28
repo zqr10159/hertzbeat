@@ -21,6 +21,15 @@ const javaLong = z
   .refine(Number.isInteger)
   .refine(value => value >= 0);
 const nullableJavaLong = javaLong.nullable();
+const OTLP_UINT64_MAX = '18446744073709551615';
+const nullableNonNegativeDecimal = z
+  .string()
+  .regex(/^(0|[1-9]\d*)$/)
+  .refine(
+    value =>
+      value.length < OTLP_UINT64_MAX.length || (value.length === OTLP_UINT64_MAX.length && value <= OTLP_UINT64_MAX)
+  )
+  .nullable();
 const stringMap = z.record(z.string(), z.string());
 const nullableStringMap = stringMap.nullable();
 
@@ -87,7 +96,7 @@ const instrumentationScope = z.object({
   attributes: nullableJsonMap,
   droppedAttributesCount: nullableNonNegativeInteger
 });
-export const logRowSchema = z.object({
+const logRowSchema = z.object({
   timeUnixNano: nullableJavaLong,
   observedTimeUnixNano: nullableJavaLong,
   severityNumber: nullableNonNegativeInteger,
@@ -104,7 +113,7 @@ export const logRowSchema = z.object({
   scopeSchemaUrl: nullableText
 });
 
-const traceRowShape = {
+const traceSummaryShape = {
   traceId: z.string().min(1),
   rootSpanId: nullableText,
   serviceName: nullableText,
@@ -116,9 +125,38 @@ const traceRowShape = {
   errorSpanCount: nonNegativeInteger,
   resourceAttributes: nullableStringMap
 };
-export const traceRowSchema = z.object(traceRowShape);
+const traceServiceStat = z
+  .object({
+    spanCount: nonNegativeInteger.positive(),
+    errorCount: nonNegativeInteger
+  })
+  .refine(stat => stat.errorCount <= stat.spanCount);
+const traceServiceStats = z
+  .record(
+    z.string().refine(serviceName => serviceName.trim().length > 0),
+    traceServiceStat
+  )
+  .refine(stats => Object.keys(stats).length > 0);
+const traceRowShape = {
+  ...traceSummaryShape,
+  spanCount: nonNegativeInteger.positive(),
+  serviceStats: traceServiceStats
+};
+const traceRowSchema = z.object(traceRowShape).superRefine((row, context) => {
+  const stats = Object.values(row.serviceStats);
+  const spanTotal = stats.reduce((sum, stat) => sum + stat.spanCount, 0);
+  const errorTotal = stats.reduce((sum, stat) => sum + stat.errorCount, 0);
+  if (
+    !Number.isSafeInteger(spanTotal) ||
+    !Number.isSafeInteger(errorTotal) ||
+    spanTotal !== row.spanCount ||
+    errorTotal !== row.errorSpanCount
+  ) {
+    context.addIssue({ code: 'custom', message: 'Trace service statistics do not match trace totals' });
+  }
+});
 const traceEvent = z.object({
-  timeUnixNano: nullableJavaLong,
+  timeUnixNano: nullableNonNegativeDecimal,
   name: nullableText,
   attributes: nullableJsonMap,
   droppedAttributesCount: nullableNonNegativeInteger
@@ -158,9 +196,9 @@ const traceSpan = z.object({
   links: z.array(traceLink).nullable(),
   codeNavigationHint: codeNavigationHint.nullable()
 });
-const traceDetail = z.object({ ...traceRowShape, spans: z.array(traceSpan).nullable() });
+const traceDetail = z.object({ ...traceSummaryShape, spans: z.array(traceSpan).nullable() });
 
-export type HertzBeatMetricSeries = {
+type HertzBeatMetricSeries = {
   key: string;
   name: string;
   unit?: string | undefined;

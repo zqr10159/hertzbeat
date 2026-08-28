@@ -35,7 +35,7 @@ import {
   parseExplorePage
 } from './explore-wire-schema';
 
-const traceRowShape = {
+const traceSummaryShape = {
   traceId: z.string().min(1),
   rootSpanId: nullableStringSchema,
   serviceName: nullableStringSchema,
@@ -47,10 +47,54 @@ const traceRowShape = {
   errorSpanCount: nonNegativeIntegerSchema,
   resourceAttributes: nullableStringMapSchema
 };
-const traceRowSchema: z.ZodType<TraceRow> = z.object(traceRowShape);
+const traceServiceStatSchema = z
+  .object({
+    spanCount: nonNegativeIntegerSchema.positive(),
+    errorCount: nonNegativeIntegerSchema
+  })
+  .refine(stat => stat.errorCount <= stat.spanCount);
+const traceServiceStatsSchema = z
+  .record(
+    z.string().refine(serviceName => serviceName.trim().length > 0),
+    traceServiceStatSchema
+  )
+  .refine(stats => Object.keys(stats).length > 0);
+const traceRowShape = {
+  ...traceSummaryShape,
+  spanCount: nonNegativeIntegerSchema.positive().nullable(),
+  serviceStats: traceServiceStatsSchema.nullable()
+};
+const traceRowSchema: z.ZodType<TraceRow> = z.object(traceRowShape).superRefine((row, context) => {
+  if ((row.spanCount === null) !== (row.serviceStats === null)) {
+    context.addIssue({ code: 'custom', message: 'Trace completeness evidence must be jointly available' });
+    return;
+  }
+  if (row.spanCount === null || row.serviceStats === null) return;
+  const stats = Object.values(row.serviceStats);
+  const spanTotal = stats.reduce((sum, stat) => sum + stat.spanCount, 0);
+  const errorTotal = stats.reduce((sum, stat) => sum + stat.errorCount, 0);
+  if (
+    !Number.isSafeInteger(spanTotal) ||
+    !Number.isSafeInteger(errorTotal) ||
+    spanTotal !== row.spanCount ||
+    errorTotal !== row.errorSpanCount
+  ) {
+    context.addIssue({ code: 'custom', message: 'Trace service statistics do not match trace totals' });
+  }
+});
+
+const OTLP_UINT64_MAX = '18446744073709551615';
+const nullableNonNegativeDecimalSchema = z
+  .string()
+  .regex(/^(0|[1-9]\d*)$/)
+  .refine(
+    value =>
+      value.length < OTLP_UINT64_MAX.length || (value.length === OTLP_UINT64_MAX.length && value <= OTLP_UINT64_MAX)
+  )
+  .nullable();
 
 const traceEventSchema = z.object({
-  timeUnixNano: nullableJavaLongSchema,
+  timeUnixNano: nullableNonNegativeDecimalSchema,
   name: nullableStringSchema,
   attributes: nullableJsonMapSchema,
   droppedAttributesCount: nullableNonNegativeIntegerSchema
@@ -95,7 +139,7 @@ const traceSpanSchema: z.ZodType<TraceSpan> = z.object({
 });
 
 const traceDetailSchema: z.ZodType<TraceDetail> = z.object({
-  ...traceRowShape,
+  ...traceSummaryShape,
   spans: z.array(traceSpanSchema).nullable()
 });
 

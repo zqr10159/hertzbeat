@@ -39,6 +39,7 @@ import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +101,113 @@ class EntityTraceQueryServiceImplTest {
 
         verify(traceQueryRepository).queryTraceListRows(
                 100L, 200L, false, null, null, null, "team-a", Map.of(), false, 0, 20);
+    }
+
+    @Test
+    void recentTraceReadDoesNotInventSpanCountWhenStorageOmitsIt() {
+        Map<String, Object> row = traceListRow(
+                "trace-incomplete", "span-root", "GET /checkout", "checkout", null,
+                "STATUS_CODE_OK", 150L, 1_000_000L, 0, 1, 1L, Map.of());
+        row.remove("span_count");
+        when(traceQueryRepository.supportsTraceListRows()).thenReturn(true);
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(List.of(row));
+
+        var page = entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20);
+
+        assertNull(page.getContent().getFirst().getSpanCount());
+    }
+
+    @Test
+    void recentTraceReadFailsClosedWhenPerServiceRowsExceedTheServerBudget() {
+        Map<String, Object> row = traceListRow(
+                "trace-budget", "span-root", "GET /checkout", "checkout", null,
+                "STATUS_CODE_OK", 150L, 1_000_000L, 0, 1, 1L, Map.of());
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (int index = 0; index <= TraceQueryRepository.MAX_TRACE_LIST_SERVICE_ROWS; index++) {
+            rows.add(row);
+        }
+        when(traceQueryRepository.supportsTraceListRows()).thenReturn(true);
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(rows);
+
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20));
+    }
+
+    @Test
+    void recentTraceReadFailsClosedForMissingTraceIdentityOrUnrepresentableErrorCount() {
+        Map<String, Object> missingIdentity = traceListRow(
+                "trace-invalid", "span-root", "GET /checkout", "checkout", null,
+                "STATUS_CODE_ERROR", 150L, 1_000_000L, 1, 1, 1L, Map.of());
+        missingIdentity.put("trace_id", null);
+        when(traceQueryRepository.supportsTraceListRows()).thenReturn(true);
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(List.of(missingIdentity));
+
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20));
+
+        Map<String, Object> oversizedErrorCount = traceListRow(
+                "trace-invalid", "span-root", "GET /checkout", "checkout", null,
+                "STATUS_CODE_ERROR", 150L, 1_000_000L, 1, 1, 1L, Map.of());
+        long count = (long) Integer.MAX_VALUE + 1L;
+        oversizedErrorCount.put("error_span_count", count);
+        oversizedErrorCount.put("span_count", count);
+        oversizedErrorCount.put("service_span_count", count);
+        oversizedErrorCount.put("service_error_span_count", count);
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(List.of(oversizedErrorCount));
+
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20));
+    }
+
+    @Test
+    void recentTraceReadFailsClosedForInvalidOrInconsistentTotalCountEvidence() {
+        Map<String, Object> first = traceListRow(
+                "trace-1", "span-root-1", "GET /checkout", "checkout", null,
+                "STATUS_CODE_OK", 150L, 1_000_000L, 0, 1, 2L, Map.of());
+        Map<String, Object> second = traceListRow(
+                "trace-2", "span-root-2", "GET /payment", "payment", null,
+                "STATUS_CODE_OK", 140L, 1_000_000L, 0, 1, 2L, Map.of());
+        first.put("service_row_count", 2L);
+        second.put("service_row_count", 2L);
+        when(traceQueryRepository.supportsTraceListRows()).thenReturn(true);
+
+        second.put("total_count", 3L);
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(List.of(first, second));
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20));
+
+        second.remove("total_count");
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(List.of(first, second));
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20));
+
+        first.put("total_count", -1L);
+        second.put("total_count", -1L);
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(List.of(first, second));
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20));
+
+        first.put("total_count", 1L);
+        second.put("total_count", 1L);
+        when(traceQueryRepository.queryTraceListRows(
+                100L, 200L, false, null, null, null, "default", Map.of(), false, 0, 20))
+                .thenReturn(List.of(first, second));
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryRecentTraces("default", 100L, 200L, 20));
     }
 
     @Test
@@ -482,6 +590,8 @@ class EntityTraceQueryServiceImplTest {
         assertEquals("io.opentelemetry.auto.servlet", detail.getSpans().getFirst().getScopeName());
         assertEquals("2.5.0", detail.getSpans().getFirst().getScopeVersion());
         assertEquals(1, detail.getSpans().getFirst().getEvents().size());
+        assertEquals("1710000000000000123",
+                detail.getSpans().getFirst().getEvents().getFirst().getTimeUnixNano());
         assertEquals("exception", detail.getSpans().getFirst().getEvents().getFirst().getName());
         assertEquals("java.lang.IllegalStateException",
                 detail.getSpans().getFirst().getEvents().getFirst().getAttributes().get("exception.type"));
@@ -665,6 +775,8 @@ class EntityTraceQueryServiceImplTest {
         assertEquals("recommendation", page.getContent().getFirst().getServiceName());
         assertEquals("/oteldemo.RecommendationService/ListRecommendations",
                 page.getContent().getFirst().getRootSpanName());
+        assertNull(page.getContent().getFirst().getSpanCount());
+        assertNull(page.getContent().getFirst().getServiceStats());
         verify(traceQueryRepository).queryRecentTraceRows(
                 eq(1500), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
                 eq("recommendation"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
@@ -766,21 +878,38 @@ class EntityTraceQueryServiceImplTest {
                 eq(start), eq(end), eq(true), eq("checkout-service"), eq("commerce"),
                 eq("prod"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(), eq("team-a"), org.mockito.ArgumentMatchers.<Map<String, Set<String>>>any(),
-                eq(true), eq(40), eq(20))).thenReturn(List.of(traceListRow(
-                "trace-page-3",
-                "span-root",
-                "/checkout",
-                "checkout-service",
-                "commerce",
-                "STATUS_CODE_ERROR",
-                now - 30_000,
-                8_000_000L,
-                2,
-                41L,
-                Map.of("service.name", "checkout-service",
-                        "service.namespace", "commerce",
-                        "deployment.environment.name", "prod",
-                        "hertzbeat.workspace_id", "team-a"))));
+                eq(true), eq(40), eq(20))).thenAnswer(ignored -> {
+                    Map<String, Object> rootServiceRow = traceListRow(
+                        "trace-page-3",
+                        "span-root",
+                        "/checkout",
+                        "checkout-service",
+                        "commerce",
+                        "STATUS_CODE_ERROR",
+                        now - 30_000,
+                        8_000_000L,
+                        2,
+                        5,
+                        41L,
+                        Map.of("service.name", "checkout-service",
+                                "service.namespace", "commerce",
+                                "deployment.environment.name", "prod",
+                                "hertzbeat.workspace_id", "team-a"));
+                    rootServiceRow.put("service_span_count", 3L);
+                    rootServiceRow.put("service_error_span_count", 1L);
+                    rootServiceRow.put("service_row_count", 2L);
+                    Map<String, Object> paymentServiceRow = new HashMap<>(rootServiceRow);
+                    paymentServiceRow.put("root_span_id", null);
+                    paymentServiceRow.put("root_span_name", null);
+                    paymentServiceRow.put("service_name", null);
+                    paymentServiceRow.put("service_namespace", null);
+                    paymentServiceRow.put("timestamp", null);
+                    paymentServiceRow.put("duration_nano", null);
+                    paymentServiceRow.put("stats_service_name", "payment-service");
+                    paymentServiceRow.put("service_span_count", 2L);
+                    paymentServiceRow.put("service_error_span_count", 1L);
+                    return List.of(rootServiceRow, paymentServiceRow);
+                });
 
         var page = entityTraceQueryService.queryTraceList(1L, start, end, null,
                 true, "checkout-service", "commerce", "prod", 2, 20, true);
@@ -792,6 +921,28 @@ class EntityTraceQueryServiceImplTest {
         assertEquals("commerce", page.getContent().getFirst().getServiceNamespace());
         assertEquals("error", page.getContent().getFirst().getStatus());
         assertEquals(2, page.getContent().getFirst().getErrorSpanCount());
+        assertEquals(5L, page.getContent().getFirst().getSpanCount());
+        assertEquals(3L, page.getContent().getFirst().getServiceStats()
+                .get("checkout-service").getSpanCount());
+        assertEquals(1L, page.getContent().getFirst().getServiceStats()
+                .get("checkout-service").getErrorCount());
+        assertEquals(2L, page.getContent().getFirst().getServiceStats()
+                .get("payment-service").getSpanCount());
+        assertEquals(1L, page.getContent().getFirst().getServiceStats()
+                .get("payment-service").getErrorCount());
+        Map<String, Object> insufficientTotal = traceListRow(
+                "trace-page-3", "span-root", "/checkout", "checkout-service", "commerce",
+                "STATUS_CODE_ERROR", now - 30_000, 8_000_000L, 2, 5, 40L,
+                Map.of("service.name", "checkout-service", "service.namespace", "commerce"));
+        when(traceQueryRepository.queryTraceListRows(
+                eq(start), eq(end), eq(true), eq("checkout-service"), eq("commerce"),
+                eq("prod"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(), eq("team-a"),
+                org.mockito.ArgumentMatchers.<Map<String, Set<String>>>any(), eq(true), eq(40), eq(20)))
+                .thenReturn(List.of(insufficientTotal));
+        assertThrows(TelemetryStorageUnavailableException.class,
+                () -> entityTraceQueryService.queryTraceList(1L, start, end, null,
+                        true, "checkout-service", "commerce", "prod", 2, 20, true));
         verify(traceQueryRepository, never()).queryRecentTraceRows(
                 eq(1500), eq(start), eq(end), eq("checkout-service"), eq("commerce"),
                 eq("prod"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
@@ -1041,6 +1192,7 @@ class EntityTraceQueryServiceImplTest {
                 now - 30_000,
                 8_000_000L,
                 0,
+                1,
                 1L,
                 Map.of("service.name", "checkout-service",
                         "service.namespace", "commerce",
@@ -1115,6 +1267,7 @@ class EntityTraceQueryServiceImplTest {
                         now - 30_000,
                         8_000_000L,
                         0,
+                        1,
                         50_000L,
                         Map.of("service.name", "checkout-service"))));
 
@@ -1153,6 +1306,7 @@ class EntityTraceQueryServiceImplTest {
                         now - 30_000,
                         8_000_000L,
                         0,
+                        1,
                         1L,
                         Map.of("service.name", "checkout-service"))));
 
@@ -1339,6 +1493,7 @@ class EntityTraceQueryServiceImplTest {
                 now - 30_000,
                 250_000_000L,
                 0,
+                1,
                 1L,
                 Map.of("service.name", "checkout-service",
                         "deployment.environment.name", "prod",
@@ -1385,6 +1540,7 @@ class EntityTraceQueryServiceImplTest {
                 now - 30_000,
                 250_000_000L,
                 0,
+                1,
                 1L,
                 Map.of("service.name", "checkout-service",
                         "deployment.environment.name", "prod",
@@ -1424,6 +1580,7 @@ class EntityTraceQueryServiceImplTest {
                 now - 30_000,
                 250_000_000L,
                 0,
+                1,
                 1L,
                 Map.of("service.name", "checkout-service",
                         "service.version", "1.2.3",
@@ -1789,13 +1946,20 @@ class EntityTraceQueryServiceImplTest {
     private Map<String, Object> traceListRow(String traceId, String rootSpanId, String rootSpanName,
                                              String serviceName, String serviceNamespace, String status,
                                              long timestampMillis, long durationNanos, int errorSpanCount,
-                                             long totalCount, Map<String, String> resourceAttributes) {
+                                             int spanCount, long totalCount,
+                                             Map<String, String> resourceAttributes) {
         Map<String, Object> row = traceRow(traceId, rootSpanId, null, rootSpanName, serviceName, status,
                 timestampMillis, durationNanos, resourceAttributes);
         row.put("root_span_id", rootSpanId);
         row.put("root_span_name", rootSpanName);
         row.put("service_namespace", serviceNamespace);
         row.put("error_span_count", errorSpanCount);
+        row.put("span_count", spanCount);
+        row.put("root_span_count", 1L);
+        row.put("stats_service_name", serviceName);
+        row.put("service_span_count", (long) spanCount);
+        row.put("service_error_span_count", (long) errorSpanCount);
+        row.put("service_row_count", 1L);
         row.put("total_count", totalCount);
         return row;
     }

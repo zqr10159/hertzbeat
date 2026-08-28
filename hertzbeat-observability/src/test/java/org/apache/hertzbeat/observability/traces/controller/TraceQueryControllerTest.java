@@ -30,8 +30,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 import java.util.Map;
+import org.apache.hertzbeat.common.observability.dto.trace.TraceDetailDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceListItemDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceOverviewDto;
+import org.apache.hertzbeat.common.observability.dto.trace.TraceSpanEventDto;
+import org.apache.hertzbeat.common.observability.dto.trace.TraceSpanNodeDto;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext;
 import org.apache.hertzbeat.common.support.exception.TelemetryStorageUnavailableException;
 import org.apache.hertzbeat.observability.traces.service.EntityTraceQueryService;
@@ -101,6 +104,8 @@ class TraceQueryControllerTest {
                 "STATUS_CODE_OK",
                 1_710_000_000_000L,
                 0,
+                4L,
+                Map.of("checkout", new org.apache.hertzbeat.common.observability.dto.trace.TraceServiceStatsDto(4, 0)),
                 Map.of("service.name", "checkout")
         );
         when(entityTraceQueryService.queryTraceList(
@@ -131,7 +136,8 @@ class TraceQueryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.content[0].traceId").value("trace-1"))
-                .andExpect(jsonPath("$.data.content[0].serviceName").value("checkout"));
+                .andExpect(jsonPath("$.data.content[0].serviceName").value("checkout"))
+                .andExpect(jsonPath("$.data.content[0].spanCount").value(4));
 
         verify(entityTraceQueryService).queryTraceList(
                 "team-a", 1L, 100L, 200L, "trace-1", true, "checkout", "commerce", "prod",
@@ -151,6 +157,8 @@ class TraceQueryControllerTest {
                 "STATUS_CODE_OK",
                 1_710_000_000_000L,
                 0,
+                1L,
+                Map.of("checkout", new org.apache.hertzbeat.common.observability.dto.trace.TraceServiceStatsDto(1, 0)),
                 Map.of("service.name", "checkout")
         );
         when(entityTraceQueryService.queryTraceList(
@@ -217,6 +225,13 @@ class TraceQueryControllerTest {
                 "http.route=\"/checkout\"",
                 10L,
                 500L);
+        TraceSpanNodeDto span = new TraceSpanNodeDto();
+        span.setEvents(List.of(new TraceSpanEventDto(
+                "1710000000000000123", "exception", Map.of(), 0)));
+        TraceDetailDto detail = new TraceDetailDto();
+        detail.setTraceId("trace-7");
+        detail.setSpans(List.of(span));
+        when(entityTraceQueryService.getTraceDetail("team-a", query)).thenReturn(detail);
 
         mockMvc.perform(get("/api/traces/trace-7")
                         .param("entityId", "7")
@@ -231,7 +246,9 @@ class TraceQueryControllerTest {
                         .param("endpoint", "/checkout")
                         .param("minDurationMs", "10")
                         .param("maxDurationMs", "500"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.spans[0].events[0].timeUnixNano")
+                        .value("1710000000000000123"));
 
         verify(entityTraceQueryService).getTraceDetail("team-a", query);
     }

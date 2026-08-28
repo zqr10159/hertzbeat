@@ -479,6 +479,8 @@ function traceRow(traceId: string) {
     status: null,
     startTime: null,
     errorSpanCount: 0,
+    spanCount: 1,
+    serviceStats: { checkout: { spanCount: 1, errorCount: 0 } },
     resourceAttributes: null
   };
 }

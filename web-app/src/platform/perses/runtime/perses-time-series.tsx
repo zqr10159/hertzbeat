@@ -9,6 +9,7 @@ import { Component, lazy, Suspense, type ReactNode } from 'react';
 
 import type { ExactTimeWindow } from '@/shared/query-context';
 
+import { loadPersesRuntime } from './perses-runtime-registry';
 import type { HertzBeatTimeSeries } from './perses-time-series-model';
 import styles from './perses-time-series.module.css';
 
@@ -19,7 +20,7 @@ type PersesRuntimeProps = {
 };
 
 async function loadPersesTimeSeriesRuntime() {
-  const module = await import('./perses-time-series-runtime');
+  const module = await loadPersesRuntime('time-series');
   return { default: module.PersesTimeSeriesRuntime };
 }
 

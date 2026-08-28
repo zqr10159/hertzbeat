@@ -170,6 +170,42 @@ describe('HertzBeat Perses query client', () => {
     expect(traces).toMatchObject({ state: 'ready', truncated: false, data: { rows: [{ traceId: 'trace-1' }] } });
   });
 
+  it.each([{ spanCount: -1 }, { spanCount: 1.5 }, { spanCount: undefined }])(
+    'rejects trace table row with invalid or missing span count',
+    async override => {
+      request.mockResolvedValue({
+        content: [{ ...traceRow(), ...override }],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 2
+      });
+
+      await expect(
+        queryHertzBeatData({ signal: 'traces', queryKind: 'table', timeWindow, limit: 2 })
+      ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
+    }
+  );
+
+  it.each([
+    { serviceStats: undefined },
+    { serviceStats: { checkout: { spanCount: 0, errorCount: 0 } } },
+    { serviceStats: { checkout: { spanCount: 2, errorCount: 3 } } },
+    { serviceStats: { checkout: { spanCount: 1, errorCount: 0 } }, spanCount: 2 }
+  ])('rejects trace table row with missing, invalid, or incomplete service statistics', async override => {
+    request.mockResolvedValue({
+      content: [{ ...traceRow(), ...override }],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 2
+    });
+
+    await expect(
+      queryHertzBeatData({ signal: 'traces', queryKind: 'table', timeWindow, limit: 2 })
+    ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
+  });
+
   it('rejects an empty first page when log or trace totals claim missing rows', async () => {
     request
       .mockResolvedValueOnce({ content: [], totalElements: 1, pageIndex: 0, pageSize: 2 })
@@ -183,7 +219,16 @@ describe('HertzBeat Perses query client', () => {
   });
 
   it('loads one trace gantt primitive without exposing a free-form endpoint', async () => {
-    request.mockResolvedValue(traceDetail());
+    const detail = traceDetail();
+    detail.spans[1]!.events = [
+      {
+        timeUnixNano: '18446744073709551615',
+        name: 'exception',
+        attributes: {},
+        droppedAttributesCount: 0
+      }
+    ];
+    request.mockResolvedValue(detail);
 
     const result = await queryHertzBeatData({
       signal: 'traces',
@@ -200,8 +245,35 @@ describe('HertzBeat Perses query client', () => {
     expect(result).toMatchObject({
       state: 'ready',
       truncated: false,
-      data: { traceId: 'trace-1', spans: [{ spanId: 'span-1' }, { spanId: 'span-2' }] }
+      data: {
+        traceId: 'trace-1',
+        spans: [{ spanId: 'span-1' }, { spanId: 'span-2', events: [{ timeUnixNano: '18446744073709551615' }] }]
+      }
     });
+  });
+
+  it('rejects numeric trace event nanoseconds after the precise string wire cutover', async () => {
+    const detail = traceDetail();
+    detail.spans[0]!.events = [
+      { timeUnixNano: 1_750_000_001_005_000_000, name: 'exception', attributes: {}, droppedAttributesCount: 0 }
+    ];
+    request.mockResolvedValue(detail);
+
+    await expect(
+      queryHertzBeatData({ signal: 'traces', queryKind: 'gantt', timeWindow, traceId: 'trace-1' })
+    ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
+  });
+
+  it('rejects trace event nanoseconds above the OTLP uint64 maximum', async () => {
+    const detail = traceDetail();
+    detail.spans[0]!.events = [
+      { timeUnixNano: '18446744073709551616', name: 'exception', attributes: {}, droppedAttributesCount: 0 }
+    ];
+    request.mockResolvedValue(detail);
+
+    await expect(
+      queryHertzBeatData({ signal: 'traces', queryKind: 'gantt', timeWindow, traceId: 'trace-1' })
+    ).resolves.toMatchObject({ state: 'error', error: { kind: 'contract_error' } });
   });
 
   it('rejects unbounded or transport-shaped input before issuing a request', async () => {
@@ -215,6 +287,12 @@ describe('HertzBeat Perses query client', () => {
         limit: HERTZBEAT_QUERY_LIMITS.tableRows + 1,
         url: 'https://greptime.invalid',
         sql: 'select * from secrets'
+      },
+      {
+        signal: 'traces',
+        queryKind: 'table',
+        timeWindow,
+        traceId: 'trace-1'
       }
     ];
 
@@ -429,6 +507,11 @@ function traceRow() {
     status: 'ERROR',
     startTime: 1_000,
     errorSpanCount: 1,
+    spanCount: 2,
+    serviceStats: {
+      checkout: { spanCount: 1, errorCount: 0 },
+      payment: { spanCount: 1, errorCount: 1 }
+    },
     resourceAttributes: { 'service.name': 'checkout' }
   };
 }
@@ -458,7 +541,7 @@ function traceSpan(spanId: string, parentSpanId: string | null, highlighted: boo
     highlighted,
     resourceAttributes: {},
     spanAttributes: {},
-    events: [],
+    events: [] as unknown[],
     links: [],
     codeNavigationHint: null
   };

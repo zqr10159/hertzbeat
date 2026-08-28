@@ -93,7 +93,6 @@ const traceTableQuerySchema = z
     signal: z.literal('traces'),
     queryKind: z.literal('table'),
     ...baseQueryShape,
-    traceId: identifier.optional(),
     operationName: boundedText.optional(),
     errorOnly: z.boolean().optional(),
     minDurationMs: z.number().int().nonnegative().safe().optional(),
@@ -135,8 +134,7 @@ export type HertzBeatLogTableQuery = z.infer<typeof logTableQuerySchema>;
 export type HertzBeatTraceTableQuery = z.infer<typeof traceTableQuerySchema>;
 export type HertzBeatTraceGanttQuery = z.infer<typeof traceGanttQuerySchema>;
 
-export type HertzBeatQueryFailureKind =
-  'invalid_request' | 'permission' | 'overloaded' | 'unavailable' | 'contract_error';
+type HertzBeatQueryFailureKind = 'invalid_request' | 'permission' | 'overloaded' | 'unavailable' | 'contract_error';
 
 export type HertzBeatQueryFailure = {
   kind: HertzBeatQueryFailureKind;

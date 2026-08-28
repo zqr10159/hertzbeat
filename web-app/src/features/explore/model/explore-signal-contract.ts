@@ -21,7 +21,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
 export const LIVE_LOG_RETENTION_LIMIT = 500;
 export type ExplorePageResult<T> = PagedCollection<T>;
 
-export type TraceRow = {
+type TraceSummary = {
   traceId: string;
   rootSpanId: string | null;
   serviceName: string | null;
@@ -33,8 +33,12 @@ export type TraceRow = {
   errorSpanCount: number;
   resourceAttributes: Record<string, string> | null;
 };
+export type TraceRow = TraceSummary & {
+  spanCount: number | null;
+  serviceStats: Record<string, { spanCount: number; errorCount: number }> | null;
+};
 export type TraceEvent = {
-  timeUnixNano: number | null;
+  timeUnixNano: string | null;
   name: string | null;
   attributes: Record<string, JsonValue> | null;
   droppedAttributesCount: number | null;
@@ -74,7 +78,7 @@ export type TraceSpan = {
   links: TraceLink[] | null;
   codeNavigationHint: CodeNavigationHint | null;
 };
-export type TraceDetail = TraceRow & { spans: TraceSpan[] | null };
+export type TraceDetail = TraceSummary & { spans: TraceSpan[] | null };
 
 export type LogRow = {
   timeUnixNano: number | null;

@@ -8,7 +8,10 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const runtimeContract = vi.hoisted(() => ({ datasourceApi: undefined as Record<string, unknown> | undefined }));
+const runtimeContract = vi.hoisted<{
+  datasourceApi: Record<string, unknown> | undefined;
+  pluginLoader: unknown;
+}>(() => ({ datasourceApi: undefined, pluginLoader: undefined }));
 
 vi.mock('@mui/material', () => ({
   ThemeProvider: ({ children }: { children?: import('react').ReactNode }) => children
@@ -35,19 +38,25 @@ vi.mock('@perses-dev/dashboards', () => ({
 }));
 vi.mock('@perses-dev/plugin-system', () => ({
   DataQueriesProvider: ({ children }: { children?: import('react').ReactNode }) => children,
-  PluginRegistry: ({ children }: { children?: import('react').ReactNode }) => children,
+  PluginRegistry: ({ children, pluginLoader }: { children?: import('react').ReactNode; pluginLoader: unknown }) => {
+    runtimeContract.pluginLoader = pluginLoader;
+    return children;
+  },
+  RouterProvider: ({ children }: { children?: import('react').ReactNode }) => children,
   TimeRangeProvider: ({ children }: { children?: import('react').ReactNode }) => children
 }));
 vi.mock('@/core/runtime-theme-context', () => ({ useRuntimeTheme: () => ({ theme: 'light' }) }));
 vi.mock('../plugins/hertzbeat-snapshot-query', () => ({ HERTZBEAT_SNAPSHOT_QUERY_KIND: 'HertzBeatSnapshotQuery' }));
-vi.mock('../plugins/perses-plugin-loader', () => ({ hertzBeatPersesPluginLoader: {} }));
+vi.mock('../plugins/perses-plugin-loader', () => ({ hertzBeatPersesPluginLoader: { kind: 'time-series-loader' } }));
 
+import { hertzBeatPersesPluginLoader } from '../plugins/perses-plugin-loader';
 import { PersesTimeSeriesRuntime } from './perses-time-series-runtime';
 
 describe('PersesTimeSeriesRuntime', () => {
   afterEach(() => {
     cleanup();
     runtimeContract.datasourceApi = undefined;
+    runtimeContract.pluginLoader = undefined;
   });
 
   it('marks the actual runtime root ready', () => {
@@ -65,5 +74,6 @@ describe('PersesTimeSeriesRuntime', () => {
     expect(runtime).toContainElement(screen.getByTestId('perses-panel'));
     expect(runtimeContract.datasourceApi).toBeDefined();
     expect(runtimeContract.datasourceApi).not.toHaveProperty('buildProxyUrl');
+    expect(runtimeContract.pluginLoader).toBe(hertzBeatPersesPluginLoader);
   });
 });

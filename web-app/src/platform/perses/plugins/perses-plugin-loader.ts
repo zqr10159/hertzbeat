@@ -11,9 +11,14 @@ import { dynamicImportPluginLoader, getPluginModuleCompoundKey } from '@perses-d
 // published ESM entry until the upstream package corrects that export.
 import * as timeSeriesChartPlugin from '@perses-dev/timeseries-chart-plugin/lib/index.js';
 
-import { HertzBeatSnapshotTimeSeriesQuery, hertzBeatSnapshotPluginModule } from './hertzbeat-snapshot-query';
+import {
+  HertzBeatSnapshotLogQuery,
+  HertzBeatSnapshotTimeSeriesQuery,
+  HertzBeatSnapshotTraceQuery,
+  hertzBeatSnapshotPluginModule
+} from './hertzbeat-snapshot-query';
 
-function withCompoundPluginKeys(loader: PluginLoader): PluginLoader {
+export function withCompoundPluginKeys(loader: PluginLoader): PluginLoader {
   return {
     getInstalledPlugins: () => loader.getInstalledPlugins(),
     importPluginModule: async resource => {
@@ -38,13 +43,17 @@ function withCompoundPluginKeys(loader: PluginLoader): PluginLoader {
   };
 }
 
-const snapshotPlugin = { HertzBeatSnapshotTimeSeriesQuery };
+export const hertzBeatSnapshotPlugin = {
+  HertzBeatSnapshotLogQuery,
+  HertzBeatSnapshotTimeSeriesQuery,
+  HertzBeatSnapshotTraceQuery
+};
 
 export const hertzBeatPersesPluginLoader = withCompoundPluginKeys(
   dynamicImportPluginLoader([
     {
       resource: hertzBeatSnapshotPluginModule,
-      importPlugin: () => Promise.resolve(snapshotPlugin)
+      importPlugin: () => Promise.resolve(hertzBeatSnapshotPlugin)
     },
     {
       resource: timeSeriesChartPlugin.getPluginModule(),

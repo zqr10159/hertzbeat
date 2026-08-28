@@ -17,24 +17,19 @@
 
 package org.apache.hertzbeat.common.observability.dto.trace;
 
-import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Trace span event payload.
+ * Complete per-service span statistics for a trace list item.
  */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class TraceSpanEventDto {
+public class TraceServiceStatsDto {
 
-    private String timeUnixNano;
+    private long spanCount;
 
-    private String name;
-
-    private Map<String, Object> attributes;
-
-    private Integer droppedAttributesCount;
+    private long errorCount;
 }

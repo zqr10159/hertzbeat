@@ -14,7 +14,13 @@ import type {
   GlobalDatasourceResource
 } from '@perses-dev/client';
 import { DatasourceStoreProvider, Panel, VariableProvider } from '@perses-dev/dashboards';
-import { DataQueriesProvider, PluginRegistry, TimeRangeProvider } from '@perses-dev/plugin-system';
+import {
+  DataQueriesProvider,
+  PluginRegistry,
+  RouterProvider,
+  TimeRangeProvider,
+  type PluginLoader
+} from '@perses-dev/plugin-system';
 import type { DurationString, QueryDefinition, TimeRangeValue } from '@perses-dev/spec';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -63,7 +69,15 @@ export function PersesTimeSeriesRuntime({
   );
 }
 
-function PersesRuntimeProviders({ children, timeWindow }: { children: ReactNode; timeWindow: ExactTimeWindow }) {
+export function PersesRuntimeProviders({
+  children,
+  timeWindow,
+  pluginLoader = hertzBeatPersesPluginLoader
+}: {
+  children: ReactNode;
+  timeWindow: ExactTimeWindow;
+  pluginLoader?: PluginLoader | undefined;
+}) {
   const { theme } = useRuntimeTheme();
   const [persesTimeRange, setPersesTimeRange] = useState<TimeRangeValue>(() => toTimeRange(timeWindow));
   const [refreshInterval, setRefreshInterval] = useState<DurationString>('0s');
@@ -75,23 +89,25 @@ function PersesRuntimeProviders({ children, timeWindow }: { children: ReactNode;
       <ChartsProvider chartsTheme={chartsTheme}>
         <SnackbarProvider anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} variant="default" content="">
           <PluginRegistry
-            pluginLoader={hertzBeatPersesPluginLoader}
+            pluginLoader={pluginLoader}
             defaultPluginKinds={{ Panel: 'TimeSeriesChart', TimeSeriesQuery: HERTZBEAT_SNAPSHOT_QUERY_KIND }}
           >
-            <QueryClientProvider client={queryClient}>
-              <TimeRangeProvider
-                timeRange={persesTimeRange}
-                refreshInterval={refreshInterval}
-                setTimeRange={setPersesTimeRange}
-                setRefreshInterval={setRefreshInterval}
-              >
-                <VariableProvider>
-                  <DatasourceStoreProvider dashboardResource={dashboard} datasourceApi={datasourceApi}>
-                    {children}
-                  </DatasourceStoreProvider>
-                </VariableProvider>
-              </TimeRangeProvider>
-            </QueryClientProvider>
+            <RouterProvider RouterComponent={undefined} navigate={undefined}>
+              <QueryClientProvider client={queryClient}>
+                <TimeRangeProvider
+                  timeRange={persesTimeRange}
+                  refreshInterval={refreshInterval}
+                  setTimeRange={setPersesTimeRange}
+                  setRefreshInterval={setRefreshInterval}
+                >
+                  <VariableProvider>
+                    <DatasourceStoreProvider dashboardResource={dashboard} datasourceApi={datasourceApi}>
+                      {children}
+                    </DatasourceStoreProvider>
+                  </VariableProvider>
+                </TimeRangeProvider>
+              </QueryClientProvider>
+            </RouterProvider>
           </PluginRegistry>
         </SnackbarProvider>
       </ChartsProvider>

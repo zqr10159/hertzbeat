@@ -257,15 +257,28 @@ class GreptimeTraceQueryRepositoryTest {
         assertNotNull(rows);
         assertEquals(1, rows.size());
         String sql = captureMainSqlAfterDynamicDiscovery();
-        assertTrue(sql.contains("COUNT(*) OVER () AS total_count"));
-        assertTrue(sql.contains("FROM (SELECT trace_id"));
-        assertTrue(sql.contains("SUM(CASE WHEN span_status_code IN ('STATUS_CODE_ERROR', 'ERROR') "
-                + "THEN 1 ELSE 0 END) AS error_span_count"));
-        assertTrue(sql.contains("MAX(\"resource_attributes.hertzbeat.workspace_id\") "
+        assertTrue(sql.contains("WITH candidate_traces AS (SELECT trace_id"));
+        assertTrue(sql.contains("paged_traces AS (SELECT trace_id, match_timestamp, "
+                + "COUNT(*) OVER () AS total_count"));
+        assertTrue(sql.contains("JOIN hzb_traces stats ON stats.trace_id = page.trace_id"));
+        assertTrue(sql.contains("stats.service_name AS stats_service_name"));
+        assertTrue(sql.contains("COUNT(*) AS service_span_count"));
+        assertTrue(sql.contains("AS service_error_span_count"));
+        assertTrue(sql.contains("SUM(COUNT(*)) OVER (PARTITION BY page.trace_id) AS span_count"));
+        assertTrue(sql.contains("AS root_span_count"));
+        assertTrue(sql.contains("COUNT(*) OVER () AS service_row_count"));
+        assertTrue(sql.contains("CASE WHEN (stats.parent_span_id IS NULL OR stats.parent_span_id = '') "
+                + "THEN stats.span_id ELSE NULL END"));
+        assertFalse(sql.contains("MAX(span_id) AS root_span_id"));
+        assertTrue(sql.contains("SUM(SUM(CASE WHEN stats.span_status_code IN "
+                + "('STATUS_CODE_ERROR', 'ERROR') THEN 1 ELSE 0 END)) "
+                + "OVER (PARTITION BY page.trace_id) AS error_span_count"));
+        assertTrue(sql.contains("MAX(CASE WHEN (stats.parent_span_id IS NULL OR stats.parent_span_id = '') "
+                + "THEN stats.\"resource_attributes.hertzbeat.workspace_id\" ELSE NULL END) "
                 + "AS \"resource_attributes.hertzbeat.workspace_id\""));
-        assertTrue(sql.contains("MAX(\"resource_attributes.hertzbeat.entity_id\") "
+        assertTrue(sql.contains("THEN stats.\"resource_attributes.hertzbeat.entity_id\" ELSE NULL END) "
                 + "AS \"resource_attributes.hertzbeat.entity_id\""));
-        assertTrue(sql.contains("MAX(\"resource_attributes.hertzbeat.entity_type\") "
+        assertTrue(sql.contains("THEN stats.\"resource_attributes.hertzbeat.entity_type\" ELSE NULL END) "
                 + "AS \"resource_attributes.hertzbeat.entity_type\""));
         assertTrue(sql.contains("FROM hzb_traces WHERE timestamp >= to_timestamp_millis(1710000000000)"));
         assertTrue(sql.contains("timestamp <= to_timestamp_millis(1710003600000)"));
@@ -276,11 +289,14 @@ class GreptimeTraceQueryRepositoryTest {
         assertTrue(sql.contains("\"resource_attributes.service.namespace\" = 'commerce'"));
         assertTrue(sql.contains("\"resource_attributes.deployment.environment.name\" = 'prod'"));
         assertCanonicalWorkspaceFilter(sql, "team-a");
+        assertTrue(sql.contains("stats.\"resource_attributes.hertzbeat.workspace_id\" = 'team-a'"));
         assertTrue(sql.contains("(\"resource_attributes.host.name\" = 'checkout-1' "
                 + "OR \"resource_attributes.host.name\" = 'checkout-2')"));
         assertTrue(sql.contains("LOWER(service_name) NOT IN ('hertzbeat', 'apache-hertzbeat')"));
+        assertTrue(sql.contains("trace_id IS NOT NULL AND trace_id != ''"));
         assertTrue(sql.contains("GROUP BY trace_id"));
-        assertTrue(sql.endsWith("ORDER BY timestamp DESC LIMIT 20 OFFSET 40"));
+        assertTrue(sql.contains("LIMIT 20 OFFSET 40"));
+        assertTrue(sql.endsWith("ORDER BY page.match_timestamp DESC, page.trace_id, stats.service_name LIMIT 4097"));
     }
 
     @Test

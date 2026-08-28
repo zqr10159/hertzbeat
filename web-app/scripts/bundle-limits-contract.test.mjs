@@ -27,6 +27,7 @@ test('vendor chunks stay within the application chunk warning boundary', () => {
   const chunkWarningBytes = bundleLimits.chunkWarningKilobytes * 1024;
   const approvedBaseJavaScriptCeiling = 7_100_000;
   const approvedPersesRuntimeAllowance = 1_400_000;
+  const approvedPersesMultiSignalAllowance = 600_000;
 
   assert.ok(bundleLimits.vendorChunkMinBytes > 0);
   assert.ok(bundleLimits.vendorChunkMinBytes <= bundleLimits.vendorChunkMaxBytes);
@@ -36,6 +37,11 @@ test('vendor chunks stay within the application chunk warning boundary', () => {
   assert.ok(bundleLimits.baseApplicationJavaScriptBytes <= approvedBaseJavaScriptCeiling);
   assert.ok(bundleLimits.persesRuntimeJavaScriptAllowanceBytes > 0);
   assert.ok(bundleLimits.persesRuntimeJavaScriptAllowanceBytes <= approvedPersesRuntimeAllowance);
+  assert.equal(bundleLimits.persesMultiSignalJavaScriptAllowanceBytes, approvedPersesMultiSignalAllowance);
+  assert.deepEqual(bundleLimits.persesDynamicRuntimeSources, [
+    'src/platform/perses/runtime/perses-time-series-runtime.tsx',
+    'src/platform/perses/runtime/perses-signal-runtime.tsx'
+  ]);
 });
 
 test('manual vendor splitting preserves dependency execution order', async () => {
