@@ -332,19 +332,19 @@ class EntityTraceQueryServiceImplTest {
         Map<String, Object> checkoutRoot = traceRow("trace-checkout", "span-root-1", null, "GET /checkout",
                 "checkout-service", "STATUS_CODE_OK", now - 10_000, 20_000_000L,
                 Map.of("service.name", "checkout-service"));
-        checkoutRoot.put("span_attributes", Map.of("span.kind", "server"));
+        putFlattenedAttributes(checkoutRoot, "span_attributes.", Map.of("span.kind", "server"));
         Map<String, Object> checkoutChild = traceRow("trace-checkout", "span-child-1", "span-root-1", "GET /checkout/{id}",
                 "checkout-service", "STATUS_CODE_OK", now - 9_000, 5_000_000L,
                 Map.of("service.name", "checkout-service"));
-        checkoutChild.put("span_attributes", Map.of("http.route", "/checkout/{id}"));
+        putFlattenedAttributes(checkoutChild, "span_attributes.", Map.of("http.route", "/checkout/{id}"));
         Map<String, Object> inventoryRoot = traceRow("trace-inventory", "span-root-2", null, "GET /inventory",
                 "checkout-service", "STATUS_CODE_ERROR", now - 8_000, 30_000_000L,
                 Map.of("service.name", "checkout-service"));
-        inventoryRoot.put("span_attributes", Map.of("http.route", "/inventory"));
+        putFlattenedAttributes(inventoryRoot, "span_attributes.", Map.of("http.route", "/inventory"));
         Map<String, Object> unknownRoot = traceRow("trace-unknown", "span-root-3", null, "GET /unknown",
                 "checkout-service", "STATUS_CODE_OK", now - 7_000, 10_000_000L,
                 Map.of("service.name", "checkout-service"));
-        unknownRoot.put("span_attributes", Map.of("span.kind", "server"));
+        putFlattenedAttributes(unknownRoot, "span_attributes.", Map.of("span.kind", "server"));
         when(traceQueryRepository.queryRecentTraceRows(
                 eq(1500), eq(start), eq(end), eq("checkout-service"), org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
@@ -939,15 +939,18 @@ class EntityTraceQueryServiceImplTest {
         Map<String, Object> matchingRow = traceRow("trace-checkout", "span-root-1", null, "GET /checkout",
                 "checkout-service", "STATUS_CODE_OK", now - 10_000, 2_000_000L,
                 Map.of("service.name", "checkout-service", "service.version", "1.2.3"));
-        matchingRow.put("span_attributes", Map.of("http.route", "/checkout/{id}", "span.kind", "server"));
+        putFlattenedAttributes(matchingRow, "span_attributes.",
+                Map.of("http.route", "/checkout/{id}", "span.kind", "server"));
         Map<String, Object> inventoryRow = traceRow("trace-inventory", "span-root-2", null, "GET /inventory",
                 "checkout-service", "STATUS_CODE_OK", now - 9_000, 2_000_000L,
                 Map.of("service.name", "checkout-service", "service.version", "1.2.3"));
-        inventoryRow.put("span_attributes", Map.of("http.route", "/inventory", "span.kind", "server"));
+        putFlattenedAttributes(inventoryRow, "span_attributes.",
+                Map.of("http.route", "/inventory", "span.kind", "server"));
         Map<String, Object> databaseRow = traceRow("trace-db", "span-root-3", null, "GET /checkout",
                 "checkout-service", "STATUS_CODE_OK", now - 8_000, 2_000_000L,
                 Map.of("service.name", "checkout-service", "service.version", "1.2.3"));
-        databaseRow.put("span_attributes", Map.of("http.route", "/checkout/{id}", "db.system", "mysql"));
+        putFlattenedAttributes(databaseRow, "span_attributes.",
+                Map.of("http.route", "/checkout/{id}", "db.system", "mysql"));
         when(traceQueryRepository.queryRecentTraceRows(
                 eq(1500), eq(start), eq(end), eq("checkout-service"), org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
@@ -1498,21 +1501,19 @@ class EntityTraceQueryServiceImplTest {
     }
 
     @Test
-    void getTraceDetailParsesOtlpKeyValueResourceAttributesForHertzBeatAttribution() {
+    void getTraceDetailReadsOnlyFlattenedPhysicalAttributeColumns() {
         long now = System.currentTimeMillis();
         Map<String, Object> row = traceRow("trace-attribution", "span-root", null, "POST /checkout",
                 "checkout", "STATUS_CODE_OK", now, 4_000_000L, Map.of());
-        row.put("resource_attributes", List.of(
-                Map.of("key", "service.namespace", "value", Map.of("stringValue", "payments")),
-                Map.of("key", "deployment.environment.name", "value", Map.of("stringValue", "prod-east")),
-                Map.of("key", "hertzbeat.entity_id", "value", Map.of("stringValue", "4200")),
-                Map.of("key", "hertzbeat.entity_name", "value", Map.of("stringValue", "Checkout API")),
-                Map.of("key", "hertzbeat.collector", "value", Map.of("stringValue", "collector-a")),
-                Map.of("key", "hertzbeat.template", "value", Map.of("stringValue", "spring-boot"))
-        ));
-        row.put("span_attributes", List.of(
-                Map.of("key", "db.statement", "value", Map.of("stringValue", "select 1"))
-        ));
+        row.put("resource_attributes.service.namespace", "payments");
+        row.put("resource_attributes.deployment.environment.name", "prod-east");
+        row.put("resource_attributes.hertzbeat.entity_id", "4200");
+        row.put("resource_attributes.hertzbeat.entity_name", "Checkout API");
+        row.put("resource_attributes.hertzbeat.collector.id", "collector-a");
+        row.put("resource_attributes.hertzbeat.template", "spring-boot");
+        row.put("span_attributes.db.statement", "select 1");
+        row.put("resource_attributes", Map.of("legacy.attribute", "must-not-be-read"));
+        row.put("span_attributes", Map.of("legacy.attribute", "must-not-be-read"));
         stubDefaultWorkspaceTraceRows("trace-attribution", List.of(row));
 
         TraceDetailDto detail = entityTraceQueryService.getTraceDetail(null, "trace-attribution");
@@ -1520,11 +1521,13 @@ class EntityTraceQueryServiceImplTest {
         assertNotNull(detail);
         assertEquals("4200", detail.getResourceAttributes().get("hertzbeat.entity_id"));
         assertEquals("Checkout API", detail.getResourceAttributes().get("hertzbeat.entity_name"));
-        assertEquals("collector-a", detail.getResourceAttributes().get("hertzbeat.collector"));
+        assertEquals("collector-a", detail.getResourceAttributes().get("hertzbeat.collector.id"));
         assertEquals("spring-boot", detail.getResourceAttributes().get("hertzbeat.template"));
         assertEquals("payments", detail.getServiceNamespace());
         assertEquals("prod-east", detail.getResourceAttributes().get("deployment.environment.name"));
         assertEquals("select 1", detail.getSpans().getFirst().getSpanAttributes().get("db.statement"));
+        assertFalse(detail.getResourceAttributes().containsKey("legacy.attribute"));
+        assertFalse(detail.getSpans().getFirst().getSpanAttributes().containsKey("legacy.attribute"));
     }
 
     @Test
@@ -1772,9 +1775,15 @@ class EntityTraceQueryServiceImplTest {
         row.put("span_status_code", status);
         row.put("duration_nano", durationNanos);
         row.put("timestamp", Timestamp.from(Instant.ofEpochMilli(timestampMillis)));
-        row.put("resource_attributes", resourceAttributes);
-        row.put("span_attributes", Map.of("db.statement", "select 1"));
+        putFlattenedAttributes(row, "resource_attributes.", resourceAttributes);
+        putFlattenedAttributes(row, "span_attributes.", Map.of("db.statement", "select 1"));
         return row;
+    }
+
+    private void putFlattenedAttributes(Map<String, Object> row,
+                                        String prefix,
+                                        Map<String, String> attributes) {
+        attributes.forEach((key, value) -> row.put(prefix + key, value));
     }
 
     private Map<String, Object> traceListRow(String traceId, String rootSpanId, String rootSpanName,

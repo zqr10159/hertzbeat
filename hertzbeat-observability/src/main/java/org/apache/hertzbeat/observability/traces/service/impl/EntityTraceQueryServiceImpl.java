@@ -1848,7 +1848,7 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
     }
 
     private TraceListItemDto toTraceListItem(Map<String, Object> row) {
-        Map<String, String> resourceAttributes = parseAttributes(row.get("resource_attributes"), "resource_attributes.", row);
+        Map<String, String> resourceAttributes = parseAttributes("resource_attributes.", row);
         String serviceName = defaultText(readText(row, "service_name"), resourceAttributes.get("service.name"));
         String serviceNamespace = defaultText(readText(row, "service_namespace"),
                 resourceAttributes.get("service.namespace"));
@@ -1885,8 +1885,8 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
     }
 
     private TraceSpanNodeDto toSpanNode(Map<String, Object> row) {
-        Map<String, String> resourceAttributes = parseAttributes(row.get("resource_attributes"), "resource_attributes.", row);
-        Map<String, String> spanAttributes = parseAttributes(row.get("span_attributes"), "span_attributes.", row);
+        Map<String, String> resourceAttributes = parseAttributes("resource_attributes.", row);
+        Map<String, String> spanAttributes = parseAttributes("span_attributes.", row);
         String status = normalizeStatus(readText(row, "span_status_code"));
         TraceSpanNodeDto span = new TraceSpanNodeDto();
         span.setTraceId(readText(row, "trace_id"));
@@ -2054,19 +2054,8 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
         return value == null ? null : Math.max(0, value);
     }
 
-    private Map<String, String> parseAttributes(Object rawValue, String prefix, Map<String, Object> row) {
+    private Map<String, String> parseAttributes(String prefix, Map<String, Object> row) {
         Map<String, String> values = new LinkedHashMap<>();
-        if (rawValue instanceof String rawText && StringUtils.hasText(rawText)) {
-            try {
-                Object parsed = JSON_MAPPER.readValue(rawText, new TypeReference<>() {
-                });
-                collectTraceAttributes(values, parsed);
-            } catch (Exception ignored) {
-                // Keep fallback scan below.
-            }
-        } else {
-            collectTraceAttributes(values, rawValue);
-        }
         row.forEach((key, value) -> {
             String normalizedKey = trimText(key);
             if (normalizedKey == null || !normalizedKey.startsWith(prefix)) {
@@ -2079,47 +2068,6 @@ public class EntityTraceQueryServiceImpl implements EntityTraceQueryService {
             }
         });
         return values;
-    }
-
-    private void collectTraceAttributes(Map<String, String> values, Object rawValue) {
-        if (rawValue instanceof Map<?, ?> rawMap) {
-            Object key = rawMap.get("key");
-            if (key != null && rawMap.containsKey("value")) {
-                putTraceAttribute(values, key, rawMap.get("value"));
-                return;
-            }
-            rawMap.forEach((attributeKey, attributeValue) -> putTraceAttribute(values, attributeKey, attributeValue));
-            return;
-        }
-        if (rawValue instanceof Iterable<?> items) {
-            items.forEach(item -> collectTraceAttributes(values, item));
-        }
-    }
-
-    private void putTraceAttribute(Map<String, String> values, Object key, Object value) {
-        String normalizedKey = trimText(Objects.toString(key, null));
-        String normalizedValue = traceAttributeValue(value);
-        if (normalizedKey != null && normalizedValue != null) {
-            values.put(normalizedKey, normalizedValue);
-        }
-    }
-
-    private String traceAttributeValue(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Map<?, ?> rawMap) {
-            for (String key : List.of("stringValue", "string_value", "intValue", "int_value",
-                    "doubleValue", "double_value", "boolValue", "bool_value")) {
-                if (rawMap.containsKey(key)) {
-                    return traceAttributeValue(rawMap.get(key));
-                }
-            }
-            if (rawMap.containsKey("value")) {
-                return traceAttributeValue(rawMap.get("value"));
-            }
-        }
-        return trimText(Objects.toString(value, null));
     }
 
     private String resolveEntityTitle(ObservedEntityContext entityContext) {
