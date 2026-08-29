@@ -4,7 +4,11 @@ import { useTranslation } from 'react-i18next';
 
 import { HertzBeatMetricTimeSeriesResult, type HertzBeatPersesPrimitiveMessages } from '@/platform/perses';
 
-import type { InvestigationPersesResults, TraceInvestigationSnapshot } from '../model/explore-investigation-contract';
+import type {
+  InvestigationEvidenceState,
+  InvestigationPersesResults,
+  TraceInvestigationSnapshot
+} from '../model/explore-investigation-contract';
 import { InvestigationBlockState } from './explore-investigation-view-primitives';
 import metricsStyles from './explore-investigation-metrics.module.css';
 import viewStyles from './explore-investigation-view.module.css';
@@ -16,7 +20,7 @@ export function InvestigationMetrics({
   messages
 }: {
   red?: TraceInvestigationSnapshot['red'] | undefined;
-  metricBlock: TraceInvestigationSnapshot['metrics'];
+  metricBlock: { state: InvestigationEvidenceState };
   panels: InvestigationPersesResults['metrics'];
   messages: HertzBeatPersesPrimitiveMessages;
 }) {
@@ -35,24 +39,37 @@ export function InvestigationMetrics({
       ) : null}
       <section className={metricsStyles.serviceMetrics} aria-label={t('exploreInvestigation.metrics.service')}>
         <h3>{t('exploreInvestigation.metrics.service')}</h3>
-        {readyMetricPanels(metricBlock, panels).length > 0 ? (
-          <div className={metricsStyles.metricGrid}>
-            {readyMetricPanels(metricBlock, panels).map((panel, index) => (
-              <HertzBeatMetricTimeSeriesResult
-                key={`${panel.query.metric.name}-${index}`}
-                title={panel.query.metric.name}
-                ariaLabel={panel.query.metric.name}
-                messages={messages}
-                query={panel.query}
-                outcome={panel.outcome}
-              />
-            ))}
-          </div>
-        ) : (
-          <InvestigationBlockState state={metricEvidenceState(metricBlock, panels)} />
-        )}
+        <InvestigationMetricPanels metricBlock={metricBlock} panels={panels} messages={messages} />
       </section>
     </div>
+  );
+}
+
+export function InvestigationMetricPanels({
+  metricBlock,
+  panels,
+  messages
+}: {
+  metricBlock: { state: InvestigationEvidenceState };
+  panels: InvestigationPersesResults['metrics'];
+  messages: HertzBeatPersesPrimitiveMessages;
+}) {
+  const readyPanels = readyMetricPanels(metricBlock, panels);
+  return readyPanels.length > 0 ? (
+    <div className={metricsStyles.metricGrid}>
+      {readyPanels.map((panel, index) => (
+        <HertzBeatMetricTimeSeriesResult
+          key={`${panel.query.metric.name}-${index}`}
+          title={panel.query.metric.name}
+          ariaLabel={panel.query.metric.name}
+          messages={messages}
+          query={panel.query}
+          outcome={panel.outcome}
+        />
+      ))}
+    </div>
+  ) : (
+    <InvestigationBlockState state={metricEvidenceState(metricBlock, panels)} />
   );
 }
 
@@ -81,7 +98,7 @@ function RedSummary({ summary }: { summary: NonNullable<TraceInvestigationSnapsh
 }
 
 function readyMetricPanels(
-  block: TraceInvestigationSnapshot['metrics'],
+  block: { state: InvestigationEvidenceState },
   panels: InvestigationPersesResults['metrics']
 ) {
   return block.state === 'ready'
@@ -90,7 +107,7 @@ function readyMetricPanels(
 }
 
 function metricEvidenceState(
-  block: TraceInvestigationSnapshot['metrics'],
+  block: { state: InvestigationEvidenceState },
   panels: InvestigationPersesResults['metrics']
 ): 'empty' | 'unavailable' {
   if (block.state === 'empty') return 'empty';

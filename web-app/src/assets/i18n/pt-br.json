@@ -3289,6 +3289,7 @@
     },
     "summaryUnavailable": "O resumo de alertas está indisponível; a lista continua pesquisável.",
     "investigate": "Investigar",
+    "askAi": "Perguntar à IA",
     "openMonitor": "Monitor",
     "openEntity": "Recurso",
     "listUnavailable": "Os resultados de alertas estão indisponíveis.",
@@ -4042,6 +4043,76 @@
       "apiKey": "Chave da API",
       "apiKeyHint": "Deixe em branco para manter a chave existente.",
       "save": "Salvar provedor"
+    }
+  },
+  "alertInvestigation": {
+    "title": "Investigação de alerta",
+    "unnamedAlert": "Alerta sem nome",
+    "exactWindow": "Janela exata",
+    "anchor": "Âncora do alerta",
+    "availability": "Disponibilidade de evidências",
+    "notRecorded": "Não registrado",
+    "sections": {
+      "metrics": "Métricas do alerta",
+      "logs": "Logs",
+      "traces": "Traces",
+      "topology": "Topologia",
+      "collection": "Saúde da coleta"
+    },
+    "states": {
+      "available": "Disponível",
+      "empty": "Sem evidências neste escopo",
+      "unavailable": "Evidência indisponível"
+    },
+    "actions": {
+      "back": "Voltar aos alertas",
+      "retry": "Tentar novamente",
+      "openMetrics": "Abrir métricas",
+      "openLog": "Abrir log",
+      "openTrace": "Abrir trace",
+      "openTopology": "Abrir topologia"
+    },
+    "query": {
+      "loading": "Carregando evidências exatas do alerta…",
+      "invalidRoute": "A URL da investigação de alerta está incompleta ou é inválida.",
+      "invalid": "A consulta de evidências é inválida.",
+      "permission": "Você não tem permissão para inspecionar esta evidência.",
+      "overloaded": "O serviço de evidências está sobrecarregado.",
+      "unavailable": "A investigação de alerta está indisponível.",
+      "contract": "A evidência do alerta não corresponde ao contrato esperado.",
+      "runtimeError": "O runtime de evidências não conseguiu renderizar o resultado.",
+      "truncated": "Somente o conjunto limitado de resultados é exibido.",
+      "truncationUnknown": "A quantidade total de resultados é desconhecida."
+    },
+    "metrics": { "before": "Antes", "anchor": "Alerta", "after": "Depois" },
+    "logs": { "focusActions": "Logs disponíveis para foco" },
+    "traces": {
+      "traceId": "Trace ID",
+      "service": "Serviço",
+      "start": "Início",
+      "duration": "Duração",
+      "status": "Status",
+      "spans": "Spans"
+    },
+    "traceStatus": { "error": "Erro", "ok": "OK", "unset": "Não definido", "unknown": "Desconhecido" },
+    "topology": {
+      "source": "Origem",
+      "target": "Destino",
+      "relation": "Relação",
+      "confidence": "Confiança",
+      "requests": "Requisições",
+      "errors": "Erros"
+    },
+    "collection": {
+      "lastCollection": "Última coleta",
+      "duration": "Duração",
+      "outcome": "Resultado",
+      "collector": "Coletor",
+      "target": "Destino",
+      "metricSet": "Conjunto de métricas",
+      "failureClass": "Classe da falha",
+      "phase": "Fase",
+      "notRecorded": "Não registrado"
     }
   },
   "aiSchedules": {

@@ -3272,6 +3272,7 @@
     },
     "summaryUnavailable": "アラート概要を利用できません。リストは引き続き検索できます。",
     "investigate": "調査",
+    "askAi": "AI に質問",
     "openMonitor": "モニター",
     "openEntity": "リソース",
     "listUnavailable": "アラート一覧を利用できません。",
@@ -4019,6 +4020,76 @@
       "apiKey": "API キー",
       "apiKeyHint": "空欄にすると既存のキーを維持します。",
       "save": "プロバイダーを保存"
+    }
+  },
+  "alertInvestigation": {
+    "title": "アラート調査",
+    "unnamedAlert": "名前のないアラート",
+    "exactWindow": "正確な時間範囲",
+    "anchor": "アラート基準時刻",
+    "availability": "エビデンスの可用性",
+    "notRecorded": "記録なし",
+    "sections": {
+      "metrics": "アラートメトリクス",
+      "logs": "ログ",
+      "traces": "トレース",
+      "topology": "トポロジー",
+      "collection": "収集状態"
+    },
+    "states": {
+      "available": "利用可能",
+      "empty": "この範囲にエビデンスはありません",
+      "unavailable": "エビデンスを利用できません"
+    },
+    "actions": {
+      "back": "アラートに戻る",
+      "retry": "再試行",
+      "openMetrics": "メトリクスを開く",
+      "openLog": "ログを開く",
+      "openTrace": "トレースを開く",
+      "openTopology": "トポロジーを開く"
+    },
+    "query": {
+      "loading": "正確なアラートエビデンスを読み込んでいます…",
+      "invalidRoute": "アラート調査 URL が不完全または無効です。",
+      "invalid": "エビデンスクエリが無効です。",
+      "permission": "このエビデンスを表示する権限がありません。",
+      "overloaded": "エビデンスサービスが過負荷です。",
+      "unavailable": "アラート調査を利用できません。",
+      "contract": "アラートエビデンスが期待される契約と一致しません。",
+      "runtimeError": "エビデンスランタイムで結果を表示できませんでした。",
+      "truncated": "制限された結果セットのみ表示しています。",
+      "truncationUnknown": "完全な結果数は不明です。"
+    },
+    "metrics": { "before": "前", "anchor": "アラート", "after": "後" },
+    "logs": { "focusActions": "フォーカスするログ" },
+    "traces": {
+      "traceId": "Trace ID",
+      "service": "サービス",
+      "start": "開始",
+      "duration": "期間",
+      "status": "状態",
+      "spans": "Span 数"
+    },
+    "traceStatus": { "error": "エラー", "ok": "正常", "unset": "未設定", "unknown": "不明" },
+    "topology": {
+      "source": "ソース",
+      "target": "ターゲット",
+      "relation": "関係",
+      "confidence": "信頼度",
+      "requests": "リクエスト",
+      "errors": "エラー"
+    },
+    "collection": {
+      "lastCollection": "最終収集",
+      "duration": "期間",
+      "outcome": "結果",
+      "collector": "コレクター",
+      "target": "ターゲット",
+      "metricSet": "メトリクスセット",
+      "failureClass": "障害クラス",
+      "phase": "フェーズ",
+      "notRecorded": "記録なし"
     }
   },
   "aiSchedules": {

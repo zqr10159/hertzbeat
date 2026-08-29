@@ -3438,6 +3438,7 @@
     },
     "summaryUnavailable": "告警概览暂不可用，仍可继续查询告警列表。",
     "investigate": "调查",
+    "askAi": "询问 AI",
     "openMonitor": "监控",
     "openEntity": "资源",
     "listUnavailable": "告警列表暂不可用。",
@@ -3978,6 +3979,72 @@
       "apiKey": "API 密钥",
       "apiKeyHint": "留空可保留现有密钥。",
       "save": "保存提供方"
+    }
+  },
+  "alertInvestigation": {
+    "title": "告警调查",
+    "unnamedAlert": "未命名告警",
+    "exactWindow": "精确时间窗口",
+    "anchor": "告警锚点",
+    "availability": "证据可用性",
+    "notRecorded": "未记录",
+    "sections": {
+      "metrics": "告警指标",
+      "logs": "日志",
+      "traces": "追踪",
+      "topology": "拓扑",
+      "collection": "采集健康"
+    },
+    "states": { "available": "可用", "empty": "此范围内无证据", "unavailable": "证据不可用" },
+    "actions": {
+      "back": "返回告警",
+      "retry": "重试",
+      "openMetrics": "打开指标",
+      "openLog": "打开日志",
+      "openTrace": "打开追踪",
+      "openTopology": "打开拓扑"
+    },
+    "query": {
+      "loading": "正在加载精确告警证据…",
+      "invalidRoute": "告警调查链接不完整或无效。",
+      "invalid": "证据查询无效。",
+      "permission": "你无权查看此证据。",
+      "overloaded": "证据服务负载过高。",
+      "unavailable": "告警调查暂不可用。",
+      "contract": "告警证据不符合预期合同。",
+      "runtimeError": "证据运行时无法呈现此结果。",
+      "truncated": "仅显示有界结果集。",
+      "truncationUnknown": "完整结果数量未知。"
+    },
+    "metrics": { "before": "之前", "anchor": "告警", "after": "之后" },
+    "logs": { "focusActions": "可聚焦调查的日志" },
+    "traces": {
+      "traceId": "Trace ID",
+      "service": "服务",
+      "start": "开始",
+      "duration": "持续时间",
+      "status": "状态",
+      "spans": "Span 数"
+    },
+    "traceStatus": { "error": "错误", "ok": "正常", "unset": "未设置", "unknown": "未知" },
+    "topology": {
+      "source": "来源",
+      "target": "目标",
+      "relation": "关系",
+      "confidence": "置信度",
+      "requests": "请求数",
+      "errors": "错误数"
+    },
+    "collection": {
+      "lastCollection": "最近采集",
+      "duration": "持续时间",
+      "outcome": "结果",
+      "collector": "采集器",
+      "target": "目标",
+      "metricSet": "指标集",
+      "failureClass": "失败类型",
+      "phase": "阶段",
+      "notRecorded": "未记录"
     }
   },
   "aiSchedules": {

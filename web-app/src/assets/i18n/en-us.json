@@ -3485,6 +3485,7 @@
     },
     "summaryUnavailable": "Alert summary is unavailable; alert results remain queryable.",
     "investigate": "Investigate",
+    "askAi": "Ask AI",
     "openMonitor": "Monitor",
     "openEntity": "Resource",
     "listUnavailable": "Alert results are unavailable.",
@@ -4035,6 +4036,76 @@
       "apiKey": "API key",
       "apiKeyHint": "Leave blank to keep the existing key.",
       "save": "Save provider"
+    }
+  },
+  "alertInvestigation": {
+    "title": "Alert investigation",
+    "unnamedAlert": "Unnamed alert",
+    "exactWindow": "Exact window",
+    "anchor": "Alert anchor",
+    "availability": "Evidence availability",
+    "notRecorded": "Not recorded",
+    "sections": {
+      "metrics": "Alert Metrics",
+      "logs": "Logs",
+      "traces": "Traces",
+      "topology": "Topology",
+      "collection": "Collection Health"
+    },
+    "states": {
+      "available": "Available",
+      "empty": "No evidence in this scope",
+      "unavailable": "Evidence unavailable"
+    },
+    "actions": {
+      "back": "Back to alerts",
+      "retry": "Retry",
+      "openMetrics": "Open Metrics",
+      "openLog": "Open Log",
+      "openTrace": "Open Trace",
+      "openTopology": "Open Topology"
+    },
+    "query": {
+      "loading": "Loading exact alert evidence…",
+      "invalidRoute": "The alert investigation URL is incomplete or invalid.",
+      "invalid": "The evidence query is invalid.",
+      "permission": "You do not have permission to inspect this evidence.",
+      "overloaded": "The evidence service is overloaded.",
+      "unavailable": "Alert investigation is unavailable.",
+      "contract": "Alert evidence did not match the expected contract.",
+      "runtimeError": "The evidence runtime could not render this result.",
+      "truncated": "Only the bounded result set is shown.",
+      "truncationUnknown": "The full result count is unknown."
+    },
+    "metrics": { "before": "Before", "anchor": "Alert", "after": "After" },
+    "logs": { "focusActions": "Logs available for focused investigation" },
+    "traces": {
+      "traceId": "Trace ID",
+      "service": "Service",
+      "start": "Start",
+      "duration": "Duration",
+      "status": "Status",
+      "spans": "Spans"
+    },
+    "traceStatus": { "error": "Error", "ok": "OK", "unset": "Unset", "unknown": "Unknown" },
+    "topology": {
+      "source": "Source",
+      "target": "Target",
+      "relation": "Relation",
+      "confidence": "Confidence",
+      "requests": "Requests",
+      "errors": "Errors"
+    },
+    "collection": {
+      "lastCollection": "Last collection",
+      "duration": "Duration",
+      "outcome": "Outcome",
+      "collector": "Collector",
+      "target": "Target",
+      "metricSet": "Metric set",
+      "failureClass": "Failure class",
+      "phase": "Phase",
+      "notRecorded": "Not recorded"
     }
   },
   "aiSchedules": {

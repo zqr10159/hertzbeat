@@ -3235,6 +3235,7 @@
     },
     "summaryUnavailable": "警報概覽暫時無法使用，仍可查詢警報清單。",
     "investigate": "調查",
+    "askAi": "詢問 AI",
     "openMonitor": "監控",
     "openEntity": "資源",
     "listUnavailable": "警報清單暫時無法使用。",
@@ -3975,6 +3976,72 @@
       "apiKey": "API 金鑰",
       "apiKeyHint": "留空可保留現有金鑰。",
       "save": "儲存提供方"
+    }
+  },
+  "alertInvestigation": {
+    "title": "告警調查",
+    "unnamedAlert": "未命名告警",
+    "exactWindow": "精確時間視窗",
+    "anchor": "告警錨點",
+    "availability": "證據可用性",
+    "notRecorded": "未記錄",
+    "sections": {
+      "metrics": "告警指標",
+      "logs": "日誌",
+      "traces": "追蹤",
+      "topology": "拓撲",
+      "collection": "採集健康"
+    },
+    "states": { "available": "可用", "empty": "此範圍內無證據", "unavailable": "證據不可用" },
+    "actions": {
+      "back": "返回告警",
+      "retry": "重試",
+      "openMetrics": "開啟指標",
+      "openLog": "開啟日誌",
+      "openTrace": "開啟追蹤",
+      "openTopology": "開啟拓撲"
+    },
+    "query": {
+      "loading": "正在載入精確告警證據…",
+      "invalidRoute": "告警調查連結不完整或無效。",
+      "invalid": "證據查詢無效。",
+      "permission": "你沒有權限查看此證據。",
+      "overloaded": "證據服務負載過高。",
+      "unavailable": "告警調查暫不可用。",
+      "contract": "告警證據不符合預期合同。",
+      "runtimeError": "證據執行階段無法呈現此結果。",
+      "truncated": "僅顯示有界結果集。",
+      "truncationUnknown": "完整結果數量未知。"
+    },
+    "metrics": { "before": "之前", "anchor": "告警", "after": "之後" },
+    "logs": { "focusActions": "可聚焦調查的日誌" },
+    "traces": {
+      "traceId": "Trace ID",
+      "service": "服務",
+      "start": "開始",
+      "duration": "持續時間",
+      "status": "狀態",
+      "spans": "Span 數"
+    },
+    "traceStatus": { "error": "錯誤", "ok": "正常", "unset": "未設定", "unknown": "未知" },
+    "topology": {
+      "source": "來源",
+      "target": "目標",
+      "relation": "關係",
+      "confidence": "信賴度",
+      "requests": "請求數",
+      "errors": "錯誤數"
+    },
+    "collection": {
+      "lastCollection": "最近採集",
+      "duration": "持續時間",
+      "outcome": "結果",
+      "collector": "採集器",
+      "target": "目標",
+      "metricSet": "指標集",
+      "failureClass": "失敗類型",
+      "phase": "階段",
+      "notRecorded": "未記錄"
     }
   },
   "aiSchedules": {

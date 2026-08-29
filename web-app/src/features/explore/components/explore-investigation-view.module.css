@@ -53,6 +53,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.capabilityGrid[data-count='5'] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .capability {
   display: flex;
   min-width: 0;
@@ -133,7 +137,8 @@
   }
 
   .capabilityGrid,
-  .capabilityGrid[data-count='3'] {
+  .capabilityGrid[data-count='3'],
+  .capabilityGrid[data-count='5'] {
     grid-template-columns: 1fr;
   }
 

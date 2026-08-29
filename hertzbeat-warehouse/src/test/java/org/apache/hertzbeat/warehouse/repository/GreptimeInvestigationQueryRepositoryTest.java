@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hertzbeat.warehouse.db.GreptimeSqlQueryExecutor;
 import org.apache.hertzbeat.warehouse.repository.InvestigationQueryRepository.LogQuery;
+import org.apache.hertzbeat.warehouse.repository.InvestigationQueryRepository.IdentityQuery;
 import org.apache.hertzbeat.warehouse.repository.InvestigationQueryRepository.NearbyQuery;
 import org.apache.hertzbeat.warehouse.repository.InvestigationQueryRepository.Status;
 import org.apache.hertzbeat.warehouse.repository.InvestigationQueryRepository.TraceQuery;
@@ -178,6 +179,96 @@ class GreptimeInvestigationQueryRepositoryTest {
         verify(executor).executeStrict(sql.capture());
         assertTrue(sql.getValue().contains(" FROM hertzbeat_logs WHERE "));
         assertFalse(sql.getValue().contains(" FROM hzb_logs "));
+    }
+
+    @Test
+    void alertLogsUseExactWorkspaceIdentityExclusiveWindowAndLimitPlusOne() {
+        when(executorProvider.getIfAvailable()).thenReturn(executor);
+        when(executor.executeStrict(anyString())).thenReturn(List.of(logRow("event-7")));
+
+        var result = repository.identityLogs(new IdentityQuery(
+                "team-a", "7", "checkout", "payments", "prod", START, END));
+
+        assertEquals(Status.AVAILABLE, result.status());
+        assertEquals(1, result.rows().size());
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(executor).executeStrict(sql.capture());
+        assertTrue(sql.getValue().contains(" FROM hertzbeat_logs WHERE hertzbeat_workspace_id = 'team-a'"));
+        assertTrue(sql.getValue().contains("hertzbeat_entity_id = '7'"));
+        assertTrue(sql.getValue().contains("service_name = 'checkout'"));
+        assertTrue(sql.getValue().contains("timestamp < to_timestamp_millis(" + END + ")"));
+        assertTrue(sql.getValue().endsWith("ORDER BY timestamp DESC, log_record_uid DESC LIMIT 101"));
+    }
+
+    @Test
+    void alertTraceSummariesStayLosslessAndAreBoundedByExactIdentity() {
+        when(executorProvider.getIfAvailable()).thenReturn(executor);
+        when(executor.executeStrict(anyString())).thenReturn(List.of(Map.of(
+                "trace_id", "0123456789abcdef0123456789abcdef",
+                "start_time_unix_nano", "1787934874782123456",
+                "duration_nanos", 42_000L,
+                "span_count", 2L,
+                "service_name", "checkout",
+                "error_count", 1L,
+                "ok_count", 1L,
+                "unset_count", 0L)));
+
+        var result = repository.identityTraces(new IdentityQuery(
+                "team-a", "7", "checkout", "payments", "prod", START, END));
+
+        assertEquals(Status.AVAILABLE, result.status());
+        assertEquals("1787934874782123456", result.rows().getFirst().startTimeUnixNano());
+        assertEquals("42000", result.rows().getFirst().durationNanos());
+        assertEquals("error", result.rows().getFirst().status());
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(executor).executeStrict(sql.capture());
+        assertTrue(sql.getValue().contains("FROM hzb_traces"));
+        assertTrue(sql.getValue().contains("\"resource_attributes.hertzbeat.workspace_id\" = 'team-a'"));
+        assertTrue(sql.getValue().contains("\"resource_attributes.hertzbeat.entity_id\" = '7'"));
+        assertTrue(sql.getValue().contains("timestamp < to_timestamp_millis(" + END + ")"));
+        assertTrue(sql.getValue().endsWith("ORDER BY start_time_unix_nano DESC LIMIT 51"));
+    }
+
+    @Test
+    void missingOptionalAlertLabelsDoNotInventNullPredicates() {
+        when(executorProvider.getIfAvailable()).thenReturn(executor);
+        when(executor.executeStrict(anyString())).thenReturn(List.of());
+
+        repository.identityLogs(new IdentityQuery(
+                "team-a", null, "checkout", null, null, START, END));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(executor).executeStrict(sql.capture());
+        assertFalse(sql.getValue().contains("hertzbeat_entity_id IS NULL"));
+        assertFalse(sql.getValue().contains("service.namespace\"]') IS NULL"));
+        assertFalse(sql.getValue().contains("deployment.environment.name\"]') IS NULL"));
+        assertTrue(sql.getValue().contains("service_name = 'checkout'"));
+    }
+
+    @Test
+    void alertSignalQueriesReturnBoundedRowsWithHonestTruncation() {
+        when(executorProvider.getIfAvailable()).thenReturn(executor);
+        when(executor.executeStrict(anyString()))
+                .thenReturn(java.util.Collections.nCopies(101, logRow("event-7")))
+                .thenReturn(java.util.Collections.nCopies(51, Map.of(
+                        "trace_id", "0123456789abcdef0123456789abcdef",
+                        "start_time_unix_nano", "1787934874782123456",
+                        "duration_nanos", 42_000L,
+                        "span_count", 2L,
+                        "service_name", "checkout",
+                        "error_count", 0L,
+                        "ok_count", 2L,
+                        "unset_count", 0L)));
+        IdentityQuery query = new IdentityQuery(
+                "team-a", "7", "checkout", "payments", "prod", START, END);
+
+        var logs = repository.identityLogs(query);
+        var traces = repository.identityTraces(query);
+
+        assertEquals(100, logs.rows().size());
+        assertTrue(logs.truncated());
+        assertEquals(50, traces.rows().size());
+        assertTrue(traces.truncated());
     }
 
     private Map<String, Object> traceRow() {

@@ -42,7 +42,7 @@ export function createTraceInvestigationPersesResults(
         : undefined,
     logs:
       snapshot.sameTraceLogs.state === 'ready'
-        ? logResult(
+        ? createInvestigationLogResult(
             snapshot.sameTraceLogs.logs,
             snapshot.sameTraceLogs.truncated,
             timeWindow,
@@ -50,7 +50,7 @@ export function createTraceInvestigationPersesResults(
             snapshot.traceId
           )
         : undefined,
-    metrics: metricResults(
+    metrics: createInvestigationMetricResults(
       snapshot.metrics.series,
       snapshot.metrics.state,
       snapshot.metrics.truncated,
@@ -75,9 +75,14 @@ export function createLogInvestigationPersesResults(
         : undefined,
     logs:
       snapshot.nearbyLogs.state === 'ready'
-        ? logResult(nearby, snapshot.nearbyLogs.hasMoreBefore || snapshot.nearbyLogs.hasMoreAfter, timeWindow, context)
+        ? createInvestigationLogResult(
+            nearby,
+            snapshot.nearbyLogs.hasMoreBefore || snapshot.nearbyLogs.hasMoreAfter,
+            timeWindow,
+            context
+          )
         : undefined,
-    metrics: metricResults(
+    metrics: createInvestigationMetricResults(
       snapshot.metrics.series,
       snapshot.metrics.state,
       snapshot.metrics.truncated,
@@ -123,7 +128,7 @@ function traceResult(
   };
 }
 
-function logResult(
+export function createInvestigationLogResult(
   records: InvestigationLogRecord[],
   truncated: boolean,
   timeWindow: ExactTimeWindow,
@@ -167,7 +172,7 @@ function persesLogRow(record: InvestigationLogRecord) {
   };
 }
 
-function metricResults(
+export function createInvestigationMetricResults(
   series: InvestigationMetricSeries[],
   state: string,
   truncated: boolean,

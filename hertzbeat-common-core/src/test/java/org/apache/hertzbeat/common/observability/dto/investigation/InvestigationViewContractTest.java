@@ -125,4 +125,59 @@ class InvestigationViewContractTest {
                                 "event-7", "1", null, null, null, null, null, null,
                                 null, Map.of(), Map.of())));
     }
+
+    @Test
+    void serializesFrozenAlertInvestigationContract() throws Exception {
+        AlertInvestigationView view = new AlertInvestigationView(
+                7L,
+                new AlertInvestigationView.Window(100L, 200L, 150L),
+                new AlertInvestigationView.AlertHeader("High latency", "firing", "critical", "slow", null,
+                        Map.of("service.name", "checkout"), Map.of()),
+                AlertInvestigationView.IdentityBlock.ready(new AlertInvestigationView.AlertIdentity(
+                        "checkout", "payments", "prod", 11L, "service", 22L, null, null)),
+                AlertInvestigationView.MetricsBlock.unavailable(InvestigationReason.QUERY_STRATEGY_UNAVAILABLE),
+                AlertInvestigationView.LogsBlock.empty(),
+                AlertInvestigationView.TracesBlock.empty(),
+                AlertInvestigationView.TopologyBlock.empty(),
+                AlertInvestigationView.CollectionBlock.empty());
+
+        var json = jsonMapper.readTree(jsonMapper.writeValueAsString(view));
+
+        assertEquals("persisted_alert", json.path("identity").path("source").asText());
+        assertEquals("otlp_metrics", json.path("metrics").path("source").asText());
+        assertEquals("greptime_logs", json.path("logs").path("source").asText());
+        assertEquals("greptime_traces", json.path("traces").path("source").asText());
+        assertEquals("greptime_semantic_graph", json.path("topology").path("source").asText());
+        assertEquals("greptime_collection_events", json.path("collection").path("source").asText());
+        assertEquals(150L, json.path("window").path("anchor").asLong());
+        assertEquals(0, json.path("logs").path("records").size());
+        assertEquals(false, json.path("traces").path("truncated").asBoolean());
+        assertEquals(true, json.path("collection").path("event").isNull());
+    }
+
+    @Test
+    void rejectsAlertEvidenceThatContradictsItsStateOrBounds() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new AlertInvestigationView.Window(100L, 200L, 200L));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AlertInvestigationView.AlertIdentity(
+                        null, null, null, -1L, "service", null, null, null));
+        assertEquals(7L, AlertInvestigationView.IdentityBlock.ready(
+                new AlertInvestigationView.AlertIdentity(
+                        null, null, null, 7L, null, null, null, null)).identity().entityId());
+        assertThrows(IllegalArgumentException.class,
+                () -> new AlertInvestigationView.LogsBlock(
+                        InvestigationEvidenceState.READY, InvestigationReason.OBSERVED,
+                        InvestigationSource.GREPTIME_LOGS, List.of(), false));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AlertInvestigationView.CollectionBlock(
+                        InvestigationEvidenceState.EMPTY, InvestigationReason.NO_DATA,
+                        InvestigationSource.GREPTIME_COLLECTION_EVENTS,
+                        new AlertInvestigationView.CollectionEvent(
+                                150L, 1L, "success", null, null, null, null, null, 1, 1)));
+        assertEquals(-1L, new AlertInvestigationView.CollectionEvent(
+                150L, -1L, "unknown", null, null, null, null, null, 0, 0).durationMillis());
+        assertThrows(IllegalArgumentException.class, () -> new AlertInvestigationView.TopologyEdge(
+                150L, "service", "a", "service", "b", "calls", "trace", 1D, 1L, 2L));
+    }
 }

@@ -30,7 +30,8 @@ const shellGzipLimit = bundleLimits.shellGzipBytes;
 const totalRawLimit =
   bundleLimits.baseApplicationJavaScriptBytes +
   bundleLimits.persesRuntimeJavaScriptAllowanceBytes +
-  bundleLimits.persesMultiSignalJavaScriptAllowanceBytes;
+  bundleLimits.persesMultiSignalJavaScriptAllowanceBytes +
+  bundleLimits.alertInvestigationJavaScriptAllowanceBytes;
 
 if (!existsSync(manifestPath)) {
   console.error('Bundle budget failed: dist manifest is missing. Run pnpm build first.');
@@ -65,7 +66,8 @@ if (totalRaw > totalRawLimit) {
     `total JavaScript ${totalRaw} bytes exceeds ${totalRawLimit} ` +
       `(${bundleLimits.baseApplicationJavaScriptBytes} base + ` +
       `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes} Perses time-series allowance + ` +
-      `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes} Perses multi-signal allowance)`
+      `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes} Perses multi-signal allowance + ` +
+      `${bundleLimits.alertInvestigationJavaScriptAllowanceBytes} Alert Investigation allowance)`
   );
 }
 const shellStaticClosure = staticImportClosure(manifest, 'index.html');
@@ -87,7 +89,8 @@ console.log(
   `Bundle budget passed: ${basename(entry.file)} is ${entryRaw} bytes raw / ${entryGzip} bytes gzip; ` +
     `total JavaScript is ${totalRaw} bytes including bounded ` +
     `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes}-byte time-series and ` +
-    `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes}-byte multi-signal Perses allowances.`
+    `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes}-byte multi-signal Perses allowances, plus a bounded ` +
+    `${bundleLimits.alertInvestigationJavaScriptAllowanceBytes}-byte Alert Investigation allowance.`
 );
 
 function staticImportClosure(buildManifest, root) {

@@ -33,6 +33,8 @@ public interface InvestigationQueryRepository {
     int MAX_TRACE_SPANS = 5_000;
     int MAX_TRACE_LOGS = 200;
     int MAX_NEARBY_LOGS = 25;
+    int MAX_ALERT_LOGS = 100;
+    int MAX_ALERT_TRACES = 50;
 
     RowsResult<TraceSpanRow> trace(TraceQuery query);
 
@@ -41,6 +43,10 @@ public interface InvestigationQueryRepository {
     RowsResult<InvestigationLogRecord> sameTraceLogs(TraceLogsQuery query);
 
     NearbyResult nearbyLogs(NearbyQuery query);
+
+    RowsResult<InvestigationLogRecord> identityLogs(IdentityQuery query);
+
+    RowsResult<TraceSummaryRow> identityTraces(IdentityQuery query);
 
     /** Exact trusted trace scope. */
     record TraceQuery(String workspaceId, String traceId, long start, long end) {
@@ -91,6 +97,33 @@ public interface InvestigationQueryRepository {
                 throw new IllegalArgumentException("selectedTimeUnixNano is invalid");
             }
         }
+    }
+
+    /** Exact trusted persisted service/entity identity for an alert signal query. */
+    record IdentityQuery(String workspaceId,
+                         String entityId,
+                         String serviceName,
+                         String serviceNamespace,
+                         String deploymentEnvironment,
+                         long start,
+                         long end) {
+        public IdentityQuery {
+            requireWindow(start, end);
+            workspaceId = requireText(workspaceId, "workspaceId");
+            entityId = entityId == null ? null : requireIdentifier(entityId, "[1-9][0-9]{0,18}", "entityId");
+            serviceName = requireText(serviceName, "serviceName");
+            serviceNamespace = optionalText(serviceNamespace, "serviceNamespace");
+            deploymentEnvironment = optionalText(deploymentEnvironment, "deploymentEnvironment");
+        }
+    }
+
+    /** Strict aggregate trace summary row for an alert investigation. */
+    record TraceSummaryRow(String traceId,
+                           String startTimeUnixNano,
+                           String durationNanos,
+                           String status,
+                           int spanCount,
+                           String serviceName) {
     }
 
     /** Strictly mapped span row. */
@@ -180,5 +213,9 @@ public interface InvestigationQueryRepository {
             throw new IllegalArgumentException(label + " is invalid");
         }
         return value;
+    }
+
+    private static String optionalText(String value, String label) {
+        return value == null || value.isBlank() ? null : requireText(value, label);
     }
 }

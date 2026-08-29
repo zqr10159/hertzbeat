@@ -23,9 +23,12 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /** Physical evidence source exposed by the investigation contract. */
 public enum InvestigationSource {
+    PERSISTED_ALERT("persisted_alert"),
     GREPTIME_TRACES("greptime_traces"),
     GREPTIME_LOGS("greptime_logs"),
     GREPTIME_FLOW("greptime_flow"),
+    GREPTIME_SEMANTIC_GRAPH("greptime_semantic_graph"),
+    GREPTIME_COLLECTION_EVENTS("greptime_collection_events"),
     OTLP_METRICS("otlp_metrics");
 
     private final String code;

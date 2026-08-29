@@ -33,16 +33,25 @@ export function InvestigationContextBand({ window, onBack }: { window: Investiga
   );
 }
 
-export function InvestigationAvailability({ items }: { items: AvailabilityItem[] }) {
+export function InvestigationAvailability({
+  items,
+  ariaLabel,
+  stateLabels
+}: {
+  items: AvailabilityItem[];
+  ariaLabel?: string | undefined;
+  stateLabels?: Partial<Record<InvestigationEvidenceState, string>> | undefined;
+}) {
   const { t } = useInvestigationTranslation();
   return (
-    <section className={styles.availability} aria-label={t('exploreInvestigation.availability')}>
+    <section className={styles.availability} aria-label={ariaLabel ?? t('exploreInvestigation.availability')}>
       <div className={styles.capabilityGrid} data-count={items.length}>
         {items.map(item => (
           <div className={styles.capability} key={item.key}>
             <strong>{item.label}</strong>
             <Tag className={styles.stateTag ?? ''} color={stateTone(item.state)}>
-              {t(`exploreInvestigation.states.${item.state === 'ready' ? 'available' : item.state}`)}
+              {stateLabels?.[item.state] ??
+                t(`exploreInvestigation.states.${item.state === 'ready' ? 'available' : item.state}`)}
             </Tag>
           </div>
         ))}
@@ -81,15 +90,18 @@ export function InvestigationSection({
 
 export function InvestigationBlockState({
   state,
-  noTraceContext
+  noTraceContext,
+  message
 }: {
   state: 'empty' | 'unavailable';
   noTraceContext?: boolean;
+  message?: string | undefined;
 }) {
   const { t } = useInvestigationTranslation();
   return (
     <div className={styles.compactState} data-state={state}>
-      {t(noTraceContext ? 'exploreInvestigation.states.noTraceContext' : `exploreInvestigation.states.${state}`)}
+      {message ??
+        t(noTraceContext ? 'exploreInvestigation.states.noTraceContext' : `exploreInvestigation.states.${state}`)}
     </div>
   );
 }

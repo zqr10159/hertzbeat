@@ -154,6 +154,49 @@ public class GreptimeInvestigationQueryRepository implements InvestigationQueryR
         }
     }
 
+    @Override
+    public RowsResult<InvestigationLogRecord> identityLogs(IdentityQuery query) {
+        String sql = "SELECT " + LOG_COLUMNS + " FROM " + LOG_TABLE
+                + identityWhere(query, false)
+                + " ORDER BY timestamp DESC, log_record_uid DESC LIMIT " + (MAX_ALERT_LOGS + 1);
+        try {
+            List<InvestigationLogRecord> rows = mapLogs(execute(sql), query.workspaceId());
+            boolean truncated = rows.size() > MAX_ALERT_LOGS;
+            return RowsResult.available(truncated ? rows.subList(0, MAX_ALERT_LOGS) : rows, truncated);
+        } catch (MalformedRowException | IllegalArgumentException exception) {
+            return RowsResult.failed(Status.MALFORMED_DATA);
+        } catch (RuntimeException exception) {
+            return RowsResult.failed(Status.STORAGE_UNAVAILABLE);
+        }
+    }
+
+    @Override
+    public RowsResult<TraceSummaryRow> identityTraces(IdentityQuery query) {
+        String sql = "SELECT trace_id, CAST(MIN(timestamp) AS BIGINT) AS start_time_unix_nano, "
+                + "MAX(CAST(timestamp AS BIGINT) + duration_nano) - MIN(CAST(timestamp AS BIGINT)) "
+                + "AS duration_nanos, COUNT(*) AS span_count, service_name, "
+                + "SUM(CASE WHEN span_status_code = 'STATUS_CODE_ERROR' THEN 1 ELSE 0 END) AS error_count, "
+                + "SUM(CASE WHEN span_status_code = 'STATUS_CODE_OK' THEN 1 ELSE 0 END) AS ok_count, "
+                + "SUM(CASE WHEN span_status_code = 'STATUS_CODE_UNSET' THEN 1 ELSE 0 END) AS unset_count "
+                + "FROM hzb_traces" + identityWhere(query, true)
+                + " GROUP BY trace_id, service_name ORDER BY start_time_unix_nano DESC LIMIT "
+                + (MAX_ALERT_TRACES + 1);
+        try {
+            List<Map<String, Object>> rawRows = execute(sql);
+            boolean truncated = rawRows.size() > MAX_ALERT_TRACES;
+            List<Map<String, Object>> bounded = truncated ? rawRows.subList(0, MAX_ALERT_TRACES) : rawRows;
+            List<TraceSummaryRow> rows = new ArrayList<>(bounded.size());
+            for (Map<String, Object> row : bounded) {
+                rows.add(traceSummary(row, query));
+            }
+            return RowsResult.available(rows, truncated);
+        } catch (MalformedRowException | IllegalArgumentException exception) {
+            return RowsResult.failed(Status.MALFORMED_DATA);
+        } catch (RuntimeException exception) {
+            return RowsResult.failed(Status.STORAGE_UNAVAILABLE);
+        }
+    }
+
     private String nearbySql(NearbyQuery query, boolean before) {
         String comparator = before ? "<" : ">";
         String order = before ? "DESC" : "ASC";
@@ -174,6 +217,44 @@ public class GreptimeInvestigationQueryRepository implements InvestigationQueryR
                 + " ORDER BY timestamp " + order + ", log_record_uid " + order
                 + " LIMIT " + (MAX_NEARBY_LOGS + 1);
     }
+
+    private String identityWhere(IdentityQuery query, boolean trace) {
+        String workspaceColumn = trace ? "\"resource_attributes.hertzbeat.workspace_id\"" : "hertzbeat_workspace_id";
+        String entityColumn = trace ? "\"resource_attributes.hertzbeat.entity_id\"" : "hertzbeat_entity_id";
+        String namespaceColumn = trace ? "\"resource_attributes.service.namespace\""
+                : "json_get_string(resource_attributes, '$[\"service.namespace\"]')";
+        String environmentColumn = trace ? "\"resource_attributes.deployment.environment.name\""
+                : "json_get_string(resource_attributes, '$[\"deployment.environment.name\"]')";
+        return " WHERE " + workspaceColumn + " = " + literal(query.workspaceId())
+                + exactOptionalScope(entityColumn, query.entityId())
+                + " AND service_name = " + literal(query.serviceName())
+                + exactOptionalScope(namespaceColumn, query.serviceNamespace())
+                + exactOptionalScope(environmentColumn, query.deploymentEnvironment())
+                + window("timestamp", query.start(), query.end());
+    }
+
+    private TraceSummaryRow traceSummary(Map<String, Object> row, IdentityQuery query) {
+        String traceId = requiredIdentifier(row, "trace_id", TRACE_ID);
+        long startNanos = positiveLong(value(row, "start_time_unix_nano"));
+        long durationNanos = nonNegativeLong(value(row, "duration_nanos"));
+        long spanCount = positiveLong(value(row, "span_count"));
+        if (spanCount > MAX_TRACE_SPANS || !query.serviceName().equals(required(row, "service_name", 256))) {
+            throw new MalformedRowException();
+        }
+        BigInteger start = BigInteger.valueOf(query.start()).multiply(BigInteger.valueOf(1_000_000L));
+        BigInteger end = BigInteger.valueOf(query.end()).multiply(BigInteger.valueOf(1_000_000L));
+        BigInteger actual = BigInteger.valueOf(startNanos);
+        if (actual.compareTo(start) < 0 || actual.compareTo(end) >= 0) {
+            throw new MalformedRowException();
+        }
+        long errors = nonNegativeLong(value(row, "error_count"));
+        long ok = nonNegativeLong(value(row, "ok_count"));
+        long unset = nonNegativeLong(value(row, "unset_count"));
+        String status = errors > 0L ? "error" : ok == spanCount ? "ok" : unset == spanCount ? "unset" : "unknown";
+        return new TraceSummaryRow(traceId, Long.toString(startNanos), Long.toString(durationNanos), status,
+                (int) spanCount, query.serviceName());
+    }
+
 
     private List<Map<String, Object>> execute(String sql) {
         GreptimeSqlQueryExecutor executor = executorProvider.getIfAvailable();
@@ -459,6 +540,10 @@ public class GreptimeInvestigationQueryRepository implements InvestigationQueryR
     private String optionalJsonScope(String key, String value) {
         return value == null ? "" : " AND json_get_string(resource_attributes, '$[\"" + key + "\"]') = "
                 + literal(value);
+    }
+
+    private String exactOptionalScope(String column, String value) {
+        return value == null ? "" : " AND " + column + " = " + literal(value);
     }
 
     private void put(Map<String, String> values, String key, String value) {
