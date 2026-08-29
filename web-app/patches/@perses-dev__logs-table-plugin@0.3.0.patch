@@ -1,3 +1,16 @@
+diff --git a/lib/components/LogRow/LogRow.js b/lib/components/LogRow/LogRow.js
+index 51761917b3bee7c5f768542adba6609a8225db48..f49e8d701ca874dbb2a171db36a93ba0a6de09c0 100644
+--- a/lib/components/LogRow/LogRow.js
++++ b/lib/components/LogRow/LogRow.js
+@@ -134,6 +134,8 @@ const DefaultLogRow = ({ log, isExpanded, index, onToggle, isExpandable = true,
+                         children: /*#__PURE__*/ _jsx(ExpandButton, {
+                             size: "small",
+                             isExpanded: isExpanded,
++                            "aria-label": isExpanded ? "Collapse log details" : "Expand log details",
++                            "aria-expanded": isExpanded,
+                             children: /*#__PURE__*/ _jsx(ChevronRight, {
+                                 sx: {
+                                     fontSize: '12px'
 diff --git a/lib/components/LogRow/ansiColors.css b/lib/components/LogRow/ansiColors.css
 new file mode 100644
 index 0000000000000000000000000000000000000000..435b8c96a06a901510714a1506b7271e60eba81f

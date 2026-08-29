@@ -437,6 +437,7 @@
         "truncated": "Showing a bounded subset of matching evidence.",
         "truncationUnknown": "Result completeness is unknown.",
         "runtimeError": "The visualization runtime could not render this evidence.",
+        "investigationActions": "Investigation actions ({{count}})",
         "invalid": "The signal request is invalid.",
         "permission": "You do not have permission to inspect this signal.",
         "overloaded": "Signal storage is busy. Try again.",
@@ -650,6 +651,7 @@
     "overview": "Log overview",
     "trend": "Log trend",
     "trendEmpty": "No trend buckets were returned for this query.",
+    "trendInsufficient": "Only one trend bucket is available ({{count}} logs), so no time trend can be drawn.",
     "statisticsUnavailable": "This statistics region could not be loaded.",
     "statistics": {
       "total": "Total",

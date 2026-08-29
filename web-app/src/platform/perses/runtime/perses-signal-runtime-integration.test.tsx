@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0.
  */
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/core/runtime-theme-context', () => ({ useRuntimeTheme: () => ({ theme: 'light' }) }));
@@ -16,7 +16,6 @@ vi.mock('@tanstack/react-query', async () => {
   const { createRequire } = await import('node:module');
   return createRequire(import.meta.url)('@tanstack/react-query') as Record<string, unknown>;
 });
-
 import { PersesSignalRuntime } from './perses-signal-runtime';
 
 const timeWindow = { from: 1_750_000_000_000, to: 1_750_000_060_000 } as const;
@@ -89,9 +88,14 @@ describe('Perses official signal panel integration', () => {
     );
     expectRuntimeFrame(logs.container, 'logs-table');
     expect((timeWindow.from / 1_000) * 1_000).toBe(timeWindow.from);
-    // The real official virtualized table mounts its scroller; jsdom does not
-    // perform the layout measurements needed to materialize a virtual row.
     expect(await screen.findByTestId('virtuoso-scroller')).toBeInTheDocument();
+    const expandLog = await screen.findByRole('button', { name: 'Expand log details' });
+    expect(expandLog).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(expandLog);
+    expect(await screen.findByRole('button', { name: 'Collapse log details' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
     cleanup();
 
     const traces = render(

@@ -27,6 +27,8 @@ export type PersesSignalRuntimeProps =
       title: string;
       timeWindow: ExactTimeWindow;
       data: TimeSeriesData;
+      onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
+      timeWindowChangeEnabled?: boolean | undefined;
     }
   | { kind: 'logs-table'; title: string; timeWindow: ExactTimeWindow; data: LogData }
   | { kind: 'trace-table'; title: string; timeWindow: ExactTimeWindow; data: TraceData }
@@ -47,6 +49,8 @@ export function PersesSignalRuntime(props: PersesSignalRuntimeProps) {
         key={`${props.timeWindow.from}:${props.timeWindow.to}`}
         timeWindow={props.timeWindow}
         pluginLoader={hertzBeatPersesMultiSignalPluginLoader}
+        onTimeWindowChange={props.kind === 'metric-time-series' ? props.onTimeWindowChange : undefined}
+        timeWindowChangeEnabled={props.kind !== 'metric-time-series' || props.timeWindowChangeEnabled !== false}
       >
         <DataQueriesProvider definitions={queries}>
           <Panel panelOptions={{ hideHeader: true }} definition={definition} />
@@ -103,7 +107,7 @@ function panelDefinition(props: PersesSignalRuntimeProps): PanelDefinition {
       kind: 'Panel',
       spec: {
         display,
-        plugin: { kind: 'LogsTable', spec: { allowWrap: true, enableDetails: true, showTime: true } }
+        plugin: { kind: 'LogsTable', spec: { allowWrap: true, enableDetails: true, showAll: true, showTime: true } }
       }
     };
   }

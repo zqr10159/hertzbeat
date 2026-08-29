@@ -51,22 +51,29 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .statistics > section {
   min-width: 0;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--hb-border-subtle);
+  padding: 8px 0;
 }
 
 .statistics > .overview {
-  padding-top: 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding-top: 0;
 }
 
 .statistics h3 {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 14px;
+}
+
+.statistics > .trend h3 {
+  margin-bottom: 8px;
 }
 
 .overviewStats {
@@ -98,6 +105,14 @@
 }
 
 @media (width <= 900px) {
+  .statistics > .overview {
+    display: block;
+  }
+
+  .statistics > .overview h3 {
+    margin-bottom: 8px;
+  }
+
   .overviewStats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

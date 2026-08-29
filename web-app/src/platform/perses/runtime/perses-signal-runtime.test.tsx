@@ -12,7 +12,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const runtimeContract = vi.hoisted(() => ({
   panels: [] as PanelDefinition[],
   queries: [] as QueryDefinition[][],
-  pluginLoaders: [] as unknown[]
+  pluginLoaders: [] as unknown[],
+  timeWindowCallbacks: [] as Array<unknown>,
+  timeWindowChangeFlags: [] as Array<boolean | undefined>
 }));
 
 vi.mock('@perses-dev/dashboards', () => ({
@@ -36,12 +38,18 @@ vi.mock('@perses-dev/plugin-system', () => ({
 vi.mock('./perses-runtime-providers', () => ({
   PersesRuntimeProviders: ({
     children,
-    pluginLoader
+    pluginLoader,
+    onTimeWindowChange,
+    timeWindowChangeEnabled
   }: {
     children: import('react').ReactNode;
     pluginLoader: unknown;
+    onTimeWindowChange?: unknown;
+    timeWindowChangeEnabled?: boolean | undefined;
   }) => {
     runtimeContract.pluginLoaders.push(pluginLoader);
+    runtimeContract.timeWindowCallbacks.push(onTimeWindowChange);
+    runtimeContract.timeWindowChangeFlags.push(timeWindowChangeEnabled);
     return children;
   }
 }));
@@ -60,6 +68,8 @@ describe('PersesSignalRuntime', () => {
     runtimeContract.panels = [];
     runtimeContract.queries = [];
     runtimeContract.pluginLoaders = [];
+    runtimeContract.timeWindowCallbacks = [];
+    runtimeContract.timeWindowChangeFlags = [];
   });
 
   it('routes each typed snapshot to the matching official Perses panel and query kind', () => {
@@ -123,5 +133,41 @@ describe('PersesSignalRuntime', () => {
       }
       view.unmount();
     }
+  });
+
+  it('forwards a host time-window callback only for a metric time-series runtime', () => {
+    const onTimeWindowChange = vi.fn();
+    const metric = render(
+      <PersesSignalRuntime
+        kind="metric-time-series"
+        title="Metric"
+        timeWindow={timeWindow}
+        data={{ timeRange: { start: new Date(timeWindow.from), end: new Date(timeWindow.to) }, series: [] }}
+        onTimeWindowChange={onTimeWindowChange}
+      />
+    );
+    expect(runtimeContract.timeWindowCallbacks.at(-1)).toBe(onTimeWindowChange);
+    expect(runtimeContract.timeWindowChangeFlags.at(-1)).toBe(true);
+    metric.unmount();
+
+    const logs = render(
+      <PersesSignalRuntime kind="logs-table" title="Logs" timeWindow={timeWindow} data={{ entries: [] }} />
+    );
+    expect(runtimeContract.timeWindowCallbacks.at(-1)).toBeUndefined();
+    logs.unmount();
+  });
+
+  it('disables metric time-window interaction when the host marks retained evidence stale', () => {
+    render(
+      <PersesSignalRuntime
+        kind="metric-time-series"
+        title="Retained metric"
+        timeWindow={timeWindow}
+        data={{ timeRange: { start: new Date(timeWindow.from), end: new Date(timeWindow.to) }, series: [] }}
+        timeWindowChangeEnabled={false}
+      />
+    );
+
+    expect(runtimeContract.timeWindowChangeFlags.at(-1)).toBe(false);
   });
 });

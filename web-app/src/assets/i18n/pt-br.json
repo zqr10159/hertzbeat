@@ -445,6 +445,7 @@
         "truncated": "Exibindo um subconjunto limitado da evidência correspondente.",
         "truncationUnknown": "A completude do resultado é desconhecida.",
         "runtimeError": "O runtime de visualização não conseguiu renderizar esta evidência.",
+        "investigationActions": "Ações de investigação ({{count}})",
         "invalid": "A solicitação do sinal é inválida.",
         "permission": "Você não tem permissão para inspecionar este sinal.",
         "overloaded": "O armazenamento de sinais está ocupado. Tente novamente.",
@@ -661,6 +662,7 @@
     "overview": "Visão geral dos logs",
     "trend": "Tendência dos logs",
     "trendEmpty": "Nenhum intervalo de tendência foi retornado para esta consulta.",
+    "trendInsufficient": "Há apenas um intervalo de tendência ({{count}} logs), portanto não é possível traçar uma tendência temporal.",
     "statisticsUnavailable": "Não foi possível carregar esta região de estatísticas.",
     "statistics": {
       "total": "Total",

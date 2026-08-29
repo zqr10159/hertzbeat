@@ -5,6 +5,11 @@ import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initializeI18n, loadLocale } from '@/core/i18n/i18n';
+import enUS from '@/assets/i18n/en-us.json';
+import jaJP from '@/assets/i18n/ja-jp.json';
+import ptBR from '@/assets/i18n/pt-br.json';
+import zhCN from '@/assets/i18n/zh-cn.json';
+import zhTW from '@/assets/i18n/zh-tw.json';
 
 import type { EntitySignalViewState } from '../model/entity-signal-view-model';
 import { EntitySignalView } from './entity-signal-view';
@@ -23,6 +28,10 @@ describe('EntitySignalView', () => {
     await loadLocale('en-US');
   });
   afterEach(cleanup);
+
+  it.each([enUS, jaJP, ptBR, zhCN, zhTW])('owns localized host-interaction summary copy', locale => {
+    expect(locale.entity.signals.query.investigationActions).toContain('{{count}}');
+  });
 
   it('keeps each available signal in its own section and explains correlations in the evidence rail', () => {
     renderView(readyState());

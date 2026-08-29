@@ -409,6 +409,7 @@
         "truncated": "当前展示匹配证据的有界子集。",
         "truncationUnknown": "结果完整性未知。",
         "runtimeError": "可视化运行时无法渲染该证据。",
+        "investigationActions": "调查操作（{{count}} 条）",
         "invalid": "信号请求无效。",
         "permission": "没有权限查看该信号。",
         "overloaded": "信号存储繁忙，请重试。",
@@ -622,6 +623,7 @@
     "overview": "日志概览",
     "trend": "日志趋势",
     "trendEmpty": "此查询未返回趋势时间桶。",
+    "trendInsufficient": "只有一个趋势时间桶（{{count}} 条日志），无法绘制时间趋势。",
     "statisticsUnavailable": "此统计区域无法加载。",
     "statistics": {
       "total": "总计",

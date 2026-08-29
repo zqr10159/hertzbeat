@@ -56,14 +56,14 @@
 }
 
 .primitive[data-variant='compact'] {
-  min-height: 220px;
-  grid-template-rows: 220px auto auto;
+  min-height: 180px;
+  grid-template-rows: 180px auto auto;
 }
 
 .primitive[data-variant='compact'] .runtime,
 .primitive[data-variant='compact'] .state {
-  height: 220px;
-  min-height: 220px;
+  height: 180px;
+  min-height: 180px;
 }
 
 .completeness {
@@ -78,16 +78,31 @@
 }
 
 .interactions {
+  margin: 8px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.interactions > summary {
+  padding: 6px 8px;
+  color: var(--hb-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.interactionList {
   display: grid;
   gap: 6px;
   max-height: 224px;
-  margin: 8px 0 0;
+  margin: 0;
   padding: 0;
   overflow: auto;
   list-style: none;
 }
 
-.interactions li {
+.interactionList li {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -97,7 +112,7 @@
   border-bottom: 1px solid var(--hb-border-subtle);
 }
 
-.interactions li > span {
+.interactionList li > span {
   min-width: 0;
   overflow: hidden;
   color: var(--hb-text-secondary);
@@ -105,9 +120,11 @@
   white-space: nowrap;
 }
 
-.interactions li > div {
+.interactionList li > div {
   display: flex;
   flex: none;
+  flex-basis: 176px;
+  justify-content: flex-end;
   gap: 6px;
   max-width: 100%;
   overflow-x: auto;
@@ -129,12 +146,13 @@
 }
 
 @media (width <= 700px) {
-  .interactions li {
+  .interactionList li {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .interactions li > div {
+  .interactionList li > div {
     width: 100%;
+    flex-basis: auto;
   }
 }

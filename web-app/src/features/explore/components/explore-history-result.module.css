@@ -12,6 +12,22 @@
   overflow: hidden;
 }
 
+.logRegion {
+  min-width: 0;
+  padding-block: 12px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.logRegion + .logRegion {
+  border-top: 1px solid var(--hb-border-subtle);
+}
+
+.logRegion[data-explore-log-region='query'] {
+  padding-block: 0;
+}
+
 @media (width <= 700px) {
   .pagination {
     justify-content: flex-start;

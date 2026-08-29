@@ -409,6 +409,7 @@
         "truncated": "目前顯示匹配證據的有界子集。",
         "truncationUnknown": "結果完整性未知。",
         "runtimeError": "視覺化執行環境無法呈現該證據。",
+        "investigationActions": "調查操作（{{count}} 筆）",
         "invalid": "信號請求無效。",
         "permission": "沒有權限查看該信號。",
         "overloaded": "信號儲存忙碌，請重試。",
@@ -622,6 +623,7 @@
     "overview": "日誌概覽",
     "trend": "日誌趨勢",
     "trendEmpty": "此查詢未傳回趨勢時間區段。",
+    "trendInsufficient": "只有一個趨勢時間區段（{{count}} 筆日誌），無法繪製時間趨勢。",
     "statisticsUnavailable": "此統計區域無法載入。",
     "statistics": {
       "total": "總計",

@@ -22,6 +22,7 @@ import { OperationalPage, OperationalResultRegion } from '@/shared/operational-p
 
 import { ExploreQueryBar } from '../components/explore-query-bar';
 import { ExploreWorkbench } from '../components/explore-workbench';
+import historyStyles from '../components/explore-history-result.module.css';
 import { useExplorePageController } from '../controller/use-explore-page-controller';
 import { ExploreFocusedLogPage, ExploreFocusedTracePage } from './explore-focused-investigation';
 import { ExploreResultPanel } from './explore-result-panel';
@@ -65,6 +66,27 @@ function ExploreHistoricalWorkspace({
   controller: ReturnType<typeof useExplorePageController>;
   t: TFunction;
 }) {
+  const queryBar = (
+    <ExploreQueryBar
+      query={controller.query}
+      t={t}
+      updateQuery={controller.updateManualQuery}
+      updateScope={controller.updateQuery}
+      refresh={controller.refresh}
+      time={controller.time}
+      submission={controller.submission}
+    />
+  );
+  const resultPanel = (
+    <ExploreResultPanel
+      query={controller.query}
+      result={controller.result}
+      retry={controller.refresh}
+      openPath={controller.openPath}
+    />
+  );
+  const flatLogs =
+    controller.query.signal === 'logs' && controller.result.kind === 'ready' && controller.result.signal === 'logs';
   return (
     <OperationalPage mode="workspace">
       <div data-explore-workspace="true">
@@ -74,23 +96,19 @@ function ExploreHistoricalWorkspace({
           id={`explore-panel-${controller.query.signal}`}
           aria-labelledby={`explore-tab-${controller.query.signal}`}
         >
-          <ExploreQueryBar
-            query={controller.query}
-            t={t}
-            updateQuery={controller.updateManualQuery}
-            updateScope={controller.updateQuery}
-            refresh={controller.refresh}
-            time={controller.time}
-            submission={controller.submission}
-          />
-          <OperationalResultRegion>
-            <ExploreResultPanel
-              query={controller.query}
-              result={controller.result}
-              retry={controller.refresh}
-              openPath={controller.openPath}
-            />
-          </OperationalResultRegion>
+          {flatLogs ? (
+            <>
+              <section className={historyStyles.logRegion} data-explore-log-region="query">
+                {queryBar}
+              </section>
+              {resultPanel}
+            </>
+          ) : (
+            <>
+              {queryBar}
+              <OperationalResultRegion>{resultPanel}</OperationalResultRegion>
+            </>
+          )}
         </section>
       </div>
     </OperationalPage>

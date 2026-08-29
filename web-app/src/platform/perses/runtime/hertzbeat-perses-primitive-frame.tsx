@@ -1,6 +1,8 @@
 /* Licensed to the Apache Software Foundation (ASF) under the Apache License, Version 2.0. */
 
-import { Component, lazy, Suspense, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useState, type ReactNode } from 'react';
+
+import type { ExactTimeWindow } from '@/shared/query-context';
 
 import type { HertzBeatQueryFailure, HertzBeatQueryOutcome } from '../datasource/hertzbeat-query-contract';
 import { PersesSignalDataError } from './perses-signal-data';
@@ -15,13 +17,19 @@ export type HertzBeatPersesPrimitiveMessages = {
   truncated: ReactNode;
   truncationUnknown: ReactNode;
   runtimeError: ReactNode;
+  investigationActions: (count: number) => ReactNode;
   failures: Record<FailureMessageKey, ReactNode>;
 };
 
 export type HertzBeatPersesTableInteraction = {
   key: string;
   label: ReactNode;
-  actions: Array<{ label: string; disabled?: boolean | undefined; onAction: () => void }>;
+  actions: Array<{
+    label: string;
+    ariaLabel?: string | undefined;
+    disabled?: boolean | undefined;
+    onAction: () => void;
+  }>;
 };
 
 export type SharedPrimitiveProps = {
@@ -31,6 +39,8 @@ export type SharedPrimitiveProps = {
   className?: string | undefined;
   runtimeIdentity?: string | undefined;
   interactions?: HertzBeatPersesTableInteraction[] | undefined;
+  onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
+  timeWindowChangeEnabled?: boolean | undefined;
   variant?: 'default' | 'compact' | undefined;
 };
 
@@ -98,7 +108,7 @@ export function HertzBeatPrimitiveFrame<T>({ state, toRuntimeProps, ...props }: 
         </div>
       </PersesPrimitiveErrorBoundary>
       <Completeness ariaLabel={props.ariaLabel} truncated={outcome.truncated} messages={props.messages} />
-      <PersesHostInteractions interactions={props.interactions} />
+      <PersesHostInteractions interactions={props.interactions} messages={props.messages} />
     </div>
   );
 }
@@ -117,23 +127,48 @@ function PrimitiveStateFrame(props: SharedPrimitiveProps & { alert?: boolean; ch
   );
 }
 
-function PersesHostInteractions({ interactions }: { interactions?: HertzBeatPersesTableInteraction[] | undefined }) {
+function PersesHostInteractions({
+  interactions,
+  messages
+}: {
+  interactions?: HertzBeatPersesTableInteraction[] | undefined;
+  messages: HertzBeatPersesPrimitiveMessages;
+}) {
+  const [open, setOpen] = useState(false);
   if (!interactions?.length) return null;
   return (
-    <ul className={styles.interactions} data-perses-host-interactions>
-      {interactions.map(interaction => (
-        <li key={interaction.key}>
-          <span>{interaction.label}</span>
-          <div>
-            {interaction.actions.map(action => (
-              <button key={action.label} type="button" disabled={action.disabled} onClick={action.onAction}>
-                {action.label}
-              </button>
-            ))}
-          </div>
-        </li>
-      ))}
-    </ul>
+    <details className={styles.interactions} data-perses-host-interactions open={open}>
+      <summary
+        onClick={event => {
+          event.preventDefault();
+          setOpen(current => !current);
+        }}
+      >
+        {messages.investigationActions(interactions.length)}
+      </summary>
+      {open && (
+        <ul className={styles.interactionList}>
+          {interactions.map(interaction => (
+            <li key={interaction.key}>
+              <span>{interaction.label}</span>
+              <div>
+                {interaction.actions.map(action => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    aria-label={action.ariaLabel}
+                    disabled={action.disabled}
+                    onClick={action.onAction}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }
 

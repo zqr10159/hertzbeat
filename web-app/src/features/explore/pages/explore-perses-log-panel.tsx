@@ -8,6 +8,7 @@ import { usePublishShellInvestigation } from '@/shared/investigation';
 import type { ExactTimeWindow } from '@/shared/query-context';
 
 import { ExploreHistoryPagination } from '../components/explore-history-pagination';
+import historyStyles from '../components/explore-history-result.module.css';
 import { ExploreLogStatistics } from '../components/explore-log-statistics';
 import { explorePersesMessages } from '../components/explore-perses-messages';
 import { ExploreMessageResult, ExploreResultFrame } from '../components/explore-state-panel';
@@ -15,7 +16,7 @@ import { SignalEmptyState, SignalResultFrame } from '../components/signal-result
 import { materializeLogInvestigation } from '../model/explore-agent-handoff';
 import { buildLogInvestigationPath, buildTraceInvestigationPath } from '../model/explore-investigation-model';
 import { createExploreLogPersesResult } from '../model/explore-perses-result-model';
-import type { LogExploreQuery } from '../model/explore-model';
+import { buildExplorePath, logTrendZoomPatch, mergeExploreQuery, type LogExploreQuery } from '../model/explore-model';
 import type { LogHistoryEvidence, LogRow } from '../model/explore-signal-contract';
 import { logBody, logTimestampMs } from '../model/explore-signal-model';
 
@@ -38,32 +39,90 @@ export function ExplorePersesLogPanel(props: Props) {
   );
   if (!timeWindow) return <ExploreMessageResult kind="error" message={t('explore.states.contractError')} />;
   const result = createExploreLogPersesResult(query, data, timeWindow, revision);
-  return (
-    <ExploreResultFrame>
-      <ExploreLogStatistics
-        statistics={statistics}
-        timeWindow={timeWindow}
-        runtimeIdentity={result.runtimeIdentity}
-        t={t}
-      />
-      <SignalResultFrame title={t('explore.signals.logs')} count={data.totalElements}>
-        {data.totalElements === 0 ? (
-          <SignalEmptyState title={t('explore.empty.logs')} hint={t('explore.description')} />
-        ) : (
-          <HertzBeatLogsTableResult
-            title={t('explore.signals.logs')}
-            ariaLabel={t('explore.perses.logsTable')}
-            query={result.query}
-            outcome={result.outcome}
-            runtimeIdentity={result.runtimeIdentity}
-            interactions={logInteractions(data.content, query, timeWindow, evidenceCurrent, openPath, t)}
-            messages={explorePersesMessages(t)}
-          />
-        )}
-        <ExploreHistoryPagination page={data} query={query} enabled={evidenceCurrent} openPath={openPath} t={t} />
-      </SignalResultFrame>
-    </ExploreResultFrame>
+  const onTrendTimeWindowChange = evidenceCurrent
+    ? (nextWindow: ExactTimeWindow) => openLogTrendZoom(query, timeWindow, nextWindow, openPath)
+    : undefined;
+  const statisticsView = (
+    <ExploreLogStatistics
+      statistics={statistics}
+      timeWindow={timeWindow}
+      runtimeIdentity={result.runtimeIdentity}
+      onTimeWindowChange={onTrendTimeWindowChange}
+      t={t}
+    />
   );
+  const resultView = (
+    <SignalResultFrame
+      title={t('explore.signals.logs')}
+      count={data.totalElements}
+      meta={logPageProvenance(data, query, timeWindow, t)}
+    >
+      {data.totalElements === 0 ? (
+        <SignalEmptyState title={t('explore.empty.logs')} hint={t('explore.description')} />
+      ) : (
+        <HertzBeatLogsTableResult
+          title={t('explore.signals.logs')}
+          ariaLabel={t('explore.perses.logsTable')}
+          query={result.query}
+          outcome={result.outcome}
+          runtimeIdentity={result.runtimeIdentity}
+          interactions={logInteractions(data.content, query, timeWindow, evidenceCurrent, openPath, t)}
+          messages={explorePersesMessages(t)}
+        />
+      )}
+      <ExploreHistoryPagination page={data} query={query} enabled={evidenceCurrent} openPath={openPath} t={t} />
+    </SignalResultFrame>
+  );
+  if (!evidenceCurrent || data.totalElements === 0) {
+    return (
+      <ExploreResultFrame>
+        {statisticsView}
+        {resultView}
+      </ExploreResultFrame>
+    );
+  }
+  return (
+    <>
+      <section className={historyStyles.logRegion} data-explore-log-region="trend">
+        {statisticsView}
+      </section>
+      <section className={historyStyles.logRegion} data-explore-log-region="result">
+        {resultView}
+      </section>
+    </>
+  );
+}
+
+function openLogTrendZoom(
+  query: LogExploreQuery,
+  evidenceWindow: ExactTimeWindow,
+  requestedWindow: ExactTimeWindow,
+  openPath: (path: string) => void
+) {
+  const patch = logTrendZoomPatch(query, evidenceWindow, requestedWindow);
+  if (patch) openPath(buildExplorePath(mergeExploreQuery(query, patch)));
+}
+
+function logPageProvenance(
+  page: LogHistoryEvidence['page'],
+  query: LogExploreQuery,
+  window: ExactTimeWindow,
+  t: ReturnType<typeof useTranslation>['t']
+) {
+  return [
+    {
+      label: t('explore.perses.rowsReturned'),
+      value: `${page.content.length.toLocaleString()} / ${page.totalElements.toLocaleString()}`
+    },
+    {
+      label: t('explore.perses.requestedPage'),
+      value: `${((query.pageIndex ?? 0) + 1).toLocaleString()} / ${page.totalPages.toLocaleString()}`
+    },
+    {
+      label: t('explore.perses.evidenceWindow'),
+      value: `${new Date(window.from).toISOString()} – ${new Date(window.to).toISOString()}`
+    }
+  ];
 }
 
 function currentLogEvidence(data: LogHistoryEvidence['page'], current: boolean) {
@@ -100,14 +159,16 @@ function rowActions(
   const actions: HertzBeatPersesTableInteraction['actions'] = [];
   if (row.logRecordUid) {
     actions.push({
-      label: t('explore.perses.investigateLog', { value: logInteractionLabel(row, t) }),
+      label: t('explore.perses.investigateLogAction'),
+      ariaLabel: t('explore.perses.investigateLog', { value: logInteractionLabel(row, t) }),
       disabled: !enabled,
       onAction: () => openPath(buildLogInvestigationPath(query, selectedLog(row), window, browserTimeZone()))
     });
   }
   if (validTraceId(row.traceId)) {
     actions.push({
-      label: t('explore.perses.openTrace', { value: shortId(row.traceId) }),
+      label: t('explore.perses.openTraceAction'),
+      ariaLabel: t('explore.perses.openTrace', { value: shortId(row.traceId) }),
       disabled: !enabled,
       onAction: () => openPath(buildTraceInvestigationPath(query, selectedTrace(row), window, browserTimeZone()))
     });

@@ -11,6 +11,7 @@ export function explorePersesMessages(t: TFunction): HertzBeatPersesPrimitiveMes
     truncated: t('explore.perses.truncated'),
     truncationUnknown: t('explore.perses.truncationUnknown'),
     runtimeError: t('explore.perses.runtimeError'),
+    investigationActions: count => t('explore.perses.investigationActions', { count }),
     failures: {
       'perses.query.invalid': t('explore.perses.invalid'),
       'perses.query.permission': t('explore.perses.permission'),

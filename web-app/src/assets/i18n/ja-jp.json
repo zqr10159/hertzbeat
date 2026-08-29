@@ -429,6 +429,7 @@
         "truncated": "一致する証拠の制限された一部を表示しています。",
         "truncationUnknown": "結果の完全性は不明です。",
         "runtimeError": "可視化ランタイムはこの証拠を描画できませんでした。",
+        "investigationActions": "調査アクション（{{count}} 件）",
         "invalid": "シグナル要求が無効です。",
         "permission": "このシグナルを確認する権限がありません。",
         "overloaded": "シグナルストレージが混雑しています。再試行してください。",
@@ -645,6 +646,7 @@
     "overview": "ログ概要",
     "trend": "ログ傾向",
     "trendEmpty": "このクエリでは傾向の時間区分が返されませんでした。",
+    "trendInsufficient": "傾向の時間区分が 1 件（{{count}} ログ）のため、時間傾向を描画できません。",
     "statisticsUnavailable": "この統計領域を読み込めませんでした。",
     "statistics": {
       "total": "合計",

@@ -21,7 +21,8 @@ import {
   type ExploreQuery,
   type ExploreQueryPatch,
   type ExploreSignal,
-  type ExploreTimeRange
+  type ExploreTimeRange,
+  type LogExploreQuery
 } from './explore-query';
 
 import type { ExactTimeWindow, QueryContext } from '@/shared/query-context';
@@ -145,6 +146,36 @@ export function presetTimeRangePatch(query: ExploreQuery, timeRange: ExploreTime
     start: undefined,
     end: undefined
   };
+}
+
+export function logTrendZoomPatch(
+  query: LogExploreQuery,
+  evidenceWindow: ExactTimeWindow,
+  requestedWindow: ExactTimeWindow
+): ExploreQueryPatch | undefined {
+  if (!validTrendZoomWindow(evidenceWindow, requestedWindow)) return undefined;
+  return {
+    start: requestedWindow.from,
+    end: requestedWindow.to,
+    windowMode: undefined,
+    pageIndex: undefined,
+    logRecordUid: undefined,
+    // In historical Logs these identities are active filters, so an exact zoom must preserve them explicitly.
+    traceId: query.traceId,
+    spanId: query.spanId
+  };
+}
+
+function validTrendZoomWindow(evidence: ExactTimeWindow, requested: ExactTimeWindow) {
+  if (![evidence.from, evidence.to, requested.from, requested.to].every(isPositiveSafeInteger)) return false;
+  if (evidence.from >= evidence.to || requested.from >= requested.to) return false;
+  if (requested.from < evidence.from || requested.to > evidence.to) return false;
+  if (requested.to - requested.from > 24 * 60 * 60_000) return false;
+  return requested.from !== evidence.from || requested.to !== evidence.to;
+}
+
+function isPositiveSafeInteger(value: number) {
+  return Number.isSafeInteger(value) && value > 0;
 }
 
 function dependentFilterCleanup(query: ExploreQuery, changes: ExploreQueryPatch) {

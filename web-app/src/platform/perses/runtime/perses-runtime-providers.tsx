@@ -17,7 +17,7 @@ import { DatasourceStoreProvider, VariableProvider } from '@perses-dev/dashboard
 import { PluginRegistry, RouterProvider, TimeRangeProvider, type PluginLoader } from '@perses-dev/plugin-system';
 import type { DurationString, TimeRangeValue } from '@perses-dev/spec';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useRuntimeTheme } from '@/core/runtime-theme-context';
 import type { ExactTimeWindow } from '@/shared/query-context';
@@ -45,17 +45,33 @@ const datasourceApi: DatasourceApi = {
 export function PersesRuntimeProviders({
   children,
   timeWindow,
-  pluginLoader = hertzBeatPersesPluginLoader
+  pluginLoader = hertzBeatPersesPluginLoader,
+  onTimeWindowChange,
+  timeWindowChangeEnabled = true
 }: {
   children: ReactNode;
   timeWindow: ExactTimeWindow;
   pluginLoader?: PluginLoader | undefined;
+  onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
+  timeWindowChangeEnabled?: boolean | undefined;
 }) {
   const { theme } = useRuntimeTheme();
   const [persesTimeRange, setPersesTimeRange] = useState<TimeRangeValue>(() => toTimeRange(timeWindow));
+  const lastAbsoluteWindow = useRef<ExactTimeWindow>(timeWindow);
   const [refreshInterval, setRefreshInterval] = useState<DurationString>('0s');
   const muiTheme = useMemo(() => getTheme(theme === 'dark' ? 'dark' : 'light'), [theme]);
   const chartsTheme = useMemo(() => generateChartsTheme(muiTheme, {}), [muiTheme]);
+  const updateTimeRange = useCallback(
+    (value: TimeRangeValue) => {
+      if (!timeWindowChangeEnabled) return;
+      setPersesTimeRange(value);
+      const nextWindow = exactWindow(value);
+      if (!nextWindow || sameWindow(lastAbsoluteWindow.current, nextWindow)) return;
+      lastAbsoluteWindow.current = nextWindow;
+      onTimeWindowChange?.(nextWindow);
+    },
+    [onTimeWindowChange, timeWindowChangeEnabled]
+  );
 
   return (
     <ThemeProvider theme={muiTheme}>
@@ -70,7 +86,7 @@ export function PersesRuntimeProviders({
                 <TimeRangeProvider
                   timeRange={persesTimeRange}
                   refreshInterval={refreshInterval}
-                  setTimeRange={setPersesTimeRange}
+                  setTimeRange={updateTimeRange}
                   setRefreshInterval={setRefreshInterval}
                 >
                   <VariableProvider>
@@ -90,4 +106,15 @@ export function PersesRuntimeProviders({
 
 function toTimeRange(window: ExactTimeWindow): TimeRangeValue {
   return { start: new Date(window.from), end: new Date(window.to) };
+}
+
+function exactWindow(value: TimeRangeValue): ExactTimeWindow | undefined {
+  if (!('start' in value)) return undefined;
+  const from = value.start.getTime();
+  const to = value.end.getTime();
+  return Number.isSafeInteger(from) && Number.isSafeInteger(to) && from > 0 && from < to ? { from, to } : undefined;
+}
+
+function sameWindow(current: ExactTimeWindow, next: ExactTimeWindow) {
+  return current.from === next.from && current.to === next.to;
 }

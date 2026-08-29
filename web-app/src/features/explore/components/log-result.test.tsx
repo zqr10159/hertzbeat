@@ -203,6 +203,37 @@ describe('LogResult', () => {
     expect(within(trend).queryByRole('list')).not.toBeInTheDocument();
   });
 
+  it('reports a single observed trend bucket instead of presenting an empty chart grid as a trend', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ExploreLogStatistics
+          statistics={{
+            overview: {
+              kind: 'ready',
+              data: {
+                totalCount: 6,
+                traceCount: 0,
+                debugCount: 0,
+                infoCount: 6,
+                warnCount: 0,
+                errorCount: 0,
+                fatalCount: 0
+              }
+            },
+            trend: { kind: 'ready', data: { hourlyStats: { '2026-08-06 10:00': 6 } } }
+          }}
+          timeWindow={{ from: 1_754_467_200_000, to: 1_754_470_800_000 }}
+          runtimeIdentity="logs-trend:revision-single"
+          t={i18n.t}
+        />
+      </I18nextProvider>
+    );
+
+    const trend = screen.getByRole('region', { name: i18n.t('exploreLog.trend') });
+    expect(within(trend).getByText(i18n.t('exploreLog.trendInsufficient', { count: 6 }))).toBeInTheDocument();
+    expect(within(trend).queryByRole('img')).not.toBeInTheDocument();
+  });
+
   it.each([
     ['unavailable', 'common.unavailable'],
     ['error', 'exploreLog.streamFailed'],

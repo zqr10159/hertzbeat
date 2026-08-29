@@ -48,7 +48,9 @@ export function HertzBeatMetricTimeSeries(props: SharedPrimitiveProps & { query:
     kind: 'metric-time-series' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
-    data: toPersesTimeSeriesData(outcome.data.series, props.query.timeWindow)
+    data: toPersesTimeSeriesData(outcome.data.series, props.query.timeWindow),
+    onTimeWindowChange: props.onTimeWindowChange,
+    timeWindowChangeEnabled: props.timeWindowChangeEnabled
   }));
 }
 
@@ -90,7 +92,9 @@ export function HertzBeatMetricTimeSeriesResult(
     kind: 'metric-time-series' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
-    data: toPersesTimeSeriesData(outcome.data.series, props.query.timeWindow)
+    data: toPersesTimeSeriesData(outcome.data.series, props.query.timeWindow),
+    onTimeWindowChange: props.onTimeWindowChange,
+    timeWindowChangeEnabled: props.timeWindowChangeEnabled
   }));
 }
 

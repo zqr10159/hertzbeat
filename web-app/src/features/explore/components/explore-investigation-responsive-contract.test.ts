@@ -56,20 +56,32 @@ describe('Explore investigation responsive contract', () => {
 
   it('keeps Logs overview, trend, and result on flat full-width workbench surfaces', () => {
     expect(logStyles).toMatch(/\.statistics\s*\{[^}]*flex-direction:\s*column/s);
-    expect(logStyles).toMatch(/\.statistics\s*>\s*section\s*\{[^}]*border-bottom:\s*1px solid/s);
+    expect(logStyles).toMatch(/\.statistics\s*\{[^}]*margin-bottom:\s*0/s);
+    expect(logStyles).toMatch(
+      /\.statistics\s*>\s*\.overview\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)/s
+    );
+    expect(logStyles).not.toMatch(/\.statistics\s*>\s*section\s*\{[^}]*border-bottom:/s);
     expect(logStyles).not.toMatch(/\.statistics\s*>\s*section\s*\{[^}]*border-radius:/s);
     expect(logStyles).not.toMatch(/\.statistics\s*\{[^}]*grid-template-columns:/s);
+    expect(historyStyles).toMatch(/\.logRegion\s*\{[^}]*padding-block:\s*12px/s);
+    expect(historyStyles).toMatch(/\.logRegion\s*\+\s*\.logRegion\s*\{[^}]*border-top:\s*1px solid/s);
   });
 
-  it('flattens embedded Perses cards and keeps narrow host actions on one scrollable line', () => {
+  it('flattens embedded Perses cards and keeps collapsed host actions on a flat scrollable disclosure', () => {
     expect(persesStyles).toMatch(/\.runtime\s+:global\(\.MuiCard-root\)[\s\S]*border-radius:\s*0/s);
     expect(persesStyles).toMatch(/\.runtime\s+:global\(\.MuiPaper-root\)[\s\S]*box-shadow:\s*none/s);
     expect(persesStyles).toMatch(/\.runtime\s+:global\(\.MuiTableContainer-root\)[^}]*overflow-x:\s*auto/s);
     expect(persesStyles).toMatch(
       /\.runtime\s+:global\(\.MuiCardContent-root\s*>\s*\.MuiBox-root\)[^}]*box-shadow:\s*none/s
     );
-    expect(persesStyles).toMatch(/\.interactions\s+li\s*>\s*div\s*\{[^}]*overflow-x:\s*auto/s);
+    expect(persesStyles).toMatch(/\.interactionList\s+li\s*>\s*div\s*\{[^}]*overflow-x:\s*auto/s);
     expect(persesStyles).toMatch(/\.interactions\s+button\s*\{[^}]*white-space:\s*nowrap/s);
+    expect(persesStyles).toMatch(
+      /@media \(width <= 700px\)[\s\S]*\.interactionList\s+li\s*>\s*div\s*\{[^}]*flex-basis:\s*auto/s
+    );
+    expect(persesStyles).toMatch(
+      /\.interactions\s*\{[^}]*border:\s*0[^}]*border-radius:\s*0[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s
+    );
   });
 
   it('keeps narrow Logs readable with stable content width and runtime-local scrolling', () => {
@@ -85,7 +97,10 @@ describe('Explore investigation responsive contract', () => {
   it('gives runtime, completeness, and interactions independent grid rows', () => {
     expect(persesStyles).toMatch(/\.primitive\s*\{[^}]*grid-template-rows:\s*360px\s+auto\s+auto/s);
     expect(persesStyles).toMatch(
-      /\.primitive\[data-variant='compact'\]\s*\{[^}]*min-height:\s*220px[^}]*grid-template-rows:\s*220px\s+auto\s+auto/s
+      /\.primitive\[data-variant='compact'\]\s*\{[^}]*min-height:\s*180px[^}]*grid-template-rows:\s*180px\s+auto\s+auto/s
+    );
+    expect(persesStyles).toMatch(
+      /\.primitive\[data-variant='compact'\]\s+\.runtime,[\s\S]*height:\s*180px[^}]*min-height:\s*180px/s
     );
   });
 

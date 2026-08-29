@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0.
  */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryHertzBeatData } from '../datasource/hertzbeat-query-client';
@@ -17,7 +17,15 @@ vi.mock('../datasource/hertzbeat-query-client', async importOriginal => {
   return { ...actual, queryHertzBeatData: vi.fn() };
 });
 vi.mock('./perses-signal-runtime', () => ({
-  PersesSignalRuntime: ({ kind }: { kind: string }) => {
+  PersesSignalRuntime: ({
+    kind,
+    onTimeWindowChange,
+    timeWindowChangeEnabled
+  }: {
+    kind: string;
+    onTimeWindowChange?: ((window: { from: number; to: number }) => void) | undefined;
+    timeWindowChangeEnabled?: boolean | undefined;
+  }) => {
     if (runtimeControl.fail) throw new Error('private runtime detail');
     if (kind === 'logs-table' || kind === 'trace-table') {
       return (
@@ -37,7 +45,16 @@ vi.mock('./perses-signal-runtime', () => ({
     if (kind === 'tracing-gantt-chart') {
       return <button data-testid={`official-${kind}`}>Inspect span</button>;
     }
-    return <div data-testid={`official-${kind}`} />;
+    return (
+      <button
+        type="button"
+        data-testid={`official-${kind}`}
+        disabled={timeWindowChangeEnabled === false}
+        onClick={() => onTimeWindowChange?.({ from: timeWindow.from + 1_000, to: timeWindow.to - 1_000 })}
+      >
+        Zoom time series
+      </button>
+    );
   }
 }));
 
@@ -45,6 +62,7 @@ import {
   HertzBeatLogsTable,
   HertzBeatLogsTableResult,
   HertzBeatMetricTimeSeries,
+  HertzBeatMetricTimeSeriesResult,
   HertzBeatTraceTable,
   HertzBeatTracingGanttChart,
   type HertzBeatPersesPrimitiveMessages
@@ -58,6 +76,7 @@ const messages: HertzBeatPersesPrimitiveMessages = {
   truncated: 'Results are truncated',
   truncationUnknown: 'Result completeness is unknown',
   runtimeError: 'Visualization unavailable',
+  investigationActions: count => `Investigation actions (${count})`,
   failures: {
     'perses.query.invalid': 'Invalid query',
     'perses.query.permission': 'Permission denied',
@@ -287,6 +306,11 @@ describe('HertzBeat Perses primitives', () => {
       />
     );
 
+    const interactions = view.container.querySelector('[data-perses-host-interactions]');
+    expect(interactions).toBeInstanceOf(HTMLDetailsElement);
+    expect(interactions).not.toHaveAttribute('open');
+    expect(screen.queryByRole('button', { name: 'Investigate log checkout ready' })).not.toBeInTheDocument();
+    fireEvent.click(within(interactions as HTMLElement).getByText('Investigation actions (1)'));
     fireEvent.click(screen.getByRole('button', { name: 'Investigate log checkout ready' }));
     expect(open).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Open trace checkout ready' })).toBeDisabled();
@@ -305,6 +329,38 @@ describe('HertzBeat Perses primitives', () => {
       />
     );
     expect(screen.queryByRole('button', { name: 'Investigate log checkout ready' })).not.toBeInTheDocument();
+  });
+
+  it('forwards a time-series zoom only when the caller owns a callback', () => {
+    const onTimeWindowChange = vi.fn();
+    render(
+      <HertzBeatMetricTimeSeriesResult
+        title="Log trend"
+        ariaLabel="Log trend"
+        query={{ signal: 'metrics', queryKind: 'time-series', timeWindow, metric: { name: 'hertzbeat_log_count' } }}
+        outcome={metricOutcome() as never}
+        onTimeWindowChange={onTimeWindowChange}
+        messages={messages}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom time series' }));
+    expect(onTimeWindowChange).toHaveBeenCalledWith({ from: timeWindow.from + 1_000, to: timeWindow.to - 1_000 });
+  });
+
+  it('forwards a disabled time-series range interaction to the Perses runtime', () => {
+    render(
+      <HertzBeatMetricTimeSeriesResult
+        title="Retained Log trend"
+        ariaLabel="Retained Log trend"
+        query={{ signal: 'metrics', queryKind: 'time-series', timeWindow, metric: { name: 'hertzbeat_log_count' } }}
+        outcome={metricOutcome() as never}
+        timeWindowChangeEnabled={false}
+        messages={messages}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Zoom time series' })).toBeDisabled();
   });
 });
 

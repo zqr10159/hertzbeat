@@ -437,23 +437,48 @@ describe('ExplorePage instrumentation context boundary', () => {
     expect(screen.queryByText(en.explore.empty.logs)).not.toBeInTheDocument();
   });
 
+  it('exposes historical Logs as ordered flat Query, Trend, and Result sibling regions', async () => {
+    api.loadLogSignal.mockResolvedValueOnce(logEvidence(logPage('flat log evidence', 'not-a-trace-id')));
+    renderPage('/explore?signal=logs');
+    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
+    expandLogInvestigationActions();
+    expect((await screen.findAllByText(/flat log evidence/u)).length).toBeGreaterThan(0);
+
+    const panel = screen.getByRole('tabpanel', { name: en.explore.signals.logs });
+    const regions = Array.from(panel.querySelectorAll(':scope > [data-explore-log-region]'));
+    expect(regions.map(region => region.getAttribute('data-explore-log-region'))).toEqual(['query', 'trend', 'result']);
+    regions.forEach(region => {
+      expect(region.querySelector('.ant-card, [data-surface="card"], [data-hb-card]')).toBeNull();
+    });
+  });
+
+  it.each(['metrics', 'traces'] as const)('keeps the Logs flat-stack contract scoped away from %s', signal => {
+    renderPage(`/explore?signal=${signal}`);
+    const panel = screen.getByRole('tabpanel', { name: en.explore.signals[signal] });
+    expect(panel.querySelector('[data-explore-log-region]')).toBeNull();
+  });
+
   it('labels retained log evidence during refresh and disables stale drilldowns until replacement succeeds', async () => {
     const refresh = deferred(logEvidence(logPage('fresh evidence', 'fedcba9876543210fedcba9876543210')));
     api.loadLogSignal
       .mockResolvedValueOnce(logEvidence(logPage('cached evidence', '0123456789abcdef0123456789abcdef')))
       .mockReturnValueOnce(refresh.promise);
     renderPage('/explore?signal=logs');
+    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
+    expandLogInvestigationActions();
     expect((await screen.findAllByText(/cached evidence/u)).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: en.common.refresh }));
 
     expect(await screen.findByText(i18n.t('explore.states.refreshing'))).toBeInTheDocument();
+    expandLogInvestigationActions();
     expect(screen.getByRole('button', { name: /Open trace/u })).toBeDisabled();
     expect(screen.getAllByText(/cached evidence/u).length).toBeGreaterThan(0);
 
     refresh.resolve();
-    expect((await screen.findAllByText(/fresh evidence/u)).length).toBeGreaterThan(0);
-    expect(screen.queryByText(i18n.t('explore.states.refreshing'))).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(i18n.t('explore.states.refreshing'))).not.toBeInTheDocument());
+    expandLogInvestigationActions();
+    expect(screen.getAllByText(/fresh evidence/u).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Open trace/u })).toBeEnabled();
   });
 
@@ -462,11 +487,14 @@ describe('ExplorePage instrumentation context boundary', () => {
       .mockResolvedValueOnce(logEvidence(logPage('cached evidence', '0123456789abcdef0123456789abcdef')))
       .mockRejectedValueOnce(new ApiMessageError('offline', { status: 503 }));
     renderPage('/explore?signal=logs');
+    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
+    expandLogInvestigationActions();
     expect((await screen.findAllByText(/cached evidence/u)).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: en.common.refresh }));
 
     expect(await screen.findByText(/Refresh failed/u)).toHaveTextContent(i18n.t('explore.states.transportError'));
+    expandLogInvestigationActions();
     expect(screen.getByRole('button', { name: /Open trace/u })).toBeDisabled();
     expect(screen.getByTestId('investigation-target')).toHaveTextContent('none');
   });
@@ -479,6 +507,9 @@ describe('ExplorePage instrumentation context boundary', () => {
         '&severityText=warn&hideNoise=true'
     );
 
+    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
+    expect(screen.queryByRole('button', { name: /Investigate log/u })).not.toBeInTheDocument();
+    expandLogInvestigationActions();
     expect((await screen.findAllByText(/ready evidence/u)).length).toBeGreaterThan(0);
     expect(JSON.parse(screen.getByTestId('investigation-target').textContent ?? '')).toEqual({
       log: {
@@ -514,10 +545,13 @@ describe('ExplorePage instrumentation context boundary', () => {
 
     renderPage('/explore?signal=logs');
 
-    const action = await screen.findByRole('button', { name: /Investigate log/u });
+    const summary = await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
+    expect(screen.queryByRole('button', { name: /Investigate log/u })).not.toBeInTheDocument();
+    fireEvent.click(summary);
+    const action = screen.getByRole('button', { name: /Investigate log/u });
     expect(action.textContent).not.toContain(longBody);
-    expect(action.textContent?.length).toBeLessThan(160);
-    expect(document.querySelectorAll('[data-perses-host-interactions] > li')).toHaveLength(1);
+    expect(action).toHaveTextContent(i18n.t('explore.perses.investigateLogAction'));
+    expect(document.querySelectorAll('[data-perses-host-interactions] > ul > li')).toHaveLength(1);
   });
 
   it('opens a trusted historical trace row as an exact focused investigation', async () => {
@@ -534,7 +568,9 @@ describe('ExplorePage instrumentation context boundary', () => {
         '&start=1000&end=2000'
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: /Investigate trace/u }));
+    const interactions = await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
+    fireEvent.click(interactions);
+    fireEvent.click(screen.getByRole('button', { name: /Investigate trace/u }));
 
     await waitFor(() =>
       expect(locationParams()).toMatchObject({
@@ -679,6 +715,14 @@ function LocationProbe() {
 
 function locationParams() {
   return Object.fromEntries(new URLSearchParams(screen.getByTestId('location').textContent ?? ''));
+}
+
+function expandLogInvestigationActions() {
+  const interactions = document.querySelector('[data-perses-host-interactions]');
+  if (!(interactions instanceof HTMLDetailsElement)) throw new Error('Log investigation disclosure is missing');
+  if (!interactions.open) {
+    fireEvent.click(within(interactions).getByText(i18n.t('explore.perses.investigationActions', { count: 1 })));
+  }
 }
 
 function querySubmitButton() {

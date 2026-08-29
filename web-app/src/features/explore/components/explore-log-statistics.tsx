@@ -15,17 +15,25 @@ export function ExploreLogStatistics({
   statistics,
   timeWindow,
   runtimeIdentity,
+  onTimeWindowChange,
   t
 }: {
   statistics: Pick<LogHistoryEvidence, 'overview' | 'trend'>;
   timeWindow: ExactTimeWindow;
   runtimeIdentity: string;
+  onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
   t: TFunction;
 }) {
   return (
     <div className={styles.statistics}>
       <Overview statistics={statistics} t={t} />
-      <Trend statistics={statistics} timeWindow={timeWindow} runtimeIdentity={runtimeIdentity} t={t} />
+      <Trend
+        statistics={statistics}
+        timeWindow={timeWindow}
+        runtimeIdentity={runtimeIdentity}
+        onTimeWindowChange={onTimeWindowChange}
+        t={t}
+      />
     </div>
   );
 }
@@ -54,14 +62,20 @@ function Trend({
   statistics,
   timeWindow,
   runtimeIdentity,
+  onTimeWindowChange,
   t
 }: {
   statistics: Pick<LogHistoryEvidence, 'trend'>;
   timeWindow: ExactTimeWindow;
   runtimeIdentity: string;
+  onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
   t: TFunction;
 }) {
   const rows = statistics.trend.kind === 'ready' ? Object.keys(statistics.trend.data.hourlyStats) : [];
+  const singleBucketCount =
+    statistics.trend.kind === 'ready' && rows.length === 1
+      ? Object.values(statistics.trend.data.hourlyStats)[0]
+      : undefined;
   return (
     <section className={styles.trend} aria-label={t('exploreLog.trend')}>
       <h3>{t('exploreLog.trend')}</h3>
@@ -69,8 +83,16 @@ function Trend({
         <Alert type="warning" showIcon message={t('exploreLog.statisticsUnavailable')} />
       ) : rows.length === 0 ? (
         <p>{t('exploreLog.trendEmpty')}</p>
+      ) : rows.length === 1 ? (
+        <p>{t('exploreLog.trendInsufficient', { count: singleBucketCount })}</p>
       ) : (
-        <TrendResult trend={statistics.trend.data} timeWindow={timeWindow} runtimeIdentity={runtimeIdentity} t={t} />
+        <TrendResult
+          trend={statistics.trend.data}
+          timeWindow={timeWindow}
+          runtimeIdentity={runtimeIdentity}
+          onTimeWindowChange={onTimeWindowChange}
+          t={t}
+        />
       )}
     </section>
   );
@@ -80,11 +102,13 @@ function TrendResult({
   trend,
   timeWindow,
   runtimeIdentity,
+  onTimeWindowChange,
   t
 }: {
   trend: Extract<LogHistoryEvidence['trend'], { kind: 'ready' }>['data'];
   timeWindow: ExactTimeWindow;
   runtimeIdentity: string;
+  onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
   t: TFunction;
 }) {
   const result = createLogTrendPersesResult(trend, timeWindow, runtimeIdentity);
@@ -97,6 +121,8 @@ function TrendResult({
       outcome={result.outcome}
       runtimeIdentity={result.runtimeIdentity}
       messages={explorePersesMessages(t)}
+      onTimeWindowChange={onTimeWindowChange}
+      timeWindowChangeEnabled={onTimeWindowChange != null}
       variant="compact"
     />
   );
