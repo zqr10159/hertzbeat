@@ -74,13 +74,6 @@ describe('Explore Query Key factory', () => {
     ]);
   });
 
-  it('builds trace detail identity from both evidence scope and trace id', () => {
-    expect(exploreQueryKeys.detail('scope-a', undefined)).toEqual(['trace-detail', 'scope-a', undefined]);
-    expect(exploreQueryKeys.detail('scope-a', 'trace-1')).toEqual(['trace-detail', 'scope-a', 'trace-1']);
-    expect(exploreQueryKeys.detail('scope-a', 'trace-2')).not.toEqual(exploreQueryKeys.detail('scope-a', 'trace-1'));
-    expect(exploreQueryKeys.detail('scope-b', 'trace-1')).not.toEqual(exploreQueryKeys.detail('scope-a', 'trace-1'));
-  });
-
   it('builds one explicit metrics history identity', () => {
     expect(exploreQueryKeys.history(metricQuery, window, 3)).toEqual([
       'explore-history',
@@ -115,8 +108,9 @@ describe('Explore Query Key factory', () => {
     expect(exploreQueryKeys.history({ ...logs, live: true }, window, 3)).toEqual(
       exploreQueryKeys.history(logs, window, 3)
     );
-    expect(exploreQueryKeys.history({ ...metricQuery, timeRange: 'last-1h' }, undefined, 3)).not.toEqual(
-      exploreQueryKeys.history(metricQuery, undefined, 3)
+    const relativeMetric = { ...metricQuery, start: undefined, end: undefined };
+    expect(exploreQueryKeys.history({ ...relativeMetric, timeRange: 'last-1h' }, undefined, 3)).not.toEqual(
+      exploreQueryKeys.history(relativeMetric, undefined, 3)
     );
   });
 

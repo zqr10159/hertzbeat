@@ -14,7 +14,7 @@ describe('Perses runtime registry', () => {
     vi.resetModules();
   });
 
-  it('registers both production runtimes without loading the unselected multi-signal runtime', async () => {
+  it('lazily loads the production metric and multi-signal runtime entries', async () => {
     let timeSeriesLoads = 0;
     let multiSignalLoads = 0;
     vi.doMock('./perses-time-series-runtime', () => {

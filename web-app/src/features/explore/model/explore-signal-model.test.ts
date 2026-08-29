@@ -24,10 +24,7 @@ import {
   logTimestampMs,
   metricPoints,
   metricResultState,
-  metricSeries,
-  traceDurationMs,
-  traceHealthState,
-  traceSpanLayout
+  metricSeries
 } from './explore-signal-model';
 
 describe('explore API contracts', () => {
@@ -117,7 +114,7 @@ describe('explore API contracts', () => {
           ]
         })
       )
-    ).toEqual({ kind: 'empty' });
+    ).toEqual({ kind: 'contract_error' });
 
     const ready = metricResultState(
       metricConsole({
@@ -132,62 +129,6 @@ describe('explore API contracts', () => {
     );
     expect(ready).toMatchObject({ kind: 'ready' });
     if (ready.kind === 'ready') expect(metricPoints(ready.series[0]!)).toEqual([{ timestamp: 1000, value: 0 }]);
-  });
-
-  it('uses the established trace nanosecond duration contract', () => {
-    expect(traceDurationMs({ durationNanos: 3_000_000_000 })).toBe(3000);
-    expect(traceDurationMs({ durationNanos: '3000000000' })).toBe(3000);
-    expect(
-      traceSpanLayout(
-        traceDetail({
-          startTime: 1000,
-          durationNanos: '1000000000',
-          spans: [
-            traceSpan({ spanId: 'root', startTime: 1000, durationNanos: '1000000000' }),
-            traceSpan({ spanId: 'child', parentSpanId: 'root', startTime: 1250, durationNanos: '500000000' })
-          ]
-        })
-      )
-    ).toMatchObject([
-      { spanId: 'root', depth: 0, timing: { kind: 'duration', offsetPercent: 0, widthPercent: 100 } },
-      { spanId: 'child', depth: 1, timing: { kind: 'duration', offsetPercent: 25, widthPercent: 50 } }
-    ]);
-  });
-
-  it('keeps missing, partial, and actual zero span timing distinct', () => {
-    const layout = traceSpanLayout(
-      traceDetail({
-        spans: [
-          traceSpan({ spanId: 'missing', startTime: null, durationNanos: null }),
-          traceSpan({ spanId: 'missing-start', startTime: null, durationNanos: '1000000' }),
-          traceSpan({ spanId: 'missing-duration', startTime: 1_000, durationNanos: null }),
-          traceSpan({ spanId: 'instant', startTime: 1_000, durationNanos: '0' }),
-          traceSpan({ spanId: 'measured', startTime: 1_000, durationNanos: '1000000' })
-        ]
-      })
-    );
-
-    for (const spanId of ['missing', 'missing-start', 'missing-duration']) {
-      const span = layout.find(item => item.spanId === spanId);
-      expect(span).toMatchObject({ timing: { kind: 'unavailable' } });
-      expect(span).not.toHaveProperty('offsetPercent');
-      expect(span).not.toHaveProperty('widthPercent');
-    }
-    expect(layout.find(span => span.spanId === 'instant')).toMatchObject({
-      timing: { kind: 'instant', offsetPercent: 0 }
-    });
-    expect(layout.find(span => span.spanId === 'measured')).toMatchObject({
-      timing: { kind: 'duration', offsetPercent: 0, widthPercent: 100 }
-    });
-  });
-
-  it('classifies trace health only from explicit evidence', () => {
-    expect(traceHealthState({ status: null, errorSpanCount: 0 })).toBe('unknown');
-    expect(traceHealthState({ status: 'OK', errorSpanCount: 0 })).toBe('ok');
-    expect(traceHealthState({ status: 'ERROR', errorSpanCount: 0 })).toBe('error');
-    expect(traceHealthState({ status: null, errorSpanCount: 1 })).toBe('error');
-    expect(traceHealthState({ status: 'OK', errorSpanCount: 1 })).toBe('error');
-    expect(traceHealthState({ status: 'UNSET', errorSpanCount: 0 })).toBe('unknown');
   });
 
   it('normalizes numeric and numeric-string samples without inventing points', () => {
@@ -243,52 +184,6 @@ function metricConsole(
     stats: null,
     emptyStateReason,
     errorMessage
-  };
-}
-
-function traceDetail(
-  override: Partial<import('./explore-signal-contract').TraceDetail> = {}
-): import('./explore-signal-contract').TraceDetail {
-  return {
-    traceId: 'trace-1',
-    rootSpanId: null,
-    serviceName: null,
-    serviceNamespace: null,
-    rootSpanName: null,
-    durationNanos: null,
-    status: null,
-    startTime: null,
-    errorSpanCount: 0,
-    resourceAttributes: null,
-    spans: null,
-    ...override
-  };
-}
-
-function traceSpan(
-  override: Partial<import('./explore-signal-contract').TraceSpan> = {}
-): import('./explore-signal-contract').TraceSpan {
-  return {
-    traceId: 'trace-1',
-    spanId: 'span-1',
-    parentSpanId: null,
-    spanName: null,
-    serviceName: null,
-    status: null,
-    spanKind: null,
-    statusMessage: null,
-    traceState: null,
-    scopeName: null,
-    scopeVersion: null,
-    durationNanos: null,
-    startTime: null,
-    highlighted: false,
-    resourceAttributes: null,
-    spanAttributes: null,
-    events: null,
-    links: null,
-    codeNavigationHint: null,
-    ...override
   };
 }
 

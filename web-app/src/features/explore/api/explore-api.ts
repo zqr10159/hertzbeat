@@ -35,12 +35,7 @@ import {
   parseMetricStep,
   parseTraceDuration
 } from '../model/explore-field-contract';
-import {
-  ExploreSignalContractError,
-  ExploreSignalMissingError,
-  ExploreSignalUnavailableError
-} from '../model/explore-signal-contract';
-import { buildTraceInvestigationApiPath, loadTraceInvestigation } from './explore-investigation-api';
+import { ExploreSignalContractError } from '../model/explore-signal-contract';
 import {
   parseLiveLogRow,
   parseLogOverview,
@@ -50,13 +45,13 @@ import {
 } from './explore-log-schema';
 import { parseMetricConsole, parseMetricInventory } from './explore-metric-schema';
 import { parseTracePage } from './explore-trace-schema';
-import { traceDetailWindow, toExploreTraceDetail } from './explore-signal-api-model';
 
 export { classifyExploreSignalError } from './explore-signal-api-model';
 
 export async function loadMetricSignal(query: MetricExploreQuery, signal?: AbortSignal) {
   const observedAt = Date.now();
   const resolvedQuery = query.query?.trim() ? query : await resolveInventoryMetricQuery(query, observedAt, signal);
+  if (!resolvedQuery) return { kind: 'inventory_empty' } as const;
   return parseMetricConsole(await apiMessageGet(buildSignalApiPath(resolvedQuery, observedAt), requestSignal(signal)));
 }
 
@@ -88,21 +83,6 @@ export async function loadLogHistoryEvidence(query: LogExploreQuery, signal?: Ab
 export async function loadTraceSignal(query: TraceExploreQuery, signal?: AbortSignal) {
   const pageIndex = query.pageIndex ?? 0;
   return parseTracePage(await apiMessageGet(buildSignalApiPath(query), requestSignal(signal)), pageIndex, 20);
-}
-
-export async function loadTraceDetail(query: TraceExploreQuery, traceId: string, signal?: AbortSignal) {
-  if (!traceId) throw new ExploreSignalContractError('traceId is required');
-  const window = traceDetailWindow(query, Date.now());
-  const snapshot = await loadTraceInvestigation(traceId, query.spanId, window, signal);
-  if (snapshot.gantt.state === 'empty') throw new ExploreSignalMissingError();
-  if (snapshot.gantt.state === 'unavailable' || !snapshot.gantt.detail) throw new ExploreSignalUnavailableError();
-  return toExploreTraceDetail(traceId, snapshot.gantt.detail);
-}
-
-export function buildTraceDetailApiPath(query: TraceExploreQuery, traceId: string, now = Date.now()) {
-  requireQueryableScope(query);
-  if (!traceId) throw new ExploreSignalContractError('traceId is required');
-  return buildTraceInvestigationApiPath(traceId, query.spanId, traceDetailWindow(query, now));
 }
 
 export function buildSignalApiPath(query: ExploreQuery, now = Date.now()) {
@@ -230,12 +210,12 @@ async function resolveInventoryMetricQuery(
   query: MetricExploreQuery,
   observedAt: number,
   signal?: AbortSignal
-): Promise<MetricExploreQuery> {
+): Promise<MetricExploreQuery | undefined> {
   const inventory = parseMetricInventory(
     await apiMessageGet(buildMetricInventoryApiPath(query, observedAt), requestSignal(signal))
   );
-  // A successfully empty inventory has no metric to select; `up` is the stable established fallback.
-  return { ...query, query: inventory.items[0]?.metricName ?? 'up' };
+  const metricName = inventory.items[0]?.metricName;
+  return metricName ? { ...query, query: metricName } : undefined;
 }
 
 function buildMetricInventoryApiPath(query: MetricExploreQuery, now = Date.now()) {

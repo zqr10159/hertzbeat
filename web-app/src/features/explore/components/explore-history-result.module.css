@@ -1,0 +1,19 @@
+/* Licensed to the Apache Software Foundation (ASF) under the Apache License, Version 2.0. */
+
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+  overflow-x: auto;
+}
+
+.persesFrame {
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (width <= 700px) {
+  .pagination {
+    justify-content: flex-start;
+  }
+}

@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import { OperationalPage, OperationalResultRegion } from '@/shared/operational-page';
@@ -54,29 +55,47 @@ export function ExplorePage() {
       </OperationalPage>
     );
   }
+  return <ExploreHistoricalWorkspace controller={controller} t={t} />;
+}
+
+function ExploreHistoricalWorkspace({
+  controller,
+  t
+}: {
+  controller: ReturnType<typeof useExplorePageController>;
+  t: TFunction;
+}) {
   return (
     <OperationalPage mode="workspace">
-      <ExploreWorkbench
-        query={controller.query}
-        t={t}
-        updateQuery={controller.updateQuery}
-        refresh={controller.refresh}
-        time={controller.time}
-      />
-      <ExploreQueryBar
-        query={controller.query}
-        t={t}
-        updateQuery={controller.updateManualQuery}
-        submission={controller.submission}
-      />
-      <OperationalResultRegion>
-        <ExploreResultPanel
+      <div data-explore-workspace="true">
+        <ExploreWorkbench
           query={controller.query}
-          result={controller.result}
-          retry={controller.refresh}
-          openPath={controller.openPath}
+          t={t}
+          updateQuery={controller.updateQuery}
+          refresh={controller.refresh}
+          time={controller.time}
         />
-      </OperationalResultRegion>
+        <section
+          role="tabpanel"
+          id={`explore-panel-${controller.query.signal}`}
+          aria-labelledby={`explore-tab-${controller.query.signal}`}
+        >
+          <ExploreQueryBar
+            query={controller.query}
+            t={t}
+            updateQuery={controller.updateManualQuery}
+            submission={controller.submission}
+          />
+          <OperationalResultRegion>
+            <ExploreResultPanel
+              query={controller.query}
+              result={controller.result}
+              retry={controller.refresh}
+              openPath={controller.openPath}
+            />
+          </OperationalResultRegion>
+        </section>
+      </div>
     </OperationalPage>
   );
 }

@@ -81,3 +81,35 @@
   height: 28px;
   padding-inline: 12px;
 }
+
+@media (max-width: 700px) {
+  :global(body:has([data-explore-workspace='true'])) {
+    min-width: 0;
+  }
+
+  :global(body:has([data-explore-workspace='true']) [data-testid='shell-time-policy']),
+  :global(body:has([data-explore-workspace='true']) [data-testid='shell-status-greptime']),
+  :global(body:has([data-explore-workspace='true']) [data-testid='shell-status-collector']) {
+    display: none;
+  }
+
+  .scope,
+  .navigationRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .timeRange {
+    width: 100%;
+  }
+
+  .signalNavigation {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .logMode {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+}

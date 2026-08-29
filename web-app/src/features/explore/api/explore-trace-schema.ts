@@ -17,17 +17,9 @@
 
 import { z } from 'zod';
 
-import {
-  ExploreSignalContractError,
-  ExploreSignalMissingError,
-  type ExplorePageResult,
-  type TraceDetail,
-  type TraceRow,
-  type TraceSpan
-} from '../model/explore-signal-contract';
+import { ExploreSignalContractError, type ExplorePageResult, type TraceRow } from '../model/explore-signal-contract';
 import {
   nullableJavaLongSchema,
-  nullableJsonMapSchema,
   nullableNonNegativeIntegerSchema,
   nullableStringMapSchema,
   nullableStringSchema,
@@ -83,72 +75,6 @@ const traceRowSchema: z.ZodType<TraceRow> = z.object(traceRowShape).superRefine(
   }
 });
 
-const OTLP_UINT64_MAX = '18446744073709551615';
-const nullableNonNegativeDecimalSchema = z
-  .string()
-  .regex(/^(0|[1-9]\d*)$/)
-  .refine(
-    value =>
-      value.length < OTLP_UINT64_MAX.length || (value.length === OTLP_UINT64_MAX.length && value <= OTLP_UINT64_MAX)
-  )
-  .nullable();
-const nullableNonNegativeLongDecimalSchema = z
-  .string()
-  .regex(/^(0|[1-9]\d{0,18})$/u)
-  .refine(value => value.length < 19 || value <= '9223372036854775807')
-  .nullable();
-
-const traceEventSchema = z.object({
-  timeUnixNano: nullableNonNegativeDecimalSchema,
-  name: nullableStringSchema,
-  attributes: nullableJsonMapSchema,
-  droppedAttributesCount: nullableNonNegativeIntegerSchema
-});
-
-const traceLinkSchema = z.object({
-  traceId: nullableStringSchema,
-  spanId: nullableStringSchema,
-  traceState: nullableStringSchema,
-  attributes: nullableJsonMapSchema,
-  droppedAttributesCount: nullableNonNegativeIntegerSchema
-});
-
-const codeNavigationHintSchema = z.object({
-  repositoryUrl: nullableStringSchema,
-  provider: nullableStringSchema,
-  defaultPath: nullableStringSchema,
-  searchQuery: nullableStringSchema,
-  label: nullableStringSchema
-});
-
-const traceSpanSchema: z.ZodType<TraceSpan> = z.object({
-  traceId: nullableStringSchema,
-  spanId: nullableStringSchema,
-  parentSpanId: nullableStringSchema,
-  spanName: nullableStringSchema,
-  serviceName: nullableStringSchema,
-  status: nullableStringSchema,
-  spanKind: nullableStringSchema,
-  statusMessage: nullableStringSchema,
-  traceState: nullableStringSchema,
-  scopeName: nullableStringSchema,
-  scopeVersion: nullableStringSchema,
-  durationNanos: nullableNonNegativeLongDecimalSchema,
-  startTime: nullableNonNegativeIntegerSchema,
-  highlighted: z.boolean(),
-  resourceAttributes: nullableStringMapSchema,
-  spanAttributes: nullableStringMapSchema,
-  events: z.array(traceEventSchema).nullable(),
-  links: z.array(traceLinkSchema).nullable(),
-  codeNavigationHint: codeNavigationHintSchema.nullable()
-});
-
-const traceDetailSchema: z.ZodType<TraceDetail> = z.object({
-  ...traceSummaryShape,
-  durationNanos: nullableNonNegativeLongDecimalSchema,
-  spans: z.array(traceSpanSchema).nullable()
-});
-
 export function parseTracePage(value: unknown, pageIndex: number, pageSize: number): ExplorePageResult<TraceRow> {
   const page = parseExplorePage(value, pageIndex, pageSize, traceRowSchema);
   requireUnique(
@@ -156,41 +82,6 @@ export function parseTracePage(value: unknown, pageIndex: number, pageSize: numb
     'trace page contains duplicate traceId'
   );
   return page;
-}
-
-export function parseTraceDetail(value: unknown, expectedTraceId: string): TraceDetail {
-  if (value == null) throw new ExploreSignalMissingError();
-  const result = traceDetailSchema.safeParse(value);
-  if (!result.success) throw new ExploreSignalContractError();
-  const detail = result.data;
-  if (detail.traceId !== expectedTraceId) {
-    throw new ExploreSignalContractError('trace detail identity does not match request');
-  }
-  const spanIds: string[] = [];
-  for (const span of detail.spans ?? []) {
-    if (!span.spanId) throw new ExploreSignalContractError('trace spanId is required');
-    if (span.traceId !== null && span.traceId !== expectedTraceId) {
-      throw new ExploreSignalContractError('span traceId does not match request');
-    }
-    spanIds.push(span.spanId);
-  }
-  requireUnique(spanIds, 'trace detail contains duplicate spanId');
-  return detail;
-}
-
-export function parseTraceSpans(value: unknown, expectedTraceId: string): TraceSpan[] {
-  const result = z.array(traceSpanSchema).safeParse(value);
-  if (!result.success) throw new ExploreSignalContractError();
-  const spans = result.data;
-  const spanIds = spans.map(span => {
-    if (!span.spanId) throw new ExploreSignalContractError('trace spanId is required');
-    if (span.traceId !== null && span.traceId !== expectedTraceId) {
-      throw new ExploreSignalContractError('span traceId does not match request');
-    }
-    return span.spanId;
-  });
-  requireUnique(spanIds, 'trace detail contains duplicate spanId');
-  return spans;
 }
 
 function requireUnique(values: string[], message: string) {

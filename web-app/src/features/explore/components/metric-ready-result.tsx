@@ -18,11 +18,14 @@
 import { Table, Tag } from 'antd';
 import type { TFunction } from 'i18next';
 
-import { PersesTimeSeries } from '@/platform/perses';
+import { HertzBeatMetricTimeSeriesResult } from '@/platform/perses';
+import type { ExactTimeWindow } from '@/shared/query-context';
 
+import { createExploreMetricPersesResult } from '../model/explore-perses-result-model';
+import type { MetricExploreQuery } from '../model/explore-query';
 import type { MetricConsole } from '../model/explore-signal-contract';
 import { metricPoints, type MetricSeries } from '../model/explore-signal-model';
-import styles from './metric-result.module.css';
+import { explorePersesMessages } from './explore-perses-messages';
 import { SignalResultFrame } from './signal-result-frame';
 
 const METRIC_SAMPLE_LIMIT = 100;
@@ -38,8 +41,23 @@ type SampleRow = {
   unit?: string | undefined;
 };
 
-export function MetricReadyResult({ data, series, t }: { data: MetricConsole; series: MetricSeries[]; t: TFunction }) {
+export function MetricReadyResult({
+  data,
+  series,
+  query,
+  timeWindow,
+  revision,
+  t
+}: {
+  data: MetricConsole;
+  series: MetricSeries[];
+  query: MetricExploreQuery;
+  timeWindow: ExactTimeWindow;
+  revision: number;
+  t: TFunction;
+}) {
   const samples = buildSampleRows(series);
+  const result = createExploreMetricPersesResult(query, data, timeWindow, revision, series);
   return (
     <SignalResultFrame
       title={t('explore.signals.metrics')}
@@ -51,24 +69,16 @@ export function MetricReadyResult({ data, series, t }: { data: MetricConsole; se
         { label: t('exploreMetric.queryMode'), value: data.queryMode ?? '—' }
       ]}
     >
-      <MetricTrend data={data} series={series} t={t} />
-      <MetricSampleTable series={series} samples={samples} t={t} />
-    </SignalResultFrame>
-  );
-}
-
-function MetricTrend({ data, series, t }: { data: MetricConsole; series: MetricSeries[]; t: TFunction }) {
-  return (
-    <section className={styles.chartSection} aria-label={t('exploreMetric.trend')}>
-      <PersesTimeSeries
-        className={styles.chart}
+      <HertzBeatMetricTimeSeriesResult
         title={t('explore.signals.metrics')}
         ariaLabel={t('exploreMetric.trend')}
-        errorFallback={t('exploreMetric.chartUnavailable')}
-        series={series.map(item => ({ ...item, points: metricPoints(item) }))}
-        timeWindow={metricTimeWindow(data)}
+        query={result.query}
+        outcome={result.outcome}
+        runtimeIdentity={result.runtimeIdentity}
+        messages={explorePersesMessages(t)}
       />
-    </section>
+      <MetricSampleTable series={series} samples={samples} t={t} />
+    </SignalResultFrame>
   );
 }
 
@@ -84,7 +94,7 @@ function MetricSampleTable({ series, samples, t }: { series: MetricSeries[]; sam
         {
           title: t('explore.time'),
           dataIndex: 'timestamp',
-          render: value => new Date(value as number).toLocaleString()
+          render: (value: number) => new Date(value).toLocaleString()
         },
         { title: t('explore.metric'), dataIndex: 'seriesName' },
         {
@@ -124,10 +134,4 @@ function buildSampleRows(series: MetricSeries[]): SampleRow[] {
       unit: item.unit
     }))
   );
-}
-
-function metricTimeWindow(data: MetricConsole) {
-  const from = data.context?.start;
-  const to = data.context?.end;
-  return from != null && to != null ? { from, to } : undefined;
 }

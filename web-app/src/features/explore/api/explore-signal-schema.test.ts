@@ -17,10 +17,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ExploreSignalContractError, ExploreSignalMissingError } from '../model/explore-signal-contract';
+import { ExploreSignalContractError } from '../model/explore-signal-contract';
 import { parseLogPage } from './explore-log-schema';
 import { parseMetricConsole } from './explore-metric-schema';
-import { parseTraceDetail, parseTracePage, parseTraceSpans } from './explore-trace-schema';
+import { parseTracePage } from './explore-trace-schema';
 
 describe('Explore signal contracts', () => {
   it('strips unknown metric fields while retaining explicit console evidence', () => {
@@ -248,111 +248,6 @@ describe('Explore signal contracts', () => {
       ExploreSignalContractError
     );
   });
-
-  it('treats null detail as missing and rejects identity drift', () => {
-    expect(() => parseTraceDetail(null, 'trace-1')).toThrow(ExploreSignalMissingError);
-    expect(() => parseTraceDetail({ ...traceRow('trace-2'), spans: null }, 'trace-1')).toThrow(/identity/);
-  });
-
-  it('parses nested trace evidence with allowlists', () => {
-    const detail = parseTraceDetail(
-      {
-        ...traceRow('trace-1'),
-        unknown: true,
-        spans: [
-          {
-            traceId: 'trace-1',
-            spanId: 'span-1',
-            parentSpanId: null,
-            spanName: 'GET',
-            serviceName: 'checkout',
-            status: 'OK',
-            spanKind: 'SERVER',
-            statusMessage: null,
-            traceState: null,
-            scopeName: null,
-            scopeVersion: null,
-            durationNanos: '2',
-            startTime: 1,
-            highlighted: false,
-            resourceAttributes: {},
-            spanAttributes: {},
-            events: [
-              {
-                timeUnixNano: '18446744073709551615',
-                name: 'event',
-                attributes: { value: 1 },
-                droppedAttributesCount: 0,
-                extra: true
-              }
-            ],
-            links: [],
-            codeNavigationHint: null,
-            extra: true
-          }
-        ]
-      },
-      'trace-1'
-    );
-    expect(detail).not.toHaveProperty('unknown');
-    expect(detail.spans?.[0]).not.toHaveProperty('extra');
-    expect(detail.spans?.[0]?.events?.[0]).not.toHaveProperty('extra');
-    expect(detail.spans?.[0]?.events?.[0]?.timeUnixNano).toBe('18446744073709551615');
-  });
-
-  it.each(['01', '-1', '1.5', '18446744073709551616', 1])(
-    'rejects non-canonical trace event nanoseconds %s',
-    timeUnixNano => {
-      const span = {
-        ...traceSpan('trace-1', 'span-1'),
-        events: [{ timeUnixNano, name: 'event', attributes: {}, droppedAttributesCount: 0 }]
-      };
-      expect(() => parseTraceDetail({ ...traceRow('trace-1'), spans: [span] }, 'trace-1')).toThrow(
-        ExploreSignalContractError
-      );
-    }
-  );
-
-  it.each([
-    [[{ spanId: null, traceId: 'trace-1' }]],
-    [[{ spanId: 'span-1', traceId: 'trace-2' }]],
-    [
-      [
-        { spanId: 'span-1', traceId: 'trace-1' },
-        { spanId: 'span-1', traceId: 'trace-1' }
-      ]
-    ]
-  ])('rejects invalid canonical span identity %s', identities => {
-    const spans = identities.map(identity => ({
-      ...identity,
-      parentSpanId: null,
-      spanName: null,
-      serviceName: null,
-      status: null,
-      spanKind: null,
-      statusMessage: null,
-      traceState: null,
-      scopeName: null,
-      scopeVersion: null,
-      durationNanos: null,
-      startTime: null,
-      highlighted: false,
-      resourceAttributes: null,
-      spanAttributes: null,
-      events: null,
-      links: null,
-      codeNavigationHint: null
-    }));
-    expect(() => parseTraceDetail({ ...traceRow('trace-1'), spans }, 'trace-1')).toThrow(ExploreSignalContractError);
-  });
-
-  it('rejects missing, mismatched, and duplicate identities from the dedicated spans response', () => {
-    expect(() => parseTraceSpans([traceSpan('trace-1', null)], 'trace-1')).toThrow(ExploreSignalContractError);
-    expect(() => parseTraceSpans([traceSpan('trace-2', 'span-1')], 'trace-1')).toThrow(ExploreSignalContractError);
-    expect(() => parseTraceSpans([traceSpan('trace-1', 'span-1'), traceSpan('trace-1', 'span-1')], 'trace-1')).toThrow(
-      ExploreSignalContractError
-    );
-  });
 });
 
 function springPage(content: unknown[]) {
@@ -377,29 +272,5 @@ function traceRow(traceId: unknown) {
     spanCount: 1,
     serviceStats: { checkout: { spanCount: 1, errorCount: 0 } },
     resourceAttributes: null
-  };
-}
-
-function traceSpan(traceId: string, spanId: string | null) {
-  return {
-    traceId,
-    spanId,
-    parentSpanId: null,
-    spanName: null,
-    serviceName: null,
-    status: null,
-    spanKind: null,
-    statusMessage: null,
-    traceState: null,
-    scopeName: null,
-    scopeVersion: null,
-    durationNanos: null,
-    startTime: null,
-    highlighted: false,
-    resourceAttributes: null,
-    spanAttributes: null,
-    events: null,
-    links: null,
-    codeNavigationHint: null
   };
 }

@@ -28,25 +28,25 @@ import { MetricResult } from './metric-result';
 const persesRuntime = vi.hoisted(() => ({ failed: false }));
 
 vi.mock('@/platform/perses', () => ({
-  PersesTimeSeries: ({
+  HertzBeatMetricTimeSeriesResult: ({
     ariaLabel,
     className,
-    errorFallback,
-    series
+    messages,
+    outcome
   }: {
     ariaLabel: string;
     className?: string;
-    errorFallback: string;
-    series: Array<{ key: string }>;
+    messages: { runtimeError: string };
+    outcome: { data: { series: Array<{ key: string }> } };
   }) => {
-    if (persesRuntime.failed) return <div role="status">{errorFallback}</div>;
+    if (persesRuntime.failed) return <div role="status">{messages.runtimeError}</div>;
     return (
       <div
         role="img"
         aria-label={ariaLabel}
         className={className}
         data-visualization-runtime="perses"
-        data-series-count={series.length}
+        data-series-count={outcome.data.series.length}
       />
     );
   }
@@ -129,9 +129,7 @@ describe('MetricResult', () => {
       </I18nextProvider>
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'The metric chart is unavailable. Samples remain available below.'
-    );
+    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('explore.perses.runtimeError'));
     expect(screen.getByText('125 ms')).toBeInTheDocument();
     expect(screen.getAllByText('method=POST')).toHaveLength(2);
   });
@@ -200,7 +198,17 @@ function Subject({
   retry?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
-  return <MetricResult data={data} state={state} retry={retry} t={t} />;
+  return (
+    <MetricResult
+      data={data}
+      state={state}
+      retry={retry}
+      t={t}
+      query={{ signal: 'metrics', timeRange: 'last-30m', query: 'http.server.duration' }}
+      timeWindow={{ from: 1_750_000_000_000, to: 1_750_000_060_000 }}
+      revision={0}
+    />
+  );
 }
 
 const metricData: MetricConsole = {

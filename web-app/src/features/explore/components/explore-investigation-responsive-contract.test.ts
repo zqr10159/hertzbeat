@@ -6,6 +6,8 @@ import appStyles from '@/app/styles.css?raw';
 
 import traceStyles from './explore-investigation-trace.module.css?raw';
 import viewStyles from './explore-investigation-view.module.css?raw';
+import queryStyles from './explore-query-bar.module.css?raw';
+import workspaceStyles from './explore-workbench.module.css?raw';
 
 describe('Explore investigation responsive contract', () => {
   it('keeps the Gantt readable at ordinary desktop widths and contains narrow runtime overflow', () => {
@@ -34,5 +36,17 @@ describe('Explore investigation responsive contract', () => {
       /@media \(max-width:\s*700px\)[\s\S]*body:has\(\[data-explore-investigation='true'\]\)[\s\S]*\[data-testid='shell-time-policy'\][\s\S]*\[data-testid='shell-status-greptime'\][\s\S]*\[data-testid='shell-status-collector'\][\s\S]*\{[^}]*display:\s*none/s
     );
     expect(viewStyles).not.toMatch(/\[data-testid='shell-status-server'\]/);
+  });
+
+  it('contains ordinary Explore at 700px without changing the desktop shell floor', () => {
+    expect(workspaceStyles).toMatch(
+      /@media \(max-width:\s*700px\)[\s\S]*body:has\(\[data-explore-workspace='true'\]\)[\s\S]*min-width:\s*0/s
+    );
+    expect(workspaceStyles).toMatch(
+      /body:has\(\[data-explore-workspace='true'\]\)[\s\S]*\[data-testid='shell-time-policy'\][\s\S]*\[data-testid='shell-status-greptime'\][\s\S]*\[data-testid='shell-status-collector'\][\s\S]*display:\s*none/s
+    );
+    expect(workspaceStyles).not.toMatch(/\[data-testid='shell-status-server'\]/);
+    expect(queryStyles).toMatch(/@media \(max-width:\s*700px\)[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+    expect(appStyles).toMatch(/body\s*\{[^}]*min-width:\s*1024px/s);
   });
 });

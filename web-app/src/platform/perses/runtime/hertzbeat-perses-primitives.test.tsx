@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0.
  */
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryHertzBeatData } from '../datasource/hertzbeat-query-client';
@@ -31,6 +31,7 @@ vi.mock('./perses-signal-runtime', () => ({
 
 import {
   HertzBeatLogsTable,
+  HertzBeatLogsTableResult,
   HertzBeatMetricTimeSeries,
   HertzBeatTraceTable,
   HertzBeatTracingGanttChart,
@@ -248,6 +249,46 @@ describe('HertzBeat Perses primitives', () => {
       screen.getByRole('button', { name: 'Inspect span' })
     );
     expect(request).toHaveBeenCalledTimes(4);
+  });
+
+  it('binds loaded table evidence to a host-owned runtime identity and accessible row actions', () => {
+    const open = vi.fn();
+    const view = render(
+      <HertzBeatLogsTableResult
+        title="Logs"
+        ariaLabel="Logs table"
+        query={{ signal: 'logs', queryKind: 'table', timeWindow }}
+        outcome={logOutcome() as never}
+        runtimeIdentity="scope-a:revision-1"
+        interactions={[
+          {
+            key: 'log-1',
+            label: 'checkout ready',
+            actions: [
+              { label: 'Investigate log checkout ready', onAction: open },
+              { label: 'Open trace checkout ready', disabled: true, onAction: vi.fn() }
+            ]
+          }
+        ]}
+        messages={messages}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Investigate log checkout ready' }));
+    expect(open).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Open trace checkout ready' })).toBeDisabled();
+
+    view.rerender(
+      <HertzBeatLogsTableResult
+        title="Logs"
+        ariaLabel="Logs table"
+        query={{ signal: 'logs', queryKind: 'table', timeWindow }}
+        outcome={logOutcome() as never}
+        runtimeIdentity="scope-b:revision-1"
+        messages={messages}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Investigate log checkout ready' })).not.toBeInTheDocument();
   });
 });
 

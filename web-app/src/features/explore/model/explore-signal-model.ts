@@ -15,26 +15,9 @@
  * limitations under the License.
  */
 
-import type { LiveLogRow, LogRow, MetricConsole, TraceDetail, TraceRow, TraceSpan } from './explore-signal-contract';
-import { investigationDurationNanoToMillis } from './explore-investigation-model';
+import type { LiveLogRow, LogRow, MetricConsole } from './explore-signal-contract';
 
 export type LiveLogStatus = 'waiting' | 'connected' | 'degraded' | 'paused' | 'unavailable' | 'error' | 'contract';
-export type TraceSpanTiming =
-  | { kind: 'unavailable' }
-  | { kind: 'instant'; offsetPercent: number }
-  | { kind: 'duration'; offsetPercent: number; widthPercent: number };
-export type TraceSpanLayout = TraceSpan & { depth: number; timing: TraceSpanTiming };
-export type TraceDetailState =
-  | { kind: 'closed' }
-  | { kind: 'loading' | 'missing' | 'permission' | 'unavailable' | 'error'; traceId: string }
-  | {
-      kind: 'ready';
-      traceId: string;
-      detail: TraceDetail;
-      spans: TraceSpanLayout[];
-      selected: TraceSpanLayout | undefined;
-    };
-
 export type MetricSeries = {
   key: string;
   name: string;
@@ -47,6 +30,7 @@ export type MetricPoint = { timestamp: number; value: number };
 
 export type MetricResultState =
   | { kind: 'error'; message?: string }
+  | { kind: 'contract_error' }
   | { kind: 'storage_unavailable' }
   | { kind: 'missing_context' }
   | { kind: 'unsupported_query' }
@@ -64,7 +48,8 @@ export function metricResultState(console: MetricConsole): MetricResultState {
   if (results.frames.length === 0) return { kind: 'empty' };
   if (results.frames.some(frame => !hasMetricFrameData(frame))) return { kind: 'storage_unavailable' };
   const series = metricSeries(console);
-  return series.some(item => metricPoints(item).length > 0) ? { kind: 'ready', series } : { kind: 'empty' };
+  if (series.some(item => item.points.some(point => !validMetricPoint(point)))) return { kind: 'contract_error' };
+  return series.some(item => item.points.length > 0) ? { kind: 'ready', series } : { kind: 'empty' };
 }
 
 function metricUnavailableState(console: MetricConsole): MetricResultState | undefined {
@@ -98,84 +83,6 @@ export function metricPoints(series: MetricSeries): MetricPoint[] {
   });
 }
 
-export function traceDurationMs(row: Pick<TraceRow | TraceDetail, 'durationNanos'>) {
-  if (row.durationNanos == null) return undefined;
-  return typeof row.durationNanos === 'string'
-    ? investigationDurationNanoToMillis(row.durationNanos)
-    : row.durationNanos / 1_000_000;
-}
-
-export function traceHealthState(row: Pick<TraceRow, 'status' | 'errorSpanCount'>): 'ok' | 'error' | 'unknown' {
-  const status = row.status?.trim().toUpperCase();
-  if (status === 'ERROR' || (row.errorSpanCount != null && row.errorSpanCount > 0)) return 'error';
-  if (status === 'OK') return 'ok';
-  return 'unknown';
-}
-
-export function traceSpanLayout(detail: TraceDetail): TraceSpanLayout[] {
-  const spans = [...(detail.spans ?? [])].sort(compareTraceSpanStart);
-  const timeline = traceTimeline(detail, spans);
-  const byId = new Map(spans.map(span => [span.spanId, span]));
-  const depthOf = (span: TraceSpan, visited = new Set<string>()): number => {
-    if (!span.parentSpanId || visited.has(span.parentSpanId)) return 0;
-    const parent = byId.get(span.parentSpanId);
-    if (!parent) return 0;
-    visited.add(span.parentSpanId);
-    return Math.min(depthOf(parent, visited) + 1, 8);
-  };
-  return spans.map(span => ({
-    ...span,
-    depth: depthOf(span),
-    timing: traceSpanTiming(span, timeline)
-  }));
-}
-
-type TraceTimeline = { startTime: number; durationMs: number };
-
-function traceTimeline(detail: TraceDetail, spans: TraceSpan[]): TraceTimeline | undefined {
-  // Only complete timing pairs define the extent. Nullable fields must not
-  // participate as synthetic epoch or zero-duration evidence.
-  const timedSpans = spans.filter(hasCompleteSpanTiming);
-  const startTime = detail.startTime ?? timedSpans[0]?.startTime;
-  if (startTime == null) return undefined;
-
-  const declaredEnd = startTime + (traceDurationMs(detail) ?? 0);
-  const endTime = timedSpans.reduce(
-    (latest, span) => Math.max(latest, span.startTime + investigationDurationNanoToMillis(span.durationNanos)!),
-    Math.max(startTime, declaredEnd)
-  );
-  return { startTime, durationMs: endTime - startTime };
-}
-
-function traceSpanTiming(span: TraceSpan, timeline: TraceTimeline | undefined): TraceSpanTiming {
-  if (!timeline || !hasCompleteSpanTiming(span)) return { kind: 'unavailable' };
-  const offsetPercent =
-    timeline.durationMs > 0 ? clamp(((span.startTime - timeline.startTime) / timeline.durationMs) * 100, 0, 100) : 0;
-  const durationMs = investigationDurationNanoToMillis(span.durationNanos);
-  if (durationMs == null) return { kind: 'unavailable' };
-  if (durationMs === 0) return { kind: 'instant', offsetPercent };
-  if (timeline.durationMs === 0) return { kind: 'unavailable' };
-  return {
-    kind: 'duration',
-    offsetPercent,
-    widthPercent: clamp((durationMs / timeline.durationMs) * 100, 0.4, 100)
-  };
-}
-
-function hasCompleteSpanTiming(span: TraceSpan): span is TraceSpan & { startTime: number; durationNanos: string } {
-  return (
-    span.startTime != null &&
-    span.durationNanos != null &&
-    investigationDurationNanoToMillis(span.durationNanos) != null
-  );
-}
-
-function compareTraceSpanStart(left: TraceSpan, right: TraceSpan) {
-  if (left.startTime == null) return right.startTime == null ? 0 : 1;
-  if (right.startTime == null) return -1;
-  return left.startTime - right.startTime;
-}
-
 export function logServiceName(row: LogRow | LiveLogRow) {
   const value = row.resource?.['service.name'] ?? row.resource?.service_name;
   return typeof value === 'string' ? value : undefined;
@@ -200,10 +107,6 @@ export function logTimestampMs(row: LogRow | LiveLogRow) {
   return milliseconds <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(milliseconds) : undefined;
 }
 
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(Math.max(value, minimum), maximum);
-}
-
 function metricErrorState(message?: string): MetricResultState {
   const normalized = message?.trim();
   return normalized ? { kind: 'error', message: normalized } : { kind: 'error' };
@@ -214,6 +117,17 @@ function metricNumber(value: unknown) {
   if (typeof value !== 'string' || value.trim() === '') return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function validMetricPoint(point: unknown[]) {
+  const timestamp = metricNumber(point[0]);
+  return (
+    point.length >= 2 &&
+    timestamp != null &&
+    Number.isSafeInteger(timestamp) &&
+    timestamp > 0 &&
+    metricNumber(point[1]) != null
+  );
 }
 
 function hasMetricFrameData(frame: unknown) {

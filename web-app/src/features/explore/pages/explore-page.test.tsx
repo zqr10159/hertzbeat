@@ -28,7 +28,12 @@ import { ApiMessageError } from '@/core/http/api-message';
 import { ShellInvestigationProvider, useShellInvestigation } from '@/shared/investigation';
 import { GlobalTimeProvider, RouteTimeProvider } from '@/shared/time';
 
-import { ExploreSignalContractError, type MetricConsole } from '../model/explore-signal-contract';
+import {
+  ExploreSignalContractError,
+  type ExplorePageResult,
+  type LogRow,
+  type MetricConsole
+} from '../model/explore-signal-contract';
 
 const api = vi.hoisted(() => ({
   loadMetricSignal: vi.fn(),
@@ -405,52 +410,53 @@ describe('ExplorePage instrumentation context boundary', () => {
   });
 
   it('labels retained log evidence during refresh and disables stale drilldowns until replacement succeeds', async () => {
-    const refresh = deferred(logEvidence(logPage('fresh evidence', 'trace-fresh')));
+    const refresh = deferred(logEvidence(logPage('fresh evidence', 'fedcba9876543210fedcba9876543210')));
     api.loadLogSignal
-      .mockResolvedValueOnce(logEvidence(logPage('cached evidence', 'trace-cached')))
+      .mockResolvedValueOnce(logEvidence(logPage('cached evidence', '0123456789abcdef0123456789abcdef')))
       .mockReturnValueOnce(refresh.promise);
     renderPage('/explore?signal=logs');
-    expect(await screen.findByText('cached evidence')).toBeInTheDocument();
+    expect((await screen.findAllByText(/cached evidence/u)).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: en.common.refresh }));
 
     expect(await screen.findByText(i18n.t('explore.states.refreshing'))).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'trace-cached' })).toBeDisabled();
-    expect(screen.getByText('cached evidence')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Open trace/u })).toBeDisabled();
+    expect(screen.getAllByText(/cached evidence/u).length).toBeGreaterThan(0);
 
     refresh.resolve();
-    expect(await screen.findByText('fresh evidence')).toBeInTheDocument();
+    expect((await screen.findAllByText(/fresh evidence/u)).length).toBeGreaterThan(0);
     expect(screen.queryByText(i18n.t('explore.states.refreshing'))).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'trace-fresh' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Open trace/u })).toBeEnabled();
   });
 
   it('keeps refresh failure classification visible while retained evidence remains non-actionable', async () => {
     api.loadLogSignal
-      .mockResolvedValueOnce(logEvidence(logPage('cached evidence', 'trace-cached')))
+      .mockResolvedValueOnce(logEvidence(logPage('cached evidence', '0123456789abcdef0123456789abcdef')))
       .mockRejectedValueOnce(new ApiMessageError('offline', { status: 503 }));
     renderPage('/explore?signal=logs');
-    expect(await screen.findByText('cached evidence')).toBeInTheDocument();
+    expect((await screen.findAllByText(/cached evidence/u)).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: en.common.refresh }));
 
     expect(await screen.findByText(/Refresh failed/u)).toHaveTextContent(i18n.t('explore.states.transportError'));
-    expect(screen.getByRole('button', { name: 'trace-cached' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Open trace/u })).toBeDisabled();
     expect(screen.getByTestId('investigation-target')).toHaveTextContent('none');
   });
 
   it('publishes only the current non-empty exact Log page as an investigation target', async () => {
-    api.loadLogSignal.mockResolvedValueOnce(logEvidence(logPage('ready evidence', 'trace-ready')));
+    api.loadLogSignal.mockResolvedValueOnce(logEvidence(logPage('ready evidence', '0123456789abcdef0123456789abcdef')));
     renderPage(
-      '/explore?signal=logs&start=1000&end=2000&serviceName=checkout&traceId=trace-ready' +
+      '/explore?signal=logs&start=1000&end=2000&serviceName=checkout' +
+        '&traceId=0123456789abcdef0123456789abcdef' +
         '&severityText=warn&hideNoise=true'
     );
 
-    expect(await screen.findByText('ready evidence')).toBeInTheDocument();
+    expect((await screen.findAllByText(/ready evidence/u)).length).toBeGreaterThan(0);
     expect(JSON.parse(screen.getByTestId('investigation-target').textContent ?? '')).toEqual({
       log: {
         start: 1_000,
         end: 2_000,
-        traceId: 'trace-ready',
+        traceId: '0123456789abcdef0123456789abcdef',
         severityText: 'WARN',
         serviceName: 'checkout',
         hideInternal: false,
@@ -459,14 +465,85 @@ describe('ExplorePage instrumentation context boundary', () => {
         pageSize: 20
       }
     });
+
+    fireEvent.click(screen.getByRole('button', { name: /Investigate log/u }));
+    await waitFor(() =>
+      expect(locationParams()).toMatchObject({
+        signal: 'logs',
+        logRecordUid: 'log-ready-evidence',
+        start: '1000',
+        end: '2000'
+      })
+    );
+  });
+
+  it('omits inert Log host interactions and bounds actionable row summaries', async () => {
+    const longBody = 'x'.repeat(300);
+    const page = logPage(longBody, 'not-a-trace-id');
+    page.content.push({ ...page.content[0]!, logRecordUid: null, traceId: null, body: 'no actions' });
+    page.totalElements = 2;
+    api.loadLogSignal.mockResolvedValueOnce(logEvidence(page));
+
+    renderPage('/explore?signal=logs');
+
+    const action = await screen.findByRole('button', { name: /Investigate log/u });
+    expect(action.textContent).not.toContain(longBody);
+    expect(action.textContent?.length).toBeLessThan(160);
+    expect(document.querySelectorAll('[data-perses-host-interactions] > li')).toHaveLength(1);
+  });
+
+  it('opens a trusted historical trace row as an exact focused investigation', async () => {
+    api.loadTraceSignal.mockResolvedValueOnce({
+      content: [traceRow()],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 20
+    });
+    renderPage(
+      '/explore?signal=traces&serviceName=checkout&serviceNamespace=commerce&environment=prod' +
+        '&intakeProfileId=collector%3Aeast&collectorId=east&instance=checkout-1&endpoint=%2Fcheckout' +
+        '&start=1000&end=2000'
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Investigate trace/u }));
+
+    await waitFor(() =>
+      expect(locationParams()).toMatchObject({
+        signal: 'traces',
+        traceId: '0123456789abcdef0123456789abcdef',
+        spanId: '0123456789abcdef',
+        start: '1000',
+        end: '2000',
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      })
+    );
   });
 });
 
-function logPage(body: string, traceId: string) {
+function traceRow() {
+  return {
+    traceId: '0123456789abcdef0123456789abcdef',
+    rootSpanId: '0123456789abcdef',
+    serviceName: 'checkout',
+    serviceNamespace: 'commerce',
+    rootSpanName: 'POST /checkout',
+    durationNanos: 1_000_000,
+    status: 'OK',
+    startTime: 1_200,
+    errorSpanCount: 0,
+    resourceAttributes: {},
+    spanCount: 1,
+    serviceStats: { checkout: { spanCount: 1, errorCount: 0 } }
+  };
+}
+
+function logPage(body: string, traceId: string): ExplorePageResult<LogRow> {
   return {
     content: [
       {
-        timeUnixNano: null,
+        logRecordUid: `log-${body.replace(/\s+/gu, '-')}`,
+        timeUnixNano: '1750000000000000000',
         observedTimeUnixNano: null,
         severityNumber: null,
         severityText: 'INFO',
@@ -489,7 +566,7 @@ function logPage(body: string, traceId: string) {
   };
 }
 
-function logEvidence(page: ReturnType<typeof logPage>) {
+function logEvidence(page: ExplorePageResult<LogRow>) {
   return {
     page,
     overview: {

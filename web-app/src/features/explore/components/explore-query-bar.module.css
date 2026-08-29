@@ -94,7 +94,7 @@
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 700px) {
   .primaryRow,
   .advancedFields {
     grid-template-columns: minmax(0, 1fr);

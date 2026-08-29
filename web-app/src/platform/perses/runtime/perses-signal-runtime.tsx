@@ -18,7 +18,7 @@ import {
   HERTZBEAT_SNAPSHOT_QUERY_KIND,
   HERTZBEAT_SNAPSHOT_TRACE_QUERY_KIND
 } from '../plugins/hertzbeat-snapshot-query';
-import { PersesRuntimeProviders } from './perses-time-series-runtime';
+import { PersesRuntimeProviders } from './perses-runtime-providers';
 import styles from './perses-time-series.module.css';
 
 export type PersesSignalRuntimeProps =

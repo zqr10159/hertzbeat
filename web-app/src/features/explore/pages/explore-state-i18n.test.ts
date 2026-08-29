@@ -21,13 +21,30 @@ const stateKeys = [
   'refreshing',
   'staleError'
 ] as const;
+const persesKeys = [
+  'runtimeError',
+  'contract',
+  'logsTable',
+  'tracesTable',
+  'pagination',
+  'investigateLog',
+  'openTrace',
+  'investigateTrace',
+  'notRecorded'
+] as const;
 
 describe('Explore result state locale contract', () => {
   it('keeps every honest result state available in all runtime locales', () => {
     for (const locale of [en, ja, pt, zhCn, zhTw] as LocaleRoot[]) {
       for (const key of stateKeys) expect(locale.explore.states[key]).toEqual(expect.any(String));
+      for (const key of persesKeys) expect(locale.explore.perses[key]).toEqual(expect.any(String));
     }
   });
 });
 
-type LocaleRoot = { explore: { states: Record<(typeof stateKeys)[number], string> } };
+type LocaleRoot = {
+  explore: {
+    states: Record<(typeof stateKeys)[number], string>;
+    perses: Record<(typeof persesKeys)[number], string>;
+  };
+};

@@ -31,3 +31,58 @@
   color: var(--hb-text-secondary);
   font-size: 12px;
 }
+
+.interactions {
+  display: grid;
+  gap: 6px;
+  max-height: 224px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.interactions li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--hb-border-subtle);
+}
+
+.interactions li > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hb-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.interactions li > div {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.interactions button {
+  padding: 3px 8px;
+  border: 1px solid var(--hb-border-subtle);
+  border-radius: 4px;
+  background: var(--hb-bg-raised);
+  color: var(--hb-text-primary);
+  cursor: pointer;
+}
+
+.interactions button:disabled {
+  color: var(--hb-text-muted);
+  cursor: not-allowed;
+}
+
+@media (width <= 700px) {
+  .interactions li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

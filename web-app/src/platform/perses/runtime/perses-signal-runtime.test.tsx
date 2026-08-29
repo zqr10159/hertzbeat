@@ -33,7 +33,7 @@ vi.mock('@perses-dev/plugin-system', () => ({
     return children;
   }
 }));
-vi.mock('./perses-time-series-runtime', () => ({
+vi.mock('./perses-runtime-providers', () => ({
   PersesRuntimeProviders: ({
     children,
     pluginLoader

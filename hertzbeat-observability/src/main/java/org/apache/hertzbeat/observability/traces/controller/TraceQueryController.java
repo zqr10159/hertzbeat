@@ -26,6 +26,7 @@ import org.apache.hertzbeat.common.observability.dto.investigation.Investigation
 import org.apache.hertzbeat.common.observability.dto.investigation.TraceInvestigationView;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceListItemDto;
 import org.apache.hertzbeat.common.observability.dto.trace.TraceOverviewDto;
+import org.apache.hertzbeat.common.observability.dto.trace.TraceServiceStatsDto;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenScopes;
 import org.apache.hertzbeat.common.support.exception.TelemetryStorageUnavailableException;
@@ -55,6 +56,7 @@ public class TraceQueryController {
 
     private static final Pattern TRACE_ID = Pattern.compile("[0-9a-f]{32}");
     private static final Pattern SPAN_ID = Pattern.compile("[0-9a-f]{16}");
+    private static final long MAX_SAFE_WIRE_INTEGER = 9_007_199_254_740_991L;
 
     private final EntityTraceQueryService entityTraceQueryService;
     private final ObservabilityQueryAdmissionService queryAdmissionService;
@@ -97,11 +99,52 @@ public class TraceQueryController {
         ScopedFilters scopedFilters = scopeFilters(
                 entityId, entityType, collectorId, instance, endpoint, resourceFilter, attributeFilter);
         Page<TraceListItemDto> page = queryAdmissionService.execute("traces",
-                () -> entityTraceQueryService.queryTraceList(
+                () -> requireCompleteTraceRows(entityTraceQueryService.queryTraceList(
                         workspaceId, entityId, start, end, traceId, errorOnly, serviceName, serviceNamespace, environment,
                         scopedFilters.resourceFilter(), operationName, minDurationMs, maxDurationMs, pageIndex, pageSize,
-                        hideInternal, spanScope, scopedFilters.attributeFilter()));
+                        hideInternal, spanScope, scopedFilters.attributeFilter())));
         return ResponseEntity.ok(Message.success(page));
+    }
+
+    private static Page<TraceListItemDto> requireCompleteTraceRows(Page<TraceListItemDto> page) {
+        if (page == null) {
+            throw new TelemetryStorageUnavailableException();
+        }
+        page.forEach(TraceQueryController::requireCompleteTraceRow);
+        return page;
+    }
+
+    private static void requireCompleteTraceRow(TraceListItemDto item) {
+        if (item == null || !StringUtils.hasText(item.getTraceId()) || !TRACE_ID.matcher(item.getTraceId()).matches()
+                || !StringUtils.hasText(item.getServiceName()) || !StringUtils.hasText(item.getRootSpanName())
+                || item.getStartTime() == null || item.getStartTime() <= 0
+                || item.getStartTime() > MAX_SAFE_WIRE_INTEGER
+                || item.getDurationNanos() == null || item.getDurationNanos() < 0
+                || item.getDurationNanos() > MAX_SAFE_WIRE_INTEGER
+                || item.getSpanCount() == null || item.getSpanCount() <= 0
+                || item.getSpanCount() > MAX_SAFE_WIRE_INTEGER
+                || item.getErrorSpanCount() < 0 || item.getErrorSpanCount() > item.getSpanCount()
+                || item.getServiceStats() == null || item.getServiceStats().isEmpty()) {
+            throw new TelemetryStorageUnavailableException();
+        }
+        long totalSpans = 0L;
+        long totalErrors = 0L;
+        try {
+            for (Map.Entry<String, TraceServiceStatsDto> entry : item.getServiceStats().entrySet()) {
+                TraceServiceStatsDto service = entry.getValue();
+                if (!StringUtils.hasText(entry.getKey()) || service == null || service.getSpanCount() <= 0
+                        || service.getErrorCount() < 0 || service.getErrorCount() > service.getSpanCount()) {
+                    throw new TelemetryStorageUnavailableException();
+                }
+                totalSpans = Math.addExact(totalSpans, service.getSpanCount());
+                totalErrors = Math.addExact(totalErrors, service.getErrorCount());
+            }
+        } catch (ArithmeticException ignored) {
+            throw new TelemetryStorageUnavailableException();
+        }
+        if (totalSpans != item.getSpanCount() || totalErrors != item.getErrorSpanCount()) {
+            throw new TelemetryStorageUnavailableException();
+        }
     }
 
     @GetMapping("/stats/overview")

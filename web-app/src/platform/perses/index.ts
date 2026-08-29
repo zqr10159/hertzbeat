@@ -1,6 +1,5 @@
 /* Licensed to the Apache Software Foundation (ASF) under the Apache License, Version 2.0. */
 
-export { PersesTimeSeries } from './runtime/perses-time-series';
 export { queryHertzBeatData, HERTZBEAT_QUERY_LIMITS } from './datasource/hertzbeat-query-client';
 export type {
   HertzBeatLogTableQuery,
@@ -20,5 +19,6 @@ export {
   HertzBeatMetricTimeSeriesResult,
   HertzBeatTraceTableResult,
   HertzBeatTracingGanttChartResult,
-  type HertzBeatPersesPrimitiveMessages
+  type HertzBeatPersesPrimitiveMessages,
+  type HertzBeatPersesTableInteraction
 } from './runtime/hertzbeat-perses-primitives';

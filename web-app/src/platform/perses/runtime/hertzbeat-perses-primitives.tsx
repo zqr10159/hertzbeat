@@ -5,13 +5,12 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0.
  */
 
-import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 
 import { queryHertzBeatData } from '../datasource/hertzbeat-query-client';
 import type {
   HertzBeatLogTableQuery,
   HertzBeatMetricQuery,
-  HertzBeatQueryFailure,
   HertzBeatQueryOutcome,
   HertzBeatTraceGanttQuery,
   HertzBeatTraceTableQuery
@@ -23,49 +22,25 @@ import type {
   HertzBeatTraceDetail,
   HertzBeatTraceRow
 } from '../datasource/hertzbeat-query-schema';
+import { toPersesLogData, toPersesTraceDetailData, toPersesTraceSearchData } from './perses-signal-data';
 import {
-  PersesSignalDataError,
-  toPersesLogData,
-  toPersesTraceDetailData,
-  toPersesTraceSearchData
-} from './perses-signal-data';
-import { loadPersesRuntime } from './perses-runtime-registry';
+  HertzBeatPrimitiveFrame,
+  type HertzBeatPrimitiveFrameProps,
+  type HertzBeatPersesPrimitiveMessages,
+  type HertzBeatPersesTableInteraction,
+  type PrimitiveState,
+  type ReadyOutcome,
+  type SharedPrimitiveProps
+} from './hertzbeat-perses-primitive-frame';
 import { toPersesTimeSeriesData } from './perses-time-series-model';
-import styles from './hertzbeat-perses-primitives.module.css';
 
-type FailureMessageKey = HertzBeatQueryFailure['messageKey'];
-
-export type HertzBeatPersesPrimitiveMessages = {
-  loading: ReactNode;
-  empty: ReactNode;
-  truncated: ReactNode;
-  truncationUnknown: ReactNode;
-  runtimeError: ReactNode;
-  failures: Record<FailureMessageKey, ReactNode>;
-};
-
-type SharedPrimitiveProps = {
-  title: string;
-  ariaLabel: string;
-  messages: HertzBeatPersesPrimitiveMessages;
-  className?: string | undefined;
-};
-
-type PrimitiveState<T> =
-  { kind: 'loading'; queryKey: string } | { kind: 'resolved'; queryKey: string; outcome: HertzBeatQueryOutcome<T> };
+export type { HertzBeatPersesPrimitiveMessages, HertzBeatPersesTableInteraction };
 
 export type HertzBeatMetricQueryOutcome = HertzBeatQueryOutcome<HertzBeatMetricData>;
 export type HertzBeatLogQueryOutcome = HertzBeatQueryOutcome<HertzBeatTableData<HertzBeatLogRow>>;
 export type HertzBeatTraceTableQueryOutcome = HertzBeatQueryOutcome<HertzBeatTableData<HertzBeatTraceRow>>;
 export type HertzBeatTraceGanttQueryOutcome = HertzBeatQueryOutcome<HertzBeatTraceDetail>;
 export type HertzBeatTraceQueryOutcome = HertzBeatTraceTableQueryOutcome | HertzBeatTraceGanttQueryOutcome;
-
-async function loadPersesSignalRuntime() {
-  const module = await loadPersesRuntime('multi-signal');
-  return { default: module.PersesSignalRuntime };
-}
-
-const PersesSignalRuntime = lazy(loadPersesSignalRuntime);
 
 export function HertzBeatMetricTimeSeries(props: SharedPrimitiveProps & { query: HertzBeatMetricQuery }) {
   const state = useHertzBeatQuery(props.query, executeMetricQuery);
@@ -111,7 +86,7 @@ export function HertzBeatTracingGanttChart(props: SharedPrimitiveProps & { query
 export function HertzBeatMetricTimeSeriesResult(
   props: SharedPrimitiveProps & { query: HertzBeatMetricQuery; outcome: ReadyOutcome<HertzBeatMetricData> }
 ) {
-  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+  return renderPrimitive(props, resolvedState(props.query, props.outcome, props.runtimeIdentity), outcome => ({
     kind: 'metric-time-series' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
@@ -125,7 +100,7 @@ export function HertzBeatLogsTableResult(
     outcome: ReadyOutcome<HertzBeatTableData<HertzBeatLogRow>>;
   }
 ) {
-  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+  return renderPrimitive(props, resolvedState(props.query, props.outcome, props.runtimeIdentity), outcome => ({
     kind: 'logs-table' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
@@ -139,7 +114,7 @@ export function HertzBeatTraceTableResult(
     outcome: ReadyOutcome<HertzBeatTableData<HertzBeatTraceRow>>;
   }
 ) {
-  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+  return renderPrimitive(props, resolvedState(props.query, props.outcome, props.runtimeIdentity), outcome => ({
     kind: 'trace-table' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
@@ -150,7 +125,7 @@ export function HertzBeatTraceTableResult(
 export function HertzBeatTracingGanttChartResult(
   props: SharedPrimitiveProps & { query: HertzBeatTraceGanttQuery; outcome: ReadyOutcome<HertzBeatTraceDetail> }
 ) {
-  return renderPrimitive(props, resolvedState(props.query, props.outcome), outcome => ({
+  return renderPrimitive(props, resolvedState(props.query, props.outcome, props.runtimeIdentity), outcome => ({
     kind: 'tracing-gantt-chart' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
@@ -159,8 +134,20 @@ export function HertzBeatTracingGanttChartResult(
   }));
 }
 
-function resolvedState<Query, Data>(query: Query, outcome: ReadyOutcome<Data>): PrimitiveState<Data> {
-  return { kind: 'resolved', queryKey: JSON.stringify(query), outcome };
+function renderPrimitive<Data>(
+  props: SharedPrimitiveProps,
+  state: PrimitiveState<Data>,
+  toRuntimeProps: HertzBeatPrimitiveFrameProps<Data>['toRuntimeProps']
+) {
+  return <HertzBeatPrimitiveFrame {...props} state={state} toRuntimeProps={toRuntimeProps} />;
+}
+
+function resolvedState<Query, Data>(
+  query: Query,
+  outcome: ReadyOutcome<Data>,
+  runtimeIdentity?: string
+): PrimitiveState<Data> {
+  return { kind: 'resolved', queryKey: runtimeIdentity ?? JSON.stringify(query), outcome };
 }
 
 function executeMetricQuery(query: HertzBeatMetricQuery, signal: AbortSignal) {
@@ -209,108 +196,4 @@ function useHertzBeatQuery<Query, Data>(
     return () => controller.abort();
   }, [execute, queryKey]);
   return state.queryKey === queryKey ? state : { kind: 'loading', queryKey };
-}
-
-type ReadyOutcome<T> = Extract<HertzBeatQueryOutcome<T>, { state: 'ready' }>;
-type SignalRuntimeProps = React.ComponentProps<typeof PersesSignalRuntime>;
-
-function renderPrimitive<T>(
-  props: SharedPrimitiveProps,
-  state: PrimitiveState<T>,
-  toRuntimeProps: (outcome: ReadyOutcome<T>) => SignalRuntimeProps
-) {
-  const className = [styles.primitive, props.className].filter(Boolean).join(' ');
-  if (state.kind === 'loading') {
-    return (
-      <div className={className} role="status" aria-label={props.ariaLabel}>
-        <div className={styles.state}>{props.messages.loading}</div>
-      </div>
-    );
-  }
-  const { outcome } = state;
-  if (outcome.state === 'empty') {
-    return (
-      <div className={className} role="status" aria-label={props.ariaLabel}>
-        <div className={styles.state}>{props.messages.empty}</div>
-      </div>
-    );
-  }
-  if (outcome.state === 'error') {
-    return (
-      <div className={className} role="alert" aria-label={props.ariaLabel}>
-        <div className={styles.state}>{props.messages.failures[outcome.error.messageKey]}</div>
-      </div>
-    );
-  }
-  let runtimeProps: SignalRuntimeProps;
-  try {
-    runtimeProps = toRuntimeProps(outcome);
-  } catch (error) {
-    if (!(error instanceof PersesSignalDataError)) throw error;
-    return (
-      <div className={className} role="alert" aria-label={props.ariaLabel}>
-        <div className={styles.state}>{props.messages.failures['perses.query.contract']}</div>
-      </div>
-    );
-  }
-  const runtimeRole = runtimeProps.kind === 'metric-time-series' ? 'img' : 'region';
-  return (
-    <div className={className} data-visualization-runtime="perses">
-      <PersesPrimitiveErrorBoundary
-        ariaLabel={props.ariaLabel}
-        fallback={props.messages.runtimeError}
-        resetKey={state.queryKey}
-      >
-        <div className={styles.runtime} role={runtimeRole} aria-label={props.ariaLabel}>
-          <Suspense fallback={<div className={styles.state}>{props.messages.loading}</div>}>
-            <PersesSignalRuntime {...runtimeProps} />
-          </Suspense>
-        </div>
-      </PersesPrimitiveErrorBoundary>
-      <Completeness ariaLabel={props.ariaLabel} truncated={outcome.truncated} messages={props.messages} />
-    </div>
-  );
-}
-
-function Completeness({
-  ariaLabel,
-  truncated,
-  messages
-}: {
-  ariaLabel: string;
-  truncated: boolean | 'unknown';
-  messages: HertzBeatPersesPrimitiveMessages;
-}) {
-  if (truncated === false) return null;
-  return (
-    <div className={styles.completeness} role="status" aria-label={`${ariaLabel} completeness`}>
-      {truncated === true ? messages.truncated : messages.truncationUnknown}
-    </div>
-  );
-}
-
-class PersesPrimitiveErrorBoundary extends Component<
-  { ariaLabel: string; fallback: ReactNode; resetKey: string; children: ReactNode },
-  { failed: boolean }
-> {
-  state = { failed: false };
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  componentDidUpdate(previousProps: Readonly<typeof this.props>) {
-    if (this.state.failed && previousProps.resetKey !== this.props.resetKey) this.setState({ failed: false });
-  }
-
-  render() {
-    if (this.state.failed) {
-      return (
-        <div className={styles.state} role="alert" aria-label={this.props.ariaLabel}>
-          {this.props.fallback}
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }

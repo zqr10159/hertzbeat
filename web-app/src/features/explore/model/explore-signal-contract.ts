@@ -37,51 +37,6 @@ export type TraceRow = TraceSummary & {
   spanCount: number | null;
   serviceStats: Record<string, { spanCount: number; errorCount: number }> | null;
 };
-export type TraceEvent = {
-  timeUnixNano: string | null;
-  name: string | null;
-  attributes: Record<string, JsonValue> | null;
-  droppedAttributesCount: number | null;
-};
-export type TraceLink = {
-  traceId: string | null;
-  spanId: string | null;
-  traceState: string | null;
-  attributes: Record<string, JsonValue> | null;
-  droppedAttributesCount: number | null;
-};
-export type CodeNavigationHint = {
-  repositoryUrl: string | null;
-  provider: string | null;
-  defaultPath: string | null;
-  searchQuery: string | null;
-  label: string | null;
-};
-export type TraceSpan = {
-  traceId: string | null;
-  spanId: string | null;
-  parentSpanId: string | null;
-  spanName: string | null;
-  serviceName: string | null;
-  status: string | null;
-  spanKind: string | null;
-  statusMessage: string | null;
-  traceState: string | null;
-  scopeName: string | null;
-  scopeVersion: string | null;
-  durationNanos: string | null;
-  startTime: number | null;
-  highlighted: boolean;
-  resourceAttributes: Record<string, string> | null;
-  spanAttributes: Record<string, string> | null;
-  events: TraceEvent[] | null;
-  links: TraceLink[] | null;
-  codeNavigationHint: CodeNavigationHint | null;
-};
-export type TraceDetail = Omit<TraceSummary, 'durationNanos'> & {
-  durationNanos: string | null;
-  spans: TraceSpan[] | null;
-};
 
 type SharedLogRow = {
   severityNumber: number | null;
@@ -126,19 +81,19 @@ export type LogOverview = {
   fatalCount: number;
 };
 export type LogTrend = { hourlyStats: Record<string, number> };
-export type LogStatisticEvidence<T> = { kind: 'ready'; data: T } | { kind: 'error' };
+type LogStatisticEvidence<T> = { kind: 'ready'; data: T } | { kind: 'error' };
 export type LogHistoryEvidence = {
   page: ExplorePageResult<LogRow>;
   overview: LogStatisticEvidence<LogOverview>;
   trend: LogStatisticEvidence<LogTrend>;
 };
 
-export type MetricField = {
+type MetricField = {
   name: string | null;
   type: 'number' | 'string' | 'time' | 'bool' | null;
   unit: string | null;
 };
-export type MetricFrame = {
+type MetricFrame = {
   schema: {
     fields: MetricField[] | null;
     labels: Record<string, string> | null;
@@ -166,6 +121,11 @@ export type MetricConsole = {
   emptyStateReason: string | null;
   errorMessage: string | null;
 };
+export type MetricSignalEvidence = MetricConsole | { kind: 'inventory_empty' };
+
+export function isMetricConsole(evidence: MetricSignalEvidence): evidence is MetricConsole {
+  return !('kind' in evidence);
+}
 
 export class ExploreSignalContractError extends Error {
   constructor(message = 'Explore signal response does not match its contract') {

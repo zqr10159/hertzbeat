@@ -2,13 +2,10 @@
 
 import { ApiMessageError } from '@/core/http/api-message';
 
-import type { InvestigationTraceDetail } from '../model/explore-investigation-contract';
-import { exploreUsesExactWindow, timeRangeMilliseconds, type TraceExploreQuery } from '../model/explore-query';
 import {
   ExploreSignalContractError,
   ExploreSignalMissingError,
-  ExploreSignalUnavailableError,
-  type TraceDetail
+  ExploreSignalUnavailableError
 } from '../model/explore-signal-contract';
 
 export function classifyExploreSignalError(
@@ -27,46 +24,4 @@ function classifyApiMessageError(reason: ApiMessageError) {
     return 'transport_error';
   }
   return 'error';
-}
-
-export function traceDetailWindow(query: TraceExploreQuery, now: number) {
-  return exploreUsesExactWindow(query)
-    ? { from: query.start!, to: query.end! }
-    : { from: now - timeRangeMilliseconds(query.timeRange), to: now };
-}
-
-export function toExploreTraceDetail(traceId: string, detail: InvestigationTraceDetail): TraceDetail {
-  return {
-    traceId,
-    rootSpanId: detail.rootSpanId,
-    serviceName: detail.serviceName,
-    serviceNamespace: detail.serviceNamespace,
-    rootSpanName: detail.rootSpanName,
-    durationNanos: detail.durationNanos,
-    status: detail.status,
-    startTime: detail.startTime,
-    errorSpanCount: detail.errorSpanCount,
-    resourceAttributes: detail.resourceAttributes,
-    spans: detail.spans.map(span => ({
-      traceId,
-      spanId: span.spanId,
-      parentSpanId: span.parentSpanId,
-      spanName: span.spanName,
-      serviceName: span.serviceName,
-      status: span.status,
-      statusMessage: span.statusMessage,
-      spanKind: span.spanKind,
-      traceState: span.traceState,
-      scopeName: span.scopeName,
-      scopeVersion: span.scopeVersion,
-      durationNanos: span.durationNanos,
-      startTime: span.startTime,
-      highlighted: span.highlighted,
-      resourceAttributes: span.resourceAttributes,
-      spanAttributes: span.spanAttributes,
-      events: span.events,
-      links: span.links,
-      codeNavigationHint: span.codeNavigationHint
-    }))
-  };
 }

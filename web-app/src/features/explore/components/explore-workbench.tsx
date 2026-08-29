@@ -139,12 +139,14 @@ function ExploreSignalNavigation({
 }: Pick<Props, 'query' | 't' | 'updateQuery'> & { selectSignal: (signal: ExploreSignal) => void }) {
   return (
     <div className={styles.navigationRow}>
-      <nav className={styles.signalNavigation} aria-label={t('explore.signalsNavigation')}>
+      <nav className={styles.signalNavigation} aria-label={t('explore.signalsNavigation')} role="tablist">
         {signalKeys.map(signal => (
           <button
             key={signal}
             type="button"
             role="tab"
+            id={`explore-tab-${signal}`}
+            aria-controls={`explore-panel-${signal}`}
             aria-selected={query.signal === signal}
             className={(query.signal === signal ? styles.activeSignal : styles.signal) ?? ''}
             onClick={() => selectSignal(signal)}
@@ -154,11 +156,23 @@ function ExploreSignalNavigation({
         ))}
       </nav>
       {query.signal === 'logs' && (
-        <div className={styles.logMode} aria-label={t('exploreLog.mode')}>
-          <Button type={query.live ? 'text' : 'primary'} onClick={() => updateQuery({ live: undefined })}>
+        <div className={styles.logMode} aria-label={t('exploreLog.mode')} role="tablist">
+          <Button
+            role="tab"
+            aria-selected={!query.live}
+            aria-controls="explore-panel-logs"
+            type={query.live ? 'text' : 'primary'}
+            onClick={() => updateQuery({ live: undefined })}
+          >
             {t('exploreLog.query')}
           </Button>
-          <Button type={query.live ? 'primary' : 'text'} onClick={() => updateQuery({ live: true })}>
+          <Button
+            role="tab"
+            aria-selected={Boolean(query.live)}
+            aria-controls="explore-panel-logs"
+            type={query.live ? 'primary' : 'text'}
+            onClick={() => updateQuery({ live: true })}
+          >
             {t('exploreLog.live')}
           </Button>
         </div>
