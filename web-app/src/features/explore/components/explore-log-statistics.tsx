@@ -32,7 +32,7 @@ export function ExploreLogStatistics({
 
 function Overview({ statistics, t }: { statistics: Pick<LogHistoryEvidence, 'overview'>; t: TFunction }) {
   return (
-    <section aria-label={t('exploreLog.overview')}>
+    <section className={styles.overview} aria-label={t('exploreLog.overview')}>
       <h3>{t('exploreLog.overview')}</h3>
       {statistics.overview.kind === 'error' ? (
         <Alert type="warning" showIcon message={t('exploreLog.statisticsUnavailable')} />
@@ -63,7 +63,7 @@ function Trend({
 }) {
   const rows = statistics.trend.kind === 'ready' ? Object.keys(statistics.trend.data.hourlyStats) : [];
   return (
-    <section aria-label={t('exploreLog.trend')}>
+    <section className={styles.trend} aria-label={t('exploreLog.trend')}>
       <h3>{t('exploreLog.trend')}</h3>
       {statistics.trend.kind === 'error' ? (
         <Alert type="warning" showIcon message={t('exploreLog.statisticsUnavailable')} />
@@ -97,6 +97,7 @@ function TrendResult({
       outcome={result.outcome}
       runtimeIdentity={result.runtimeIdentity}
       messages={explorePersesMessages(t)}
+      variant="compact"
     />
   );
 }

@@ -20,7 +20,19 @@ vi.mock('./perses-signal-runtime', () => ({
   PersesSignalRuntime: ({ kind }: { kind: string }) => {
     if (runtimeControl.fail) throw new Error('private runtime detail');
     if (kind === 'logs-table' || kind === 'trace-table') {
-      return <table aria-label={`official ${kind}`} data-testid={`official-${kind}`} />;
+      return (
+        <section className="MuiCard-root">
+          <div className="MuiCardContent-root">
+            <div
+              className="MuiBox-root"
+              data-testid="official-panel-inner-surface"
+              style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)' }}
+            >
+              <table aria-label={`official ${kind}`} data-testid={`official-${kind}`} />
+            </div>
+          </div>
+        </section>
+      );
     }
     if (kind === 'tracing-gantt-chart') {
       return <button data-testid={`official-${kind}`}>Inspect span</button>;
@@ -85,7 +97,7 @@ describe('HertzBeat Perses primitives', () => {
 
     const loading = screen.getByRole('status', { name: 'Logs table' });
     expect(loading).toHaveTextContent('Loading signal');
-    expect(loading).toHaveStyle({ minHeight: '388px', gridTemplateRows: '360px 28px' });
+    expect(loading).toHaveStyle({ minHeight: '388px', gridTemplateRows: '360px auto auto' });
     view.unmount();
     expect(requestSignal?.aborted).toBe(true);
   });
@@ -201,7 +213,7 @@ describe('HertzBeat Perses primitives', () => {
     expect(screen.getByRole('img', { name: 'Metric time series' })).toHaveStyle({ height: '360px' });
     expect(view.container.querySelector('[data-visualization-runtime="perses"]')).toHaveStyle({
       minHeight: '388px',
-      gridTemplateRows: '360px 28px'
+      gridTemplateRows: '360px auto auto'
     });
     expect(screen.getByRole('status', { name: 'Metric time series completeness' })).toHaveTextContent(
       'Result completeness is unknown'
@@ -219,6 +231,7 @@ describe('HertzBeat Perses primitives', () => {
     expect(screen.getByRole('region', { name: 'Logs table' })).toContainElement(
       screen.getByRole('table', { name: 'official logs-table' })
     );
+    expect(screen.getByTestId('official-panel-inner-surface')).toHaveStyle({ borderRadius: '0', boxShadow: 'none' });
     const completeness = screen.getByRole('status', { name: 'Logs table completeness' });
     expect(completeness).toHaveTextContent('Results are truncated');
     expect(completeness).toHaveStyle({ height: '28px', minHeight: '28px' });
@@ -277,6 +290,9 @@ describe('HertzBeat Perses primitives', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Investigate log checkout ready' }));
     expect(open).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Open trace checkout ready' })).toBeDisabled();
+    expect(view.container.querySelector('[data-visualization-runtime="perses"]')).toHaveStyle({
+      gridTemplateRows: '360px auto auto'
+    });
 
     view.rerender(
       <HertzBeatLogsTableResult

@@ -39,19 +39,14 @@ export function ExploreFocusedTracePage({ query, ...common }: CommonProps & { qu
   const topologyPath = state.kind === 'ready' ? buildTraceInvestigationTopologyPath(state.snapshot) : undefined;
   return (
     <>
-      <ExploreWorkbench
-        query={query}
-        t={common.t}
-        updateQuery={common.updateQuery}
-        refresh={investigation.refetch}
-        time={common.time}
-      />
+      <ExploreWorkbench query={query} t={common.t} updateQuery={common.updateQuery} />
       <OperationalResultRegion>
         {state.kind === 'ready' ? (
           <ExploreTraceInvestigationView
             state={state}
             evidenceCurrent
             onBack={() => common.openPath(backToResultsPath(query))}
+            onRefresh={() => void investigation.refetch()}
             onSelectSpan={spanId => common.openPath(buildExplorePath(mergeExploreQuery(query, { spanId })))}
             onOpenLogs={() =>
               common.openPath(
@@ -79,19 +74,14 @@ export function ExploreFocusedLogPage({ query, ...common }: CommonProps & { quer
   const topologyPath = state.kind === 'ready' ? buildLogInvestigationTopologyPath(state.snapshot) : undefined;
   return (
     <>
-      <ExploreWorkbench
-        query={query}
-        t={common.t}
-        updateQuery={common.updateQuery}
-        refresh={investigation.refetch}
-        time={common.time}
-      />
+      <ExploreWorkbench query={query} t={common.t} updateQuery={common.updateQuery} />
       <OperationalResultRegion>
         {state.kind === 'ready' ? (
           <ExploreLogInvestigationView
             state={state}
             evidenceCurrent
             onBack={() => common.openPath(backToResultsPath(query))}
+            onRefresh={() => void investigation.refetch()}
             onFocusTrace={() => common.openPath(logTracePath(query, state.snapshot.selectedLog.log))}
             {...(metricsPath ? { onOpenMetrics: () => common.openPath(metricsPath) } : {})}
             {...(topologyPath ? { onOpenTopology: () => common.openPath(topologyPath) } : {})}

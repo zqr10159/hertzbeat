@@ -68,13 +68,7 @@ function ExploreHistoricalWorkspace({
   return (
     <OperationalPage mode="workspace">
       <div data-explore-workspace="true">
-        <ExploreWorkbench
-          query={controller.query}
-          t={t}
-          updateQuery={controller.updateQuery}
-          refresh={controller.refresh}
-          time={controller.time}
-        />
+        <ExploreWorkbench query={controller.query} t={t} updateQuery={controller.updateQuery} />
         <section
           role="tabpanel"
           id={`explore-panel-${controller.query.signal}`}
@@ -84,6 +78,9 @@ function ExploreHistoricalWorkspace({
             query={controller.query}
             t={t}
             updateQuery={controller.updateManualQuery}
+            updateScope={controller.updateQuery}
+            refresh={controller.refresh}
+            time={controller.time}
             submission={controller.submission}
           />
           <OperationalResultRegion>

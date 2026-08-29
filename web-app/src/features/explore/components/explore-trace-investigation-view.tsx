@@ -24,6 +24,7 @@ type Props = {
   state: ReadyState;
   evidenceCurrent: boolean;
   onBack: () => void;
+  onRefresh: () => void;
   onSelectSpan: (spanId: string) => void;
   onOpenLogs: () => void;
   onOpenMetrics?: (() => void) | undefined;
@@ -44,7 +45,7 @@ export function ExploreTraceInvestigationView(props: Props) {
       data-explore-investigation="true"
       aria-label={t('exploreInvestigation.title')}
     >
-      <InvestigationContextBand window={state.route.window} onBack={props.onBack} />
+      <InvestigationContextBand window={state.route.window} onBack={props.onBack} onRefresh={props.onRefresh} />
       <TraceAvailability
         gantt={ganttState}
         logs={logsState}

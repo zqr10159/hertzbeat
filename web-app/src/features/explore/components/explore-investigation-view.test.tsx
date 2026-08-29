@@ -147,6 +147,30 @@ describe('focused Explore investigation presentation', () => {
     expect(screen.getByRole('button', { name: i18n.t('exploreInvestigation.actions.backToResults') })).toBeEnabled();
   });
 
+  it('keeps manual refresh beside Back in the exact-window context band', () => {
+    const refresh = vi.fn();
+    renderTrace(traceReady(), { onRefresh: refresh });
+
+    const refreshButton = screen.getByRole('button', { name: i18n.t('common.refresh') });
+    const context = refreshButton.closest('header');
+    expect(context).not.toBeNull();
+    fireEvent.click(refreshButton);
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(
+      within(context as HTMLElement).getByRole('button', {
+        name: i18n.t('exploreInvestigation.actions.backToResults')
+      })
+    ).toBeInTheDocument();
+  });
+
+  it('renders facts as one semantic list inside the outer signal surface', () => {
+    renderTrace(traceReady());
+
+    const traces = screen.getByRole('region', { name: i18n.t('exploreInvestigation.sections.traces') });
+    expect(within(traces).getAllByRole('term').length).toBeGreaterThan(0);
+    expect(within(traces).getAllByRole('definition').length).toBeGreaterThan(0);
+  });
+
   it('does not let ready RED evidence mask unavailable service metrics', () => {
     const ready = traceReady();
     renderTrace({
@@ -211,6 +235,7 @@ function renderTrace(
         state={state}
         evidenceCurrent
         onBack={vi.fn()}
+        onRefresh={vi.fn()}
         onSelectSpan={vi.fn()}
         onOpenLogs={vi.fn()}
         onOpenMetrics={vi.fn()}
@@ -228,6 +253,7 @@ function renderLog(state: ReadyLog, overrides: Partial<React.ComponentProps<type
         state={state}
         evidenceCurrent
         onBack={vi.fn()}
+        onRefresh={vi.fn()}
         onFocusTrace={vi.fn()}
         onOpenMetrics={vi.fn()}
         onOpenTopology={vi.fn()}

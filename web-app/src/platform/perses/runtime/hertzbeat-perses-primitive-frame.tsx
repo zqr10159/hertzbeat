@@ -31,6 +31,7 @@ export type SharedPrimitiveProps = {
   className?: string | undefined;
   runtimeIdentity?: string | undefined;
   interactions?: HertzBeatPersesTableInteraction[] | undefined;
+  variant?: 'default' | 'compact' | undefined;
 };
 
 export type PrimitiveState<T> =
@@ -80,7 +81,7 @@ export function HertzBeatPrimitiveFrame<T>({ state, toRuntimeProps, ...props }: 
   }
   const runtimeRole = runtimeProps.kind === 'metric-time-series' ? 'img' : 'region';
   return (
-    <div className={className} data-visualization-runtime="perses">
+    <div className={className} data-visualization-runtime="perses" data-variant={props.variant ?? 'default'}>
       <PersesPrimitiveErrorBoundary
         ariaLabel={props.ariaLabel}
         fallback={props.messages.runtimeError}
@@ -105,7 +106,12 @@ export function HertzBeatPrimitiveFrame<T>({ state, toRuntimeProps, ...props }: 
 function PrimitiveStateFrame(props: SharedPrimitiveProps & { alert?: boolean; children: ReactNode }) {
   const className = [styles.primitive, props.className].filter(Boolean).join(' ');
   return (
-    <div className={className} role={props.alert ? 'alert' : 'status'} aria-label={props.ariaLabel}>
+    <div
+      className={className}
+      role={props.alert ? 'alert' : 'status'}
+      aria-label={props.ariaLabel}
+      data-variant={props.variant ?? 'default'}
+    >
       <div className={styles.state}>{props.children}</div>
     </div>
   );

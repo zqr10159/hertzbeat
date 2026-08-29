@@ -1,5 +1,6 @@
 {
   "exploreTrace": {
+    "attributeFilter": "トレース属性、key:value",
     "closeDetail": "詳細を閉じる"
   },
   "exploreInvestigation": {
@@ -70,6 +71,14 @@
   },
   "explore": {
     "exactWindow": "固定時間範囲",
+    "queryToolbar": "Explore クエリコントロール",
+    "filterContext": "{{label}}: {{value}}",
+    "addFilters": "フィルターを追加",
+    "queryLabels": {
+      "metrics": "メトリクスクエリ",
+      "logs": "ログクエリ",
+      "traces": "トレースクエリ"
+    },
     "instanceId": "サービスインスタンス ID",
     "httpRouteTemplate": "HTTP ルートテンプレート（例: /checkout）",
     "instanceContext": "インスタンス: {{value}}",

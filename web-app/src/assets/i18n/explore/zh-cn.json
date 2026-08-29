@@ -1,5 +1,6 @@
 {
   "exploreTrace": {
+    "attributeFilter": "Trace 属性，key:value",
     "closeDetail": "关闭详情"
   },
   "exploreInvestigation": {
@@ -70,6 +71,14 @@
   },
   "explore": {
     "exactWindow": "固定时间范围",
+    "queryToolbar": "探索查询控件",
+    "filterContext": "{{label}}：{{value}}",
+    "addFilters": "添加筛选条件",
+    "queryLabels": {
+      "metrics": "指标查询",
+      "logs": "日志查询",
+      "traces": "链路查询"
+    },
     "instanceId": "服务实例 ID",
     "httpRouteTemplate": "HTTP 路由模板，例如 /checkout",
     "instanceContext": "实例：{{value}}",

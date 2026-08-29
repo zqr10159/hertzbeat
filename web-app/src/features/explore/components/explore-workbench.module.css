@@ -15,17 +15,6 @@
  * limitations under the License.
  */
 
-.scope {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 2px;
-}
-
-.timeRange {
-  width: 176px;
-}
-
 .navigationRow {
   display: flex;
   align-items: flex-end;
@@ -82,7 +71,7 @@
   padding-inline: 12px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   :global(body:has([data-explore-workspace='true'])) {
     min-width: 0;
   }
@@ -93,14 +82,9 @@
     display: none;
   }
 
-  .scope,
   .navigationRow {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .timeRange {
-    width: 100%;
   }
 
   .signalNavigation {

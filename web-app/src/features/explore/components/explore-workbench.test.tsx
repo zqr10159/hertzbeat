@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -39,7 +39,7 @@ describe('Explore workbench', () => {
     vi.useRealTimers();
   });
 
-  it('keeps signal navigation and shared time scope visible', () => {
+  it('keeps one accessible query command region with query, time, refresh, and Run controls', () => {
     const updateQuery = vi.fn();
     render(
       <I18nextProvider i18n={i18n}>
@@ -47,10 +47,15 @@ describe('Explore workbench', () => {
       </I18nextProvider>
     );
 
-    expect(screen.getByRole('combobox', { name: 'Time range' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /Auto refresh/u })).toBeInTheDocument();
-    expect(screen.getByText('Last 30 minutes')).toBeInTheDocument();
-    expect(screen.getByRole('banner')).toHaveAttribute('data-hb-operational-page-header');
+    const command = screen.getByRole('form', { name: 'Explore query controls' });
+    expect(within(command).getByRole('textbox', { name: 'Metrics query' })).toBeInTheDocument();
+    expect(within(command).getByRole('combobox', { name: 'Time range' })).toBeInTheDocument();
+    expect(within(command).getByRole('combobox', { name: /Auto refresh/u })).toBeInTheDocument();
+    expect(within(command).getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+    expect(within(command).getByRole('button', { name: 'Query' })).toBeInTheDocument();
+    expect(screen.getByRole('banner')).not.toContainElement(
+      document.querySelector('[data-hb-operational-page-actions]')
+    );
     fireEvent.click(screen.getByRole('tab', { name: 'Metrics' }));
     expect(updateQuery).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('tab', { name: 'Logs' }));
@@ -70,7 +75,11 @@ describe('Explore workbench', () => {
       </I18nextProvider>
     );
 
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: /Auto refresh/u }));
+    fireEvent.mouseDown(
+      within(screen.getByRole('form', { name: 'Explore query controls' })).getByRole('combobox', {
+        name: /Auto refresh/u
+      })
+    );
     fireEvent.click(screen.getByText('Auto refresh 30s'));
     expect(time.setAutoRefresh).toHaveBeenCalledWith(30_000);
   });
@@ -82,6 +91,7 @@ describe('Explore workbench', () => {
       </I18nextProvider>
     );
     expect(screen.getByText('Advanced filters').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByText('Add filters').closest('summary')?.querySelector('.anticon-filter')).not.toBeNull();
   });
 
   it('edits optional QueryContext v1 dimensions as an instance and HTTP route template', () => {
@@ -97,6 +107,9 @@ describe('Explore workbench', () => {
           query={query}
           t={i18n.t}
           updateQuery={vi.fn()}
+          updateScope={vi.fn()}
+          refresh={vi.fn().mockResolvedValue(undefined)}
+          time={sharedTime()}
           submission={{
             draft: draftFromQuery(query),
             errors: {},
@@ -132,8 +145,35 @@ describe('Explore workbench', () => {
           }}
           t={i18n.t}
           updateQuery={updateQuery}
+        />
+        <ExploreQueryBar
+          query={{
+            signal: 'metrics',
+            timeRange: 'last-30m',
+            serviceName: 'checkout-api',
+            serviceNamespace: 'commerce',
+            environment: 'prod',
+            collectorId: 'collector-east',
+            start: 1_710_000_000_000,
+            end: 1_710_000_005_000
+          }}
+          t={i18n.t}
+          updateQuery={vi.fn()}
+          updateScope={updateQuery}
           refresh={refresh}
           time={sharedTime({ autoRefreshMs: 0 })}
+          submission={{
+            draft: draftFromQuery({
+              signal: 'metrics',
+              timeRange: 'last-30m',
+              start: 1_710_000_000_000,
+              end: 1_710_000_005_000
+            }),
+            errors: {},
+            updateField: vi.fn(),
+            submit: vi.fn(),
+            removeFilter: vi.fn()
+          }}
         />
       </I18nextProvider>
     );
@@ -149,8 +189,6 @@ describe('Explore workbench', () => {
           query={{ signal: 'metrics', timeRange: 'last-30m', collectorId: 'collector-east', start: 2_000, end: 1_000 }}
           t={i18n.t}
           updateQuery={vi.fn()}
-          refresh={vi.fn().mockResolvedValue(undefined)}
-          time={sharedTime()}
         />
       </I18nextProvider>
     );
@@ -168,13 +206,19 @@ function WorkbenchSubject({
 }) {
   const { t } = useTranslation();
   return (
-    <ExploreWorkbench
-      query={{ signal: 'metrics', timeRange: 'last-30m', query: 'http_requests_total' }}
-      t={t}
-      updateQuery={updateQuery}
-      refresh={vi.fn().mockResolvedValue(undefined)}
-      time={time}
-    />
+    <>
+      <ExploreWorkbench
+        query={{ signal: 'metrics', timeRange: 'last-30m', query: 'http_requests_total' }}
+        t={t}
+        updateQuery={updateQuery}
+      />
+      <QuerySubject
+        query={{ signal: 'metrics', timeRange: 'last-30m', query: 'http_requests_total' }}
+        time={time}
+        updateScope={updateQuery}
+        refresh={vi.fn().mockResolvedValue(undefined)}
+      />
+    </>
   );
 }
 
@@ -196,14 +240,26 @@ function sharedTime(override: Partial<SharedTimeValue> = {}): SharedTimeValue {
   };
 }
 
-function QuerySubject() {
+function QuerySubject({
+  query = { signal: 'logs', timeRange: 'last-30m' },
+  time = sharedTime(),
+  updateScope = vi.fn(),
+  refresh = vi.fn().mockResolvedValue(undefined)
+}: {
+  query?: Parameters<typeof draftFromQuery>[0];
+  time?: SharedTimeValue;
+  updateScope?: (changes: ExploreQueryPatch) => void;
+  refresh?: () => Promise<void>;
+} = {}) {
   const { t } = useTranslation();
-  const query = { signal: 'logs', timeRange: 'last-30m' } as const;
   return (
     <ExploreQueryBar
       query={query}
       t={t}
       updateQuery={vi.fn()}
+      updateScope={updateScope}
+      refresh={refresh}
+      time={time}
       submission={{
         draft: draftFromQuery(query),
         errors: {},

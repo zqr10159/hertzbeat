@@ -22,6 +22,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initializeI18n, loadLocale } from '@/core/i18n/i18n';
 
+import { ExploreLogStatistics } from './explore-log-statistics';
 import { LogResult } from './log-result';
 
 describe('LogResult', () => {
@@ -168,8 +169,7 @@ describe('LogResult', () => {
   it('renders non-empty hourly evidence as an accessible time-series chart instead of row-by-row history', () => {
     render(
       <I18nextProvider i18n={i18n}>
-        <LogResult
-          data={{ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }}
+        <ExploreLogStatistics
           statistics={{
             overview: {
               kind: 'ready',
@@ -188,14 +188,17 @@ describe('LogResult', () => {
               data: { hourlyStats: { '2026-08-06 10:00': 4, '2026-08-06 11:00': 8 } }
             }
           }}
-          query={{ signal: 'logs', timeRange: 'last-30m' }}
+          timeWindow={{ from: 1_754_467_200_000, to: 1_754_474_400_000 }}
+          runtimeIdentity="logs-trend:revision-1"
           t={i18n.t}
-          navigate={vi.fn()}
         />
       </I18nextProvider>
     );
 
     const trend = screen.getByRole('region', { name: i18n.t('exploreLog.trend') });
+    const runtime = trend.querySelector('[data-visualization-runtime="perses"]');
+    expect(runtime).toHaveAttribute('data-variant', 'compact');
+    expect(runtime?.firstElementChild).not.toHaveAttribute('style');
     expect(within(trend).getByRole('img', { name: i18n.t('exploreLog.trend') })).toBeInTheDocument();
     expect(within(trend).queryByRole('list')).not.toBeInTheDocument();
   });

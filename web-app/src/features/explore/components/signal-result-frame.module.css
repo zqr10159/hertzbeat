@@ -47,6 +47,10 @@
   font-size: 12px;
 }
 
+.identity span {
+  font-variant-numeric: tabular-nums;
+}
+
 .meta {
   display: flex;
   gap: 22px;

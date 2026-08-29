@@ -28,6 +28,7 @@ type Props = {
   state: ReadyState;
   evidenceCurrent: boolean;
   onBack: () => void;
+  onRefresh: () => void;
   onFocusTrace: () => void;
   onOpenMetrics?: (() => void) | undefined;
   onOpenTopology?: (() => void) | undefined;
@@ -47,7 +48,7 @@ export function ExploreLogInvestigationView(props: Props) {
       data-explore-investigation="true"
       aria-label={t('exploreInvestigation.title')}
     >
-      <InvestigationContextBand window={state.route.window} onBack={props.onBack} />
+      <InvestigationContextBand window={state.route.window} onBack={props.onBack} onRefresh={props.onRefresh} />
       <LogAvailability
         logs={snapshot.selectedLog.state}
         traces={traceEvidenceState(state)}

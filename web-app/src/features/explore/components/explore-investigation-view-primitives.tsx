@@ -14,7 +14,15 @@ export type AvailabilityItem = {
   state: InvestigationEvidenceState;
 };
 
-export function InvestigationContextBand({ window, onBack }: { window: InvestigationTimeWindow; onBack: () => void }) {
+export function InvestigationContextBand({
+  window,
+  onBack,
+  onRefresh
+}: {
+  window: InvestigationTimeWindow;
+  onBack: () => void;
+  onRefresh: () => void;
+}) {
   const { t } = useInvestigationTranslation();
   const formatter = new Intl.DateTimeFormat(undefined, {
     dateStyle: 'short',
@@ -28,7 +36,10 @@ export function InvestigationContextBand({ window, onBack }: { window: Investiga
         <span>{t('exploreInvestigation.exactWindow')}</span>
         <time>{`${formatter.format(window.from)} – ${formatter.format(window.to)}`}</time>
       </div>
-      <Button onClick={onBack}>{t('exploreInvestigation.actions.backToResults')}</Button>
+      <div className={styles.contextActions}>
+        <Button onClick={onBack}>{t('exploreInvestigation.actions.backToResults')}</Button>
+        <Button onClick={onRefresh}>{t('common.refresh')}</Button>
+      </div>
     </header>
   );
 }

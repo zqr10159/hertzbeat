@@ -15,120 +15,41 @@
  * limitations under the License.
  */
 
-import { Button, Select } from 'antd';
+import { Button } from 'antd';
 import type { TFunction } from 'i18next';
 
 import { OperationalPageHeader, OperationalStatePanel } from '@/shared/operational-page';
-import { globalAutoRefreshValues, type SharedTimeValue } from '@/shared/time';
 
 import {
-  EXPLORE_TIME_RANGES,
   exploreHandoffState,
-  exploreUsesExactWindow,
-  presetTimeRangePatch,
   signalSelectionPatch,
   type ExploreQuery,
   type ExploreQueryPatch,
-  type ExploreSignal,
-  type ExploreTimeRange
+  type ExploreSignal
 } from '../model/explore-model';
 import styles from './explore-workbench.module.css';
 
 const signalKeys: ExploreSignal[] = ['metrics', 'logs', 'traces'];
-const EXACT_WINDOW_OPTION = 'exact-window';
 
 type Props = {
   query: ExploreQuery;
   t: TFunction;
   updateQuery: (changes: ExploreQueryPatch) => void;
-  refresh: () => Promise<void>;
-  time: SharedTimeValue | null | undefined;
 };
 
-export function ExploreWorkbench({ query, t, updateQuery, refresh, time }: Props) {
+export function ExploreWorkbench({ query, t, updateQuery }: Props) {
   const handoffState = exploreHandoffState(query);
-  const exactWindow = exploreUsesExactWindow(query);
-  const fixedWindowFields = query.start != null || query.end != null;
-  const updateTimeRange = (value: string) => {
-    if (!EXPLORE_TIME_RANGES.includes(value as ExploreTimeRange)) return;
-    const timeRange = value as ExploreTimeRange;
-    updateQuery(presetTimeRangePatch(query, timeRange));
-  };
   const selectSignal = (signal: ExploreSignal) => {
     if (query.signal === signal) return;
     updateQuery(signalSelectionPatch(signal));
   };
   return (
     <>
-      <ExploreHeader
-        exactWindow={exactWindow}
-        fixedWindowFields={fixedWindowFields}
-        query={query}
-        refresh={refresh}
-        t={t}
-        time={time}
-        updateTimeRange={updateTimeRange}
-      />
+      <OperationalPageHeader title={t('explore.title')} description={t('explore.description')} />
       {handoffState === 'invalid' && <OperationalStatePanel kind="error" title={t('explore.handoffInvalid')} />}
       <ExploreSignalNavigation query={query} selectSignal={selectSignal} t={t} updateQuery={updateQuery} />
     </>
   );
-}
-
-function ExploreHeader({
-  exactWindow,
-  fixedWindowFields,
-  query,
-  refresh,
-  t,
-  time,
-  updateTimeRange
-}: Pick<Props, 'query' | 'refresh' | 't' | 'time'> & {
-  exactWindow: boolean;
-  fixedWindowFields: boolean;
-  updateTimeRange: (value: string) => void;
-}) {
-  const exactOption = exactWindow
-    ? [{ value: EXACT_WINDOW_OPTION, label: t('explore.exactWindow'), disabled: true }]
-    : [];
-  return (
-    <OperationalPageHeader
-      title={t('explore.title')}
-      description={t('explore.description')}
-      actions={
-        <div className={styles.scope} aria-label={t('explore.context')}>
-          <Select<string>
-            className={styles.timeRange ?? ''}
-            aria-label={t('explore.timeRange')}
-            value={exactWindow ? EXACT_WINDOW_OPTION : query.timeRange}
-            options={[
-              ...exactOption,
-              ...EXPLORE_TIME_RANGES.map(value => ({ value, label: t(`explore.timeRanges.${value}`) }))
-            ]}
-            onChange={updateTimeRange}
-          />
-          {!fixedWindowFields && time && (
-            <Select<number>
-              className={styles.timeRange ?? ''}
-              aria-label={autoRefreshLabel(time.autoRefreshMs, t)}
-              value={time.autoRefreshMs}
-              options={globalAutoRefreshValues.map(interval => ({
-                value: interval,
-                label: autoRefreshLabel(interval, t)
-              }))}
-              onChange={interval => time.setAutoRefresh(interval)}
-            />
-          )}
-          <Button onClick={() => void refresh()}>{t('common.refresh')}</Button>
-        </div>
-      }
-    />
-  );
-}
-
-function autoRefreshLabel(interval: number, t: TFunction) {
-  if (interval === 0) return t('shell.time.autoRefreshOff');
-  return t('shell.time.autoRefreshSeconds', { seconds: interval / 1_000 });
 }
 
 function ExploreSignalNavigation({

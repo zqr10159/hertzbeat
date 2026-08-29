@@ -1,5 +1,6 @@
 {
   "exploreTrace": {
+    "attributeFilter": "Atributos de trace, chave:valor",
     "closeDetail": "Fechar detalhes"
   },
   "exploreInvestigation": {
@@ -70,6 +71,14 @@
   },
   "explore": {
     "exactWindow": "Intervalo de tempo fixo",
+    "queryToolbar": "Controles de consulta do Explore",
+    "filterContext": "{{label}}: {{value}}",
+    "addFilters": "Adicionar filtros",
+    "queryLabels": {
+      "metrics": "Consulta de métricas",
+      "logs": "Consulta de logs",
+      "traces": "Consulta de traces"
+    },
     "instanceId": "ID da instância do serviço",
     "httpRouteTemplate": "Modelo de rota HTTP, por exemplo /checkout",
     "instanceContext": "Instância: {{value}}",

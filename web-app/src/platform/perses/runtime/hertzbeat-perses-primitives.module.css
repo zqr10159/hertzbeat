@@ -5,13 +5,47 @@
   width: 100%;
   min-width: 0;
   min-height: 388px;
-  grid-template-rows: 360px 28px;
+  grid-template-rows: 360px auto auto;
 }
 
 .runtime {
   width: 100%;
+  min-width: 0;
   height: 360px;
   min-height: 360px;
+  overflow: hidden;
+  border-top: 1px solid var(--hb-border-subtle);
+}
+
+.runtime:has(> :global([data-perses-primitive='logs-table'])) {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.runtime > :global([data-perses-primitive='logs-table']) {
+  min-width: 640px;
+}
+
+.runtime :global(.MuiCard-root),
+.runtime :global(.MuiPaper-root) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.runtime :global(.MuiTableContainer-root) {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.runtime :global(.MuiCardContent-root > .MuiBox-root) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .state {
@@ -19,6 +53,17 @@
   min-height: 360px;
   place-items: center;
   color: var(--hb-text-secondary);
+}
+
+.primitive[data-variant='compact'] {
+  min-height: 220px;
+  grid-template-rows: 220px auto auto;
+}
+
+.primitive[data-variant='compact'] .runtime,
+.primitive[data-variant='compact'] .state {
+  height: 220px;
+  min-height: 220px;
 }
 
 .completeness {
@@ -64,6 +109,8 @@
   display: flex;
   flex: none;
   gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .interactions button {
@@ -73,6 +120,7 @@
   background: var(--hb-bg-raised);
   color: var(--hb-text-primary);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .interactions button:disabled {
@@ -84,5 +132,9 @@
   .interactions li {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .interactions li > div {
+    width: 100%;
   }
 }

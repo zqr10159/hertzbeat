@@ -87,6 +87,33 @@ describe('ExplorePage instrumentation context boundary', () => {
     );
   });
 
+  it('keeps the default query surface focused and submits guided filters from a disclosure', async () => {
+    renderPage('/explore?signal=metrics');
+
+    const primaryQuery = screen.getByRole('textbox', { name: i18n.t('explore.queryLabels.metrics') });
+    expect(screen.getByRole('textbox', { name: en.explore.serviceName })).not.toBeVisible();
+    expect(screen.getByRole('textbox', { name: en.explore.environment })).not.toBeVisible();
+    expect(screen.getByText(en.explore.advancedFilters)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(i18n.t('explore.addFilters')));
+    const serviceName = screen.getByRole('textbox', { name: en.explore.serviceName });
+    const environment = screen.getByRole('textbox', { name: en.explore.environment });
+    fireEvent.change(primaryQuery, { target: { value: 'http_request_duration_seconds' } });
+    fireEvent.change(serviceName, { target: { value: 'checkout' } });
+    fireEvent.change(environment, { target: { value: 'prod' } });
+    fireEvent.click(querySubmitButton());
+
+    await waitFor(() =>
+      expect(locationParams()).toEqual(
+        expect.objectContaining({
+          query: 'http_request_duration_seconds',
+          serviceName: 'checkout',
+          environment: 'prod'
+        })
+      )
+    );
+  });
+
   it('does not widen partial or reversed instrumentation scope into any signal query or SSE stream', async () => {
     const invalidEntries = [
       '/explore?signal=metrics&intakeProfileId=primary-ingress&serviceName=checkout&serviceNamespace=commerce&start=1000&end=2000',
@@ -318,7 +345,7 @@ describe('ExplorePage instrumentation context boundary', () => {
     cleanup();
     renderPage('/explore?signal=traces');
     fireEvent.click(screen.getByText(en.explore.advancedFilters));
-    const attributeFilter = screen.getByPlaceholderText(en.exploreLog.attributeFilter);
+    const attributeFilter = screen.getByPlaceholderText(i18n.t('exploreTrace.attributeFilter'));
     fireEvent.change(attributeFilter, { target: { value: 'http.route=/checkout' } });
     fireEvent.click(screen.getByRole('checkbox', { name: en.exploreTrace.errorOnly }));
     expect(locationParams()).not.toHaveProperty('errorOnly');
@@ -345,6 +372,7 @@ describe('ExplorePage instrumentation context boundary', () => {
     await selectOption(spanScope, en.exploreTrace.spanScopeValues.root);
     expect(screen.getAllByText(en.exploreTrace.spanScopeValues.root).length).toBeGreaterThan(0);
     expect(screen.getByRole('checkbox', { name: en.exploreTrace.hideInternal })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(i18n.t('exploreTrace.attributeFilter'))).toBeInTheDocument();
 
     cleanup();
     renderPage('/explore?signal=logs');

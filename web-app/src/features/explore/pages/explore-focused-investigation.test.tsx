@@ -20,6 +20,7 @@ vi.mock('../controller/use-log-investigation-controller', () => ({
 vi.mock('../components/explore-trace-investigation-view', () => ({
   ExploreTraceInvestigationView: (props: {
     onBack: () => void;
+    onRefresh: () => void;
     onSelectSpan: (spanId: string) => void;
     onOpenLogs: () => void;
     onOpenMetrics?: (() => void) | undefined;
@@ -27,6 +28,7 @@ vi.mock('../components/explore-trace-investigation-view', () => ({
   }) => (
     <div>
       <button onClick={props.onBack}>trace-back</button>
+      <button onClick={props.onRefresh}>trace-refresh</button>
       <button onClick={() => props.onSelectSpan('fedcba9876543210')}>select-span</button>
       <button onClick={props.onOpenLogs}>trace-logs</button>
       {props.onOpenMetrics ? <button onClick={props.onOpenMetrics}>trace-metrics</button> : null}
@@ -37,11 +39,13 @@ vi.mock('../components/explore-trace-investigation-view', () => ({
 vi.mock('../components/explore-log-investigation-view', () => ({
   ExploreLogInvestigationView: (props: {
     onBack: () => void;
+    onRefresh: () => void;
     onFocusTrace: () => void;
     onOpenTopology?: (() => void) | undefined;
   }) => (
     <div>
       <button onClick={props.onBack}>log-back</button>
+      <button onClick={props.onRefresh}>log-refresh</button>
       <button onClick={props.onFocusTrace}>log-trace</button>
       {props.onOpenTopology ? <button onClick={props.onOpenTopology}>log-topology</button> : null}
     </div>
@@ -60,7 +64,8 @@ describe('Explore focused investigation page wiring', () => {
   });
 
   it('uses route builders for Trace actions and returns without focused identities', () => {
-    controllers.trace.mockReturnValue({ state: traceReady(), refetch: vi.fn().mockResolvedValue(undefined) });
+    const refetch = vi.fn().mockResolvedValue(undefined);
+    controllers.trace.mockReturnValue({ state: traceReady(), refetch });
     const openPath = vi.fn();
     renderSubject(
       <ExploreFocusedTracePage
@@ -96,10 +101,13 @@ describe('Explore focused investigation page wiring', () => {
     fireEvent.click(screen.getByText('trace-back'));
     expect(pathParams(lastPath(openPath))).not.toHaveProperty('traceId');
     expect(pathParams(lastPath(openPath))).not.toHaveProperty('spanId');
+    fireEvent.click(screen.getByText('trace-refresh'));
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it('hands a selected Log to its exact Trace and clears the Log anchor on return', () => {
-    controllers.log.mockReturnValue({ state: logReady(), refetch: vi.fn().mockResolvedValue(undefined) });
+    const refetch = vi.fn().mockResolvedValue(undefined);
+    controllers.log.mockReturnValue({ state: logReady(), refetch });
     const openPath = vi.fn();
     renderSubject(
       <ExploreFocusedLogPage query={logQuery()} t={i18n.t} updateQuery={vi.fn()} time={undefined} openPath={openPath} />
@@ -122,6 +130,8 @@ describe('Explore focused investigation page wiring', () => {
     });
     fireEvent.click(screen.getByText('log-back'));
     expect(pathParams(lastPath(openPath))).not.toHaveProperty('logRecordUid');
+    fireEvent.click(screen.getByText('log-refresh'));
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it('does not offer Log Topology navigation from a trace fallback identity', () => {
