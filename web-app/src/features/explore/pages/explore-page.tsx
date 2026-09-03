@@ -21,9 +21,12 @@ import { useTranslation } from 'react-i18next';
 import { OperationalPage, OperationalResultRegion } from '@/shared/operational-page';
 
 import { ExploreQueryBar } from '../components/explore-query-bar';
+import { ExploreResultAnnouncer } from '../components/explore-result-announcer';
 import { ExploreWorkbench } from '../components/explore-workbench';
 import historyStyles from '../components/explore-history-result.module.css';
+import workbenchStyles from '../components/explore-workbench.module.css';
 import { useExplorePageController } from '../controller/use-explore-page-controller';
+import { buildExplorePath } from '../model/explore-model';
 import { ExploreFocusedLogPage, ExploreFocusedTracePage } from './explore-focused-investigation';
 import { ExploreResultPanel } from './explore-result-panel';
 
@@ -89,12 +92,15 @@ function ExploreHistoricalWorkspace({
     controller.query.signal === 'logs' && controller.result.kind === 'ready' && controller.result.signal === 'logs';
   return (
     <OperationalPage mode="workspace">
-      <div data-explore-workspace="true">
+      <div className={workbenchStyles.workspace} data-explore-workspace="true" data-layout="continuous">
         <ExploreWorkbench query={controller.query} t={t} updateQuery={controller.updateQuery} />
+        <ExploreResultAnnouncer result={controller.result} queryIdentity={buildExplorePath(controller.query)} t={t} />
         <section
+          className={workbenchStyles.signalPanel}
           role="tabpanel"
           id={`explore-panel-${controller.query.signal}`}
           aria-labelledby={`explore-tab-${controller.query.signal}`}
+          data-layout="continuous"
         >
           {flatLogs ? (
             <>

@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@perses-dev/logs-table-plugin@0.3.0':
-    hash: 81d1f6a904f0e7791dffe84f4e98f80c0482212297fae06f3fbd597f3535962b
+    hash: c7736c402f4511a31579ba1b764d0d9641c3f8db7585fb22bae98892a62056b9
     path: patches/@perses-dev__logs-table-plugin@0.3.0.patch
 
 importers:
@@ -75,7 +75,7 @@ importers:
         version: 0.54.0(5da87865a4acb83dfcec0b3c898dc4f4)
       '@perses-dev/logs-table-plugin':
         specifier: 0.3.0
-        version: 0.3.0(patch_hash=81d1f6a904f0e7791dffe84f4e98f80c0482212297fae06f3fbd597f3535962b)(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@types/react@18.3.28)(react@18.3.1))(@hookform/resolvers@3.10.0(react-hook-form@7.62.0(react@18.3.1)))(@perses-dev/components@0.54.0(c35d1af9abf44fbd7e846f18f415c68a))(@perses-dev/dashboards@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/plugin-system@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/spec@0.2.0)(date-fns-tz@3.2.0(date-fns@4.1.0))(date-fns@4.1.0)(echarts@5.5.0)(lodash@4.17.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(use-resize-observer@9.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: 0.3.0(patch_hash=c7736c402f4511a31579ba1b764d0d9641c3f8db7585fb22bae98892a62056b9)(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@types/react@18.3.28)(react@18.3.1))(@hookform/resolvers@3.10.0(react-hook-form@7.62.0(react@18.3.1)))(@perses-dev/components@0.54.0(c35d1af9abf44fbd7e846f18f415c68a))(@perses-dev/dashboards@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/plugin-system@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/spec@0.2.0)(date-fns-tz@3.2.0(date-fns@4.1.0))(date-fns@4.1.0)(echarts@5.5.0)(lodash@4.17.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(use-resize-observer@9.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       '@perses-dev/plugin-system':
         specifier: 0.54.0
         version: 0.54.0(5da87865a4acb83dfcec0b3c898dc4f4)
@@ -5750,7 +5750,7 @@ snapshots:
       - vue-tsc
       - webpack
 
-  '@perses-dev/logs-table-plugin@0.3.0(patch_hash=81d1f6a904f0e7791dffe84f4e98f80c0482212297fae06f3fbd597f3535962b)(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@types/react@18.3.28)(react@18.3.1))(@hookform/resolvers@3.10.0(react-hook-form@7.62.0(react@18.3.1)))(@perses-dev/components@0.54.0(c35d1af9abf44fbd7e846f18f415c68a))(@perses-dev/dashboards@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/plugin-system@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/spec@0.2.0)(date-fns-tz@3.2.0(date-fns@4.1.0))(date-fns@4.1.0)(echarts@5.5.0)(lodash@4.17.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(use-resize-observer@9.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
+  '@perses-dev/logs-table-plugin@0.3.0(patch_hash=c7736c402f4511a31579ba1b764d0d9641c3f8db7585fb22bae98892a62056b9)(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@types/react@18.3.28)(react@18.3.1))(@hookform/resolvers@3.10.0(react-hook-form@7.62.0(react@18.3.1)))(@perses-dev/components@0.54.0(c35d1af9abf44fbd7e846f18f415c68a))(@perses-dev/dashboards@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/plugin-system@0.54.0(5da87865a4acb83dfcec0b3c898dc4f4))(@perses-dev/spec@0.2.0)(date-fns-tz@3.2.0(date-fns@4.1.0))(date-fns@4.1.0)(echarts@5.5.0)(lodash@4.17.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(use-resize-observer@9.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
     dependencies:
       '@emotion/react': 11.14.0(@types/react@18.3.28)(react@18.3.1)
       '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@18.3.28)(react@18.3.1))(@types/react@18.3.28)(react@18.3.1)

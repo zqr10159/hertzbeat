@@ -1,7 +1,7 @@
 /* Licensed to the Apache Software Foundation (ASF) under the Apache License, Version 2.0. */
 
-import { Alert } from 'antd';
 import type { TFunction } from 'i18next';
+import type { ReactNode } from 'react';
 
 import { HertzBeatMetricTimeSeriesResult } from '@/platform/perses';
 import type { ExactTimeWindow } from '@/shared/query-context';
@@ -16,17 +16,21 @@ export function ExploreLogStatistics({
   timeWindow,
   runtimeIdentity,
   onTimeWindowChange,
+  selectedSeverity,
+  onSeverityChange,
   t
 }: {
   statistics: Pick<LogHistoryEvidence, 'overview' | 'trend'>;
   timeWindow: ExactTimeWindow;
   runtimeIdentity: string;
   onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
+  selectedSeverity?: string | undefined;
+  onSeverityChange?: ((severity: string | undefined) => void) | undefined;
   t: TFunction;
 }) {
   return (
     <div className={styles.statistics}>
-      <Overview statistics={statistics} t={t} />
+      <Overview statistics={statistics} selectedSeverity={selectedSeverity} onSeverityChange={onSeverityChange} t={t} />
       <Trend
         statistics={statistics}
         timeWindow={timeWindow}
@@ -38,20 +42,52 @@ export function ExploreLogStatistics({
   );
 }
 
-function Overview({ statistics, t }: { statistics: Pick<LogHistoryEvidence, 'overview'>; t: TFunction }) {
+function Overview({
+  statistics,
+  selectedSeverity,
+  onSeverityChange,
+  t
+}: {
+  statistics: Pick<LogHistoryEvidence, 'overview'>;
+  selectedSeverity?: string | undefined;
+  onSeverityChange?: ((severity: string | undefined) => void) | undefined;
+  t: TFunction;
+}) {
   return (
-    <section className={styles.overview} aria-label={t('exploreLog.overview')}>
-      <h3>{t('exploreLog.overview')}</h3>
+    <section className={styles.overview} aria-label={t('exploreLog.overview')} data-explore-evidence-summary="">
       {statistics.overview.kind === 'error' ? (
-        <Alert type="warning" showIcon message={t('exploreLog.statisticsUnavailable')} />
+        <span className={styles.evidenceState} role="alert">
+          {t('exploreLog.statisticsUnavailable')}
+        </span>
       ) : (
         <dl className={styles.overviewStats}>
-          {exploreOverviewRows(statistics.overview.data).map(([key, value]) => (
-            <div key={key}>
-              <dt>{t(`exploreLog.statistics.${key}`)}</dt>
-              <dd>{value.toLocaleString()}</dd>
-            </div>
-          ))}
+          {exploreOverviewRows(statistics.overview.data).map(([key, value]) => {
+            const label = t(`exploreLog.statistics.${key}`);
+            if (key === 'trace') {
+              return (
+                <div key={key}>
+                  <dt>{label}</dt>
+                  <dd>{value.toLocaleString()}</dd>
+                </div>
+              );
+            }
+            const severity = key === 'total' ? undefined : key.toUpperCase();
+            const active = key === 'total' ? selectedSeverity == null : selectedSeverity?.toUpperCase() === severity;
+            return (
+              <div key={key}>
+                <button
+                  type="button"
+                  aria-label={`${label} ${value.toLocaleString()}`}
+                  aria-pressed={active}
+                  disabled={onSeverityChange == null}
+                  onClick={() => onSeverityChange?.(severity)}
+                >
+                  <span>{label}</span>
+                  <strong>{value.toLocaleString()}</strong>
+                </button>
+              </div>
+            );
+          })}
         </dl>
       )}
     </section>
@@ -71,21 +107,18 @@ function Trend({
   onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
   t: TFunction;
 }) {
-  const rows = statistics.trend.kind === 'ready' ? Object.keys(statistics.trend.data.hourlyStats) : [];
+  const rows = statistics.trend.kind === 'ready' ? statistics.trend.data.buckets : [];
   const singleBucketCount =
-    statistics.trend.kind === 'ready' && rows.length === 1
-      ? Object.values(statistics.trend.data.hourlyStats)[0]
-      : undefined;
+    statistics.trend.kind === 'ready' && rows.length === 1 ? statistics.trend.data.buckets[0]?.count : undefined;
+  const density = rows.length > 0 && statistics.trend.kind === 'ready' ? 'visualization' : 'compact';
+  const evidenceState = trendEvidenceState(statistics.trend, rows.length, singleBucketCount, t);
   return (
-    <section className={styles.trend} aria-label={t('exploreLog.trend')}>
-      <h3>{t('exploreLog.trend')}</h3>
-      {statistics.trend.kind === 'error' ? (
-        <Alert type="warning" showIcon message={t('exploreLog.statisticsUnavailable')} />
-      ) : rows.length === 0 ? (
-        <p>{t('exploreLog.trendEmpty')}</p>
-      ) : rows.length === 1 ? (
-        <p>{t('exploreLog.trendInsufficient', { count: singleBucketCount })}</p>
-      ) : (
+    <section className={styles.trend} aria-label={t('exploreLog.trend')} data-trend-density={density}>
+      <header className={styles.trendHeader}>
+        <h3>{t('exploreLog.trend')}</h3>
+        {evidenceState}
+      </header>
+      {statistics.trend.kind === 'ready' && rows.length > 0 ? (
         <TrendResult
           trend={statistics.trend.data}
           timeWindow={timeWindow}
@@ -93,9 +126,31 @@ function Trend({
           onTimeWindowChange={onTimeWindowChange}
           t={t}
         />
-      )}
+      ) : null}
     </section>
   );
+}
+
+function trendEvidenceState(
+  trend: LogHistoryEvidence['trend'],
+  rowCount: number,
+  singleBucketCount: number | undefined,
+  t: TFunction
+): ReactNode {
+  if (trend.kind === 'error') {
+    return (
+      <span className={styles.evidenceState} role="alert">
+        {t('exploreLog.statisticsUnavailable')}
+      </span>
+    );
+  }
+  if (rowCount === 0) return <span className={styles.evidenceState}>{t('exploreLog.trendEmpty')}</span>;
+  if (rowCount === 1) {
+    return (
+      <span className={styles.evidenceState}>{t('exploreLog.trendInsufficient', { count: singleBucketCount })}</span>
+    );
+  }
+  return null;
 }
 
 function TrendResult({
@@ -121,6 +176,7 @@ function TrendResult({
       outcome={result.outcome}
       runtimeIdentity={result.runtimeIdentity}
       messages={explorePersesMessages(t)}
+      timeSeriesDisplay="bar"
       onTimeWindowChange={onTimeWindowChange}
       timeWindowChangeEnabled={onTimeWindowChange != null}
       variant="compact"

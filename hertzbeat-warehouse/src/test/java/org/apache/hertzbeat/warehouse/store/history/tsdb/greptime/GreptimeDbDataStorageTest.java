@@ -55,6 +55,7 @@ import org.apache.hertzbeat.common.entity.arrow.RowWrapper;
 import org.apache.hertzbeat.common.entity.dto.Value;
 import org.apache.hertzbeat.common.entity.event.CollectionExecutionEvent;
 import org.apache.hertzbeat.common.entity.log.LogEntry;
+import org.apache.hertzbeat.common.observability.dto.log.LogTrendBucket;
 import org.apache.hertzbeat.common.entity.message.CollectRep;
 import org.apache.hertzbeat.common.entity.metric.NativeMetricSystemContext;
 import org.apache.hertzbeat.common.support.exception.TelemetryStorageUnavailableException;
@@ -918,23 +919,37 @@ class GreptimeDbDataStorageTest {
     }
 
     @Test
-    void testLogTrendUsesGreptimeHourAggregate() {
+    void testLogTrendUsesGreptimeAdaptiveIntervalAggregate() {
         try (MockedStatic<GreptimeDB> mockedStatic = mockStatic(GreptimeDB.class)) {
             mockedStatic.when(() -> GreptimeDB.create(any())).thenReturn(greptimeDb);
             greptimeDbDataStorage = new GreptimeDbDataStorage(greptimeProperties, restTemplate, greptimeSqlQueryExecutor, queryGuard);
             when(greptimeSqlQueryExecutor.execute(anyString()))
-                    .thenReturn(List.of(Map.of("hour", 1777467600000000000L, "count", 12L)));
+                    .thenReturn(List.of(Map.of("bucket", 1777467600000000000L, "count", 12L)));
 
-            Map<String, Long> result = greptimeDbDataStorage.countLogsByHour(
-                    null, null, null, null, null, null, null,
+            List<LogTrendBucket> result = greptimeDbDataStorage.countLogsByInterval(
+                    null, null, 60_000L, null, null, null, null, null,
                     Collections.emptySet(), false);
 
-            assertEquals(12L, result.values().iterator().next());
+            assertEquals(List.of(new LogTrendBucket(1_777_467_600_000L, 12L)), result);
             ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
             verify(greptimeSqlQueryExecutor).execute(sqlCaptor.capture());
-            assertTrue(sqlCaptor.getValue().contains("date_bin('1 hour', timestamp) as hour"));
-            assertTrue(sqlCaptor.getValue().contains("GROUP BY hour"));
+            assertTrue(sqlCaptor.getValue().contains("date_bin('1 minute', timestamp) as bucket"));
+            assertTrue(sqlCaptor.getValue().contains("GROUP BY bucket"));
             assertFalse(sqlCaptor.getValue().contains("SELECT timestamp, trace_id"));
+        }
+    }
+
+    @Test
+    void testLogTrendRejectsOverflowingUnsupportedInterval() {
+        try (MockedStatic<GreptimeDB> mockedStatic = mockStatic(GreptimeDB.class)) {
+            mockedStatic.when(() -> GreptimeDB.create(any())).thenReturn(greptimeDb);
+            greptimeDbDataStorage = new GreptimeDbDataStorage(
+                    greptimeProperties, restTemplate, greptimeSqlQueryExecutor, queryGuard);
+
+            assertThrows(IllegalArgumentException.class, () -> greptimeDbDataStorage.countLogsByInterval(
+                    null, null, 4_294_967_296L + 60_000L, null, null, null, null, null,
+                    Collections.emptySet(), false));
+            verify(greptimeSqlQueryExecutor, never()).execute(anyString());
         }
     }
 
@@ -944,17 +959,17 @@ class GreptimeDbDataStorageTest {
             mockedStatic.when(() -> GreptimeDB.create(any())).thenReturn(greptimeDb);
             greptimeDbDataStorage = new GreptimeDbDataStorage(greptimeProperties, restTemplate, greptimeSqlQueryExecutor, queryGuard);
             when(greptimeSqlQueryExecutor.executeStrict(anyString()))
-                    .thenReturn(List.of(Map.of("hour", 1777467600000000000L, "count", 12L)));
+                    .thenReturn(List.of(Map.of("bucket", 1777467600000000000L, "count", 12L)));
 
-            Map<String, Long> result = greptimeDbDataStorage.countLogsByHour(
-                    1710000000000L, 1710000060000L, null, null, null, null, "checkout",
+            List<LogTrendBucket> result = greptimeDbDataStorage.countLogsByInterval(
+                    1710000000000L, 1710000060000L, 60_000L, null, null, null, null, "checkout",
                     Set.of("otelcol-contrib"), true, "team-a");
 
-            assertEquals(12L, result.values().iterator().next());
+            assertEquals(12L, result.getFirst().count());
             ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
             verify(greptimeSqlQueryExecutor).executeStrict(sqlCaptor.capture());
             String sql = sqlCaptor.getValue();
-            assertTrue(sql.contains("date_bin('1 hour', timestamp) as hour"));
+            assertTrue(sql.contains("date_bin('1 minute', timestamp) as bucket"));
             assertTrue(sql.contains("timestamp >= to_timestamp_millis(1710000000000)"));
             assertTrue(sql.contains("timestamp <= to_timestamp_millis(1710000060000)"));
             assertTrue(sql.contains("matches_term(body, 'checkout')"));
@@ -963,7 +978,7 @@ class GreptimeDbDataStorageTest {
                     "TRIM(json_get_string(resource_attributes, '$[\"hertzbeat.workspace_id\"]')) = 'team-a'"));
             assertTrue(sql.contains(
                     "TRIM(json_get_string(resource_attributes, '$[\"workspace.id\"]')) = 'team-a'"));
-            assertTrue(sql.contains("GROUP BY hour ORDER BY hour ASC"));
+            assertTrue(sql.contains("GROUP BY bucket ORDER BY bucket ASC"));
             assertFalse(sql.contains("SELECT timestamp, trace_id"));
         }
     }

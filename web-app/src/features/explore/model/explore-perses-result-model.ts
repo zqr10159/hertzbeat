@@ -101,9 +101,7 @@ export function createLogTrendPersesResult(
   timeWindow: ExactTimeWindow,
   runtimeIdentity: string
 ): Result<HertzBeatMetricQuery, ReadyMetric> {
-  const points = Object.entries(trend.hourlyStats)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([bucket, value]) => ({ timestamp: trendTimestamp(bucket), value }));
+  const points = trend.buckets.map(bucket => ({ timestamp: bucket.start, value: bucket.count }));
   return {
     query: {
       signal: 'metrics',
@@ -206,10 +204,4 @@ function isPositiveSafeInteger(value: number | null): value is number {
 
 function isNonNegativeSafeInteger(value: number | null): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-}
-
-function trendTimestamp(bucket: string) {
-  const timestamp = new Date(bucket.replace(' ', 'T')).getTime();
-  if (!Number.isSafeInteger(timestamp) || timestamp <= 0) throw new ExploreSignalContractError();
-  return timestamp;
 }

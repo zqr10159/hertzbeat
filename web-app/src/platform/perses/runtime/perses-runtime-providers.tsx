@@ -5,8 +5,8 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0.
  */
 
-import { ThemeProvider } from '@mui/material';
-import { ChartsProvider, generateChartsTheme, getTheme, SnackbarProvider } from '@perses-dev/components';
+import { ThemeProvider } from '@mui/material/styles';
+import { ChartsProvider, generateChartsTheme, SnackbarProvider } from '@perses-dev/components';
 import type {
   DashboardResource,
   DatasourceApi,
@@ -23,6 +23,7 @@ import { useRuntimeTheme } from '@/core/runtime-theme-context';
 import type { ExactTimeWindow } from '@/shared/query-context';
 
 import { HERTZBEAT_SNAPSHOT_QUERY_KIND } from '../plugins/hertzbeat-snapshot-query';
+import { createHertzBeatPersesTheme } from './hertzbeat-perses-theme';
 import { hertzBeatPersesPluginLoader } from '../plugins/perses-plugin-loader';
 
 const queryClient = new QueryClient({
@@ -59,7 +60,7 @@ export function PersesRuntimeProviders({
   const [persesTimeRange, setPersesTimeRange] = useState<TimeRangeValue>(() => toTimeRange(timeWindow));
   const lastAbsoluteWindow = useRef<ExactTimeWindow>(timeWindow);
   const [refreshInterval, setRefreshInterval] = useState<DurationString>('0s');
-  const muiTheme = useMemo(() => getTheme(theme === 'dark' ? 'dark' : 'light'), [theme]);
+  const muiTheme = useMemo(() => createHertzBeatPersesTheme(theme), [theme]);
   const chartsTheme = useMemo(() => generateChartsTheme(muiTheme, {}), [muiTheme]);
   const updateTimeRange = useCallback(
     (value: TimeRangeValue) => {

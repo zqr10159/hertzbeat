@@ -128,11 +128,77 @@ describe('PersesSignalRuntime', () => {
       expect(query?.kind).toBe(item.queryKind);
       expect(query?.spec.plugin.kind).toBe(item.snapshotKind);
       expect(runtimeContract.pluginLoaders.at(-1)).toBe(hertzBeatPersesMultiSignalPluginLoader);
+      if (item.props.kind === 'logs-table') {
+        expect(panel?.spec.plugin.spec).toMatchObject({
+          allowWrap: true,
+          enableDetails: true,
+          showTime: true,
+          showSelectionHints: false
+        });
+      }
       if (item.props.kind === 'tracing-gantt-chart') {
         expect(panel?.spec.plugin.spec).toMatchObject({ selectedSpanId: '0123456789abcdef' });
       }
       view.unmount();
     }
+  });
+
+  it('forwards host log display preferences to the official LogsTable spec', () => {
+    const view = render(
+      <PersesSignalRuntime
+        kind="logs-table"
+        title="Logs"
+        timeWindow={timeWindow}
+        data={{ entries: [] }}
+        display={{ density: 'compact', wrap: false, showTime: false }}
+      />
+    );
+
+    expect(runtimeContract.panels.at(-1)?.spec.plugin.spec).toMatchObject({ allowWrap: false, showTime: false });
+    view.unmount();
+  });
+
+  it('uses bars only when the caller identifies a histogram-style time series', () => {
+    const data = {
+      timeRange: { start: new Date(timeWindow.from), end: new Date(timeWindow.to) },
+      stepMs: 60_000,
+      series: []
+    };
+    const line = render(
+      <PersesSignalRuntime kind="metric-time-series" title="Metric" timeWindow={timeWindow} data={data} />
+    );
+    expect(runtimeContract.panels.at(-1)?.spec.plugin.spec).toMatchObject({ visual: { display: 'line' } });
+    line.unmount();
+
+    render(
+      <PersesSignalRuntime
+        kind="metric-time-series"
+        title="Log trend"
+        timeWindow={timeWindow}
+        data={data}
+        display="bar"
+      />
+    );
+    expect(runtimeContract.panels.at(-1)?.spec.plugin.spec).toMatchObject({ visual: { display: 'bar' } });
+  });
+
+  it('disables official inline details only when the host provides an Inspector row selection', () => {
+    render(
+      <PersesSignalRuntime
+        kind="logs-table"
+        title="Logs"
+        timeWindow={timeWindow}
+        data={{ entries: [] }}
+        rowSelection={{
+          ariaLabel: 'Historical logs',
+          controlsId: 'log-inspector',
+          getAriaLabel: index => `Log ${index + 1}`,
+          onSelect: vi.fn()
+        }}
+      />
+    );
+
+    expect(runtimeContract.panels.at(-1)?.spec.plugin.spec).toMatchObject({ enableDetails: false });
   });
 
   it('forwards a host time-window callback only for a metric time-series runtime', () => {

@@ -28,6 +28,7 @@ test('vendor chunks stay within the application chunk warning boundary', () => {
   const approvedBaseJavaScriptCeiling = 7_100_000;
   const approvedPersesRuntimeAllowance = 1_400_000;
   const approvedPersesMultiSignalAllowance = 600_000;
+  const approvedObservabilityWorkbenchAllowance = 40_000;
   const approvedAlertInvestigationAllowance = 40_000;
 
   assert.ok(bundleLimits.vendorChunkMinBytes > 0);
@@ -39,6 +40,7 @@ test('vendor chunks stay within the application chunk warning boundary', () => {
   assert.ok(bundleLimits.persesRuntimeJavaScriptAllowanceBytes > 0);
   assert.ok(bundleLimits.persesRuntimeJavaScriptAllowanceBytes <= approvedPersesRuntimeAllowance);
   assert.equal(bundleLimits.persesMultiSignalJavaScriptAllowanceBytes, approvedPersesMultiSignalAllowance);
+  assert.equal(bundleLimits.observabilityWorkbenchJavaScriptAllowanceBytes, approvedObservabilityWorkbenchAllowance);
   assert.equal(bundleLimits.alertInvestigationJavaScriptAllowanceBytes, approvedAlertInvestigationAllowance);
   assert.deepEqual(bundleLimits.persesDynamicRuntimeSources, [
     'src/platform/perses/runtime/perses-time-series-runtime.tsx',

@@ -71,6 +71,7 @@ describe('MetricResult', () => {
       </I18nextProvider>
     );
     expect(screen.getByRole('heading', { name: 'Metrics' })).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('explore.samples'))).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Metric trend' })).toHaveAttribute('data-visualization-runtime', 'perses');
     expect(screen.getByRole('img', { name: 'Metric trend' })).toHaveAttribute('data-series-count', '1');
     expect(screen.getByText('125 ms')).toBeInTheDocument();

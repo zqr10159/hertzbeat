@@ -595,6 +595,7 @@
   },
   "exploreLog": {
     "mode": "日志模式",
+    "history": "历史",
     "query": "查询",
     "live": "实时",
     "detail": "日志详情",
@@ -623,7 +624,7 @@
     "overview": "日志概览",
     "trend": "日志趋势",
     "trendEmpty": "此查询未返回趋势时间桶。",
-    "trendInsufficient": "只有一个趋势时间桶（{{count}} 条日志），无法绘制时间趋势。",
+    "trendInsufficient": "当前窗口只有一个时间桶（{{count}} 条日志）。",
     "statisticsUnavailable": "此统计区域无法加载。",
     "statistics": {
       "total": "总计",

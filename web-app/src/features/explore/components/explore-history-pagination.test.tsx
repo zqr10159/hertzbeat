@@ -42,12 +42,30 @@ describe('Explore history pagination', () => {
     fireEvent.click(screen.getByTitle('2'));
     expect(openPath).not.toHaveBeenCalled();
   });
+
+  it('offers compact previous/next controls and leaves the visible current page to result status', () => {
+    const openPath = vi.fn();
+    renderPagination({ ...scopedQuery('logs'), pageIndex: 1 }, true, openPath, 'compact');
+
+    const navigation = screen.getByRole('navigation', {
+      name: 'explore.perses.pagination: explore.perses.pageStatus 2 / 2'
+    });
+    expect(navigation).toHaveAttribute('data-pagination-variant', 'compact');
+    expect(screen.queryByText('2 / 2')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'explore.perses.previousPage' }));
+    const params = new URLSearchParams(String(openPath.mock.calls[0]?.[0]).split('?')[1]);
+    expect(params.has('page')).toBe(false);
+    expect(screen.getByRole('button', { name: 'explore.perses.nextPage' })).toBeDisabled();
+  });
 });
 
 function renderPagination(
   query: LogExploreQuery | TraceExploreQuery,
   enabled: boolean,
-  openPath: (path: string) => void
+  openPath: (path: string) => void,
+  variant: 'default' | 'compact' = 'default'
 ) {
   return render(
     <App>
@@ -57,6 +75,7 @@ function renderPagination(
         enabled={enabled}
         openPath={openPath}
         t={t}
+        variant={variant}
       />
     </App>
   );

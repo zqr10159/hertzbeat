@@ -99,9 +99,13 @@ describe('Explore Perses result adapters', () => {
       )
     ).toThrow(ExploreSignalContractError);
 
-    const trend = createLogTrendPersesResult({ hourlyStats: { '2025-06-15 15:00': 7 } }, window, 'scope');
+    const trend = createLogTrendPersesResult(
+      { start: window.from, end: window.to, intervalMs: 60_000, buckets: [{ start: window.from, count: 7 }] },
+      window,
+      'scope'
+    );
     expect(trend.outcome.data.series[0]?.points[0]).toEqual({
-      timestamp: new Date('2025-06-15T15:00').getTime(),
+      timestamp: window.from,
       value: 7
     });
   });

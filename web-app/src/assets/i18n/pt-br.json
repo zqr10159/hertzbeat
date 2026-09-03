@@ -634,6 +634,7 @@
   },
   "exploreLog": {
     "mode": "Modo de logs",
+    "history": "Histórico",
     "query": "Consulta",
     "live": "Ao vivo",
     "detail": "Detalhes do log",
@@ -662,7 +663,7 @@
     "overview": "Visão geral dos logs",
     "trend": "Tendência dos logs",
     "trendEmpty": "Nenhum intervalo de tendência foi retornado para esta consulta.",
-    "trendInsufficient": "Há apenas um intervalo de tendência ({{count}} logs), portanto não é possível traçar uma tendência temporal.",
+    "trendInsufficient": "A janela atual contém um intervalo ({{count}} logs).",
     "statisticsUnavailable": "Não foi possível carregar esta região de estatísticas.",
     "statistics": {
       "total": "Total",

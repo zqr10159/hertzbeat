@@ -25,6 +25,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { i18n, initializeI18n, loadLocale } from '@/core/i18n/i18n';
 import en from '@/assets/i18n/en-us.json';
 import { ApiMessageError } from '@/core/http/api-message';
+import { RuntimeThemeContext } from '@/core/runtime-theme-context';
+import { loadPersesRuntime } from '@/platform/perses/runtime/perses-runtime-registry';
 import { ShellInvestigationProvider, useShellInvestigation } from '@/shared/investigation';
 import { GlobalTimeProvider, RouteTimeProvider } from '@/shared/time';
 
@@ -55,10 +57,13 @@ describe('ExplorePage instrumentation context boundary', () => {
     Object.defineProperty(globalThis, 'ResizeObserver', { value: ResizeObserverStub, configurable: true });
     await initializeI18n();
     await loadLocale('en-US');
+    await loadPersesRuntime('multi-signal');
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(360);
     const pending = () => new Promise<never>(() => undefined);
     api.loadMetricSignal.mockImplementation(pending);
     api.loadLogSignal.mockImplementation(pending);
@@ -73,6 +78,7 @@ describe('ExplorePage instrumentation context boundary', () => {
 
   afterEach(() => {
     cleanup();
+    localStorage.clear();
     vi.useRealTimers();
   });
 
@@ -170,17 +176,15 @@ describe('ExplorePage instrumentation context boundary', () => {
     expect(screen.queryByText(en.explore.handoffInvalid)).not.toBeInTheDocument();
   });
 
-  it('does not reconnect a live log SSE stream when the shared relative window auto-refreshes', async () => {
+  it('keeps the live log SSE stream stable without exposing auto-refresh in the fixed Logs row', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(2_000_000);
     renderPage('/explore?signal=logs&mode=live');
     await act(async () => vi.advanceTimersByTimeAsync(0));
     expect(api.openLogStream).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('combobox', { name: /Auto refresh/u })).not.toBeInTheDocument();
 
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: /Auto refresh/u }));
-    fireEvent.click(screen.getByText('Auto refresh 30s'));
     await act(async () => vi.advanceTimersByTimeAsync(30_000));
-
     expect(api.openLogStream).toHaveBeenCalledOnce();
   });
 
@@ -335,12 +339,31 @@ describe('ExplorePage instrumentation context boundary', () => {
 
   it('does not commit controlled log and trace toggles before submission', async () => {
     renderPage('/explore?signal=logs');
-    fireEvent.click(screen.getByText(en.explore.advancedFilters));
     const severity = screen.getByRole('combobox', { name: en.explore.severity });
+    const traceId = screen.getByRole('textbox', { name: en.explore.traceId });
+    const spanId = screen.getByRole('textbox', { name: en.explore.spanId });
     await selectOption(severity, 'ERROR');
+    fireEvent.change(traceId, { target: { value: 'trace-1' } });
+    fireEvent.change(spanId, { target: { value: 'span-1' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: en.exploreLog.hideInternal }));
+    fireEvent.click(screen.getByRole('checkbox', { name: en.exploreLog.hideNoise }));
     expect(locationParams()).not.toHaveProperty('severityText');
+    expect(locationParams()).not.toHaveProperty('traceId');
+    expect(locationParams()).not.toHaveProperty('spanId');
+    expect(locationParams()).not.toHaveProperty('hideInternal');
+    expect(locationParams()).not.toHaveProperty('hideNoise');
     fireEvent.click(querySubmitButton());
-    await waitFor(() => expect(locationParams()).toHaveProperty('severityText', 'ERROR'));
+    await waitFor(() =>
+      expect(locationParams()).toEqual(
+        expect.objectContaining({
+          severityText: 'ERROR',
+          traceId: 'trace-1',
+          spanId: 'span-1',
+          hideInternal: 'true',
+          hideNoise: 'true'
+        })
+      )
+    );
 
     cleanup();
     renderPage('/explore?signal=traces');
@@ -376,7 +399,14 @@ describe('ExplorePage instrumentation context boundary', () => {
 
     cleanup();
     renderPage('/explore?signal=logs');
-    fireEvent.click(screen.getByText(en.explore.advancedFilters));
+    expect(screen.queryByText(en.explore.advancedFilters)).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: en.explore.serviceName })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: i18n.t('explore.serviceNamespace') })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: en.explore.environment })).toBeVisible();
+    expect(screen.getByRole('combobox', { name: en.explore.severity }).closest('.ant-select')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: en.explore.traceId })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: en.explore.spanId })).toBeVisible();
+    expect(screen.getByRole('group', { name: i18n.t('explore.logQueryBuilder.conditions') })).toBeVisible();
     expect(screen.getByRole('checkbox', { name: en.exploreLog.hideInternal })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: en.exploreLog.hideNoise })).toBeInTheDocument();
   });
@@ -440,16 +470,21 @@ describe('ExplorePage instrumentation context boundary', () => {
   it('exposes historical Logs as ordered flat Query, Trend, and Result sibling regions', async () => {
     api.loadLogSignal.mockResolvedValueOnce(logEvidence(logPage('flat log evidence', 'not-a-trace-id')));
     renderPage('/explore?signal=logs');
-    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
-    expandLogInvestigationActions();
-    expect((await screen.findAllByText(/flat log evidence/u)).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('row', { name: /flat log evidence/u })).toBeInTheDocument();
 
     const panel = screen.getByRole('tabpanel', { name: en.explore.signals.logs });
+    expect(panel).toHaveAttribute('data-layout', 'continuous');
+    expect(panel.closest('[data-explore-workspace="true"]')).toHaveAttribute('data-layout', 'continuous');
     const regions = Array.from(panel.querySelectorAll(':scope > [data-explore-log-region]'));
     expect(regions.map(region => region.getAttribute('data-explore-log-region'))).toEqual(['query', 'trend', 'result']);
     regions.forEach(region => {
       expect(region.querySelector('.ant-card, [data-surface="card"], [data-hb-card]')).toBeNull();
     });
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Explore query updates' })).toHaveTextContent(
+        'Query complete. 1 result.'
+      )
+    );
   });
 
   it.each(['metrics', 'traces'] as const)('keeps the Logs flat-stack contract scoped away from %s', signal => {
@@ -464,22 +499,23 @@ describe('ExplorePage instrumentation context boundary', () => {
       .mockResolvedValueOnce(logEvidence(logPage('cached evidence', '0123456789abcdef0123456789abcdef')))
       .mockReturnValueOnce(refresh.promise);
     renderPage('/explore?signal=logs');
-    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
-    expandLogInvestigationActions();
-    expect((await screen.findAllByText(/cached evidence/u)).length).toBeGreaterThan(0);
+    const cachedRow = await screen.findByRole('row', { name: /cached evidence/u });
+    fireEvent.click(cachedRow);
+    expect(screen.getByRole('button', { name: i18n.t('explore.perses.openTraceAction') })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: en.common.refresh }));
 
     expect(await screen.findByText(i18n.t('explore.states.refreshing'))).toBeInTheDocument();
-    expandLogInvestigationActions();
-    expect(screen.getByRole('button', { name: /Open trace/u })).toBeDisabled();
+    expect(screen.queryByRole('dialog', { name: i18n.t('explore.perses.logInspector') })).not.toBeInTheDocument();
+    fireEvent.click(cachedRow);
+    expect(screen.queryByRole('dialog', { name: i18n.t('explore.perses.logInspector') })).not.toBeInTheDocument();
     expect(screen.getAllByText(/cached evidence/u).length).toBeGreaterThan(0);
 
     refresh.resolve();
     await waitFor(() => expect(screen.queryByText(i18n.t('explore.states.refreshing'))).not.toBeInTheDocument());
-    expandLogInvestigationActions();
-    expect(screen.getAllByText(/fresh evidence/u).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /Open trace/u })).toBeEnabled();
+    const freshRow = await screen.findByRole('row', { name: /fresh evidence/u });
+    fireEvent.click(freshRow);
+    expect(screen.getByRole('button', { name: i18n.t('explore.perses.openTraceAction') })).toBeEnabled();
   });
 
   it('keeps refresh failure classification visible while retained evidence remains non-actionable', async () => {
@@ -487,15 +523,13 @@ describe('ExplorePage instrumentation context boundary', () => {
       .mockResolvedValueOnce(logEvidence(logPage('cached evidence', '0123456789abcdef0123456789abcdef')))
       .mockRejectedValueOnce(new ApiMessageError('offline', { status: 503 }));
     renderPage('/explore?signal=logs');
-    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
-    expandLogInvestigationActions();
-    expect((await screen.findAllByText(/cached evidence/u)).length).toBeGreaterThan(0);
+    const cachedRow = await screen.findByRole('row', { name: /cached evidence/u });
+    fireEvent.click(cachedRow);
 
     fireEvent.click(screen.getByRole('button', { name: en.common.refresh }));
 
     expect(await screen.findByText(/Refresh failed/u)).toHaveTextContent(i18n.t('explore.states.transportError'));
-    expandLogInvestigationActions();
-    expect(screen.getByRole('button', { name: /Open trace/u })).toBeDisabled();
+    expect(screen.queryByRole('dialog', { name: i18n.t('explore.perses.logInspector') })).not.toBeInTheDocument();
     expect(screen.getByTestId('investigation-target')).toHaveTextContent('none');
   });
 
@@ -507,10 +541,7 @@ describe('ExplorePage instrumentation context boundary', () => {
         '&severityText=warn&hideNoise=true'
     );
 
-    await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
-    expect(screen.queryByRole('button', { name: /Investigate log/u })).not.toBeInTheDocument();
-    expandLogInvestigationActions();
-    expect((await screen.findAllByText(/ready evidence/u)).length).toBeGreaterThan(0);
+    const readyRow = await screen.findByRole('row', { name: /ready evidence/u });
     expect(JSON.parse(screen.getByTestId('investigation-target').textContent ?? '')).toEqual({
       log: {
         start: 1_000,
@@ -525,7 +556,8 @@ describe('ExplorePage instrumentation context boundary', () => {
       }
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Investigate log/u }));
+    fireEvent.click(readyRow);
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('explore.perses.investigateLogAction') }));
     await waitFor(() =>
       expect(locationParams()).toMatchObject({
         signal: 'logs',
@@ -536,7 +568,7 @@ describe('ExplorePage instrumentation context boundary', () => {
     );
   });
 
-  it('omits inert Log host interactions and bounds actionable row summaries', async () => {
+  it('bounds Log row summaries and keeps unavailable Inspector actions inert', async () => {
     const longBody = 'x'.repeat(300);
     const page = logPage(longBody, 'not-a-trace-id');
     page.content.push({ ...page.content[0]!, logRecordUid: null, traceId: null, body: 'no actions' });
@@ -545,13 +577,12 @@ describe('ExplorePage instrumentation context boundary', () => {
 
     renderPage('/explore?signal=logs');
 
-    const summary = await screen.findByText(i18n.t('explore.perses.investigationActions', { count: 1 }));
-    expect(screen.queryByRole('button', { name: /Investigate log/u })).not.toBeInTheDocument();
-    fireEvent.click(summary);
-    const action = screen.getByRole('button', { name: /Investigate log/u });
-    expect(action.textContent).not.toContain(longBody);
-    expect(action).toHaveTextContent(i18n.t('explore.perses.investigateLogAction'));
-    expect(document.querySelectorAll('[data-perses-host-interactions] > ul > li')).toHaveLength(1);
+    const rows = await screen.findAllByRole('row');
+    expect(rows[0]?.getAttribute('aria-label')?.length).toBeLessThan(140);
+    fireEvent.click(rows[1]!);
+    expect(screen.getByRole('button', { name: i18n.t('explore.perses.investigateLogAction') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: i18n.t('explore.perses.openTraceAction') })).toBeDisabled();
+    expect(document.querySelector('[data-perses-host-interactions]')).toBeNull();
   });
 
   it('opens a trusted historical trace row as an exact focused investigation', async () => {
@@ -645,7 +676,10 @@ function logEvidence(page: ExplorePageResult<LogRow>) {
         fatalCount: 0
       }
     },
-    trend: { kind: 'ready' as const, data: { hourlyStats: {} } }
+    trend: {
+      kind: 'ready' as const,
+      data: { start: 1_754_467_200_000, end: 1_754_469_000_000, intervalMs: 60_000, buckets: [] }
+    }
   };
 }
 
@@ -688,13 +722,15 @@ function renderPage(initialEntry: string) {
         <MemoryRouter initialEntries={[initialEntry]}>
           <GlobalTimeProvider>
             <RouteTimeProvider policy="route_owned" canonicalizeInvalidExact={false}>
-              <App>
-                <ShellInvestigationProvider>
-                  <ExplorePage />
-                  <LocationProbe />
-                  <InvestigationProbe />
-                </ShellInvestigationProvider>
-              </App>
+              <RuntimeThemeContext.Provider value={{ theme: 'default', setTheme: vi.fn() }}>
+                <App>
+                  <ShellInvestigationProvider>
+                    <ExplorePage />
+                    <LocationProbe />
+                    <InvestigationProbe />
+                  </ShellInvestigationProvider>
+                </App>
+              </RuntimeThemeContext.Provider>
             </RouteTimeProvider>
           </GlobalTimeProvider>
         </MemoryRouter>
@@ -717,14 +753,6 @@ function locationParams() {
   return Object.fromEntries(new URLSearchParams(screen.getByTestId('location').textContent ?? ''));
 }
 
-function expandLogInvestigationActions() {
-  const interactions = document.querySelector('[data-perses-host-interactions]');
-  if (!(interactions instanceof HTMLDetailsElement)) throw new Error('Log investigation disclosure is missing');
-  if (!interactions.open) {
-    fireEvent.click(within(interactions).getByText(i18n.t('explore.perses.investigationActions', { count: 1 })));
-  }
-}
-
 function querySubmitButton() {
   const button = screen
     .getAllByRole('button', { name: en.common.query })
@@ -742,7 +770,13 @@ async function selectOption(combobox: HTMLElement, label: string) {
 }
 
 class ResizeObserverStub {
-  observe() {}
+  constructor(private readonly callback: ResizeObserverCallback) {}
+  observe(target: Element) {
+    this.callback(
+      [{ target, contentRect: { width: 800, height: 360 } as DOMRectReadOnly } as ResizeObserverEntry],
+      this
+    );
+  }
   unobserve() {}
   disconnect() {}
 }

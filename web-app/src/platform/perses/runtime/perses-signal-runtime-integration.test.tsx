@@ -9,13 +9,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/core/runtime-theme-context', () => ({ useRuntimeTheme: () => ({ theme: 'light' }) }));
-// Vitest externalizes Perses' unexported CJS entry. Make the test harness use
-// the same CJS React Query singleton; Vite production resolves the ESM graph.
-vi.mock('@tanstack/react-query', async () => {
-  // @ts-expect-error -- the browser tsconfig intentionally omits Node types; Vitest executes this harness in Node.
-  const { createRequire } = await import('node:module');
-  return createRequire(import.meta.url)('@tanstack/react-query') as Record<string, unknown>;
-});
 import { PersesSignalRuntime } from './perses-signal-runtime';
 
 const timeWindow = { from: 1_750_000_000_000, to: 1_750_000_060_000 } as const;

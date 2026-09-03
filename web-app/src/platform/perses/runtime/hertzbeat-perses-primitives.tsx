@@ -25,6 +25,7 @@ import type {
 import { toPersesLogData, toPersesTraceDetailData, toPersesTraceSearchData } from './perses-signal-data';
 import {
   HertzBeatPrimitiveFrame,
+  type HertzBeatLogTableDisplay,
   type HertzBeatPrimitiveFrameProps,
   type HertzBeatPersesPrimitiveMessages,
   type HertzBeatPersesTableInteraction,
@@ -33,8 +34,14 @@ import {
   type SharedPrimitiveProps
 } from './hertzbeat-perses-primitive-frame';
 import { toPersesTimeSeriesData } from './perses-time-series-model';
+import type { HertzBeatLogRowSelection } from './hertzbeat-logs-table-adapter';
 
-export type { HertzBeatPersesPrimitiveMessages, HertzBeatPersesTableInteraction };
+export type {
+  HertzBeatLogRowSelection,
+  HertzBeatLogTableDisplay,
+  HertzBeatPersesPrimitiveMessages,
+  HertzBeatPersesTableInteraction
+};
 
 export type HertzBeatMetricQueryOutcome = HertzBeatQueryOutcome<HertzBeatMetricData>;
 export type HertzBeatLogQueryOutcome = HertzBeatQueryOutcome<HertzBeatTableData<HertzBeatLogRow>>;
@@ -49,6 +56,7 @@ export function HertzBeatMetricTimeSeries(props: SharedPrimitiveProps & { query:
     title: props.title,
     timeWindow: props.query.timeWindow,
     data: toPersesTimeSeriesData(outcome.data.series, props.query.timeWindow),
+    display: props.timeSeriesDisplay,
     onTimeWindowChange: props.onTimeWindowChange,
     timeWindowChangeEnabled: props.timeWindowChangeEnabled
   }));
@@ -60,7 +68,9 @@ export function HertzBeatLogsTable(props: SharedPrimitiveProps & { query: HertzB
     kind: 'logs-table' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
-    data: toPersesLogData(outcome.data, props.query.timeWindow)
+    data: toPersesLogData(outcome.data, props.query.timeWindow),
+    ...(props.logDisplay ? { display: props.logDisplay } : {}),
+    ...(props.logRowSelection ? { rowSelection: props.logRowSelection } : {})
   }));
 }
 
@@ -93,6 +103,7 @@ export function HertzBeatMetricTimeSeriesResult(
     title: props.title,
     timeWindow: props.query.timeWindow,
     data: toPersesTimeSeriesData(outcome.data.series, props.query.timeWindow),
+    display: props.timeSeriesDisplay,
     onTimeWindowChange: props.onTimeWindowChange,
     timeWindowChangeEnabled: props.timeWindowChangeEnabled
   }));
@@ -108,7 +119,9 @@ export function HertzBeatLogsTableResult(
     kind: 'logs-table' as const,
     title: props.title,
     timeWindow: props.query.timeWindow,
-    data: toPersesLogData(outcome.data, props.query.timeWindow)
+    data: toPersesLogData(outcome.data, props.query.timeWindow),
+    ...(props.logDisplay ? { display: props.logDisplay } : {}),
+    ...(props.logRowSelection ? { rowSelection: props.logRowSelection } : {})
   }));
 }
 

@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import org.apache.hertzbeat.common.entity.dto.Message;
+import org.apache.hertzbeat.common.observability.dto.log.LogTrend;
 import org.apache.hertzbeat.common.entity.dto.PageResponse;
 import org.apache.hertzbeat.common.entity.log.LogEntry;
 import org.apache.hertzbeat.common.observability.dto.investigation.InvestigationWindow;
@@ -241,8 +242,8 @@ public class LogQueryController {
 
     @GetMapping("/stats/trend")
     @Operation(summary = "Log trend over time",
-            description = "Count logs by hour intervals with filters. Groups logs by hour and provides time-series data for trend analysis.")
-    public ResponseEntity<Message<Map<String, Object>>> trendStats(
+            description = "Count logs with filters using an adaptive, epoch-aligned time interval.")
+    public ResponseEntity<Message<LogTrend>> trendStats(
             @Parameter(description = "Observed entity ID for entity-first context resolution", example = "87584674384")
             @RequestParam(value = "entityId", required = false) Long entityId,
             @Parameter(description = "Observed entity type for entity-first resource filtering", example = "service")

@@ -96,7 +96,10 @@ function LogStatistics({
           ['fatal', statistics.overview.data.fatalCount]
         ] as const)
       : [];
-  const trendRows = statistics.trend.kind === 'ready' ? Object.entries(statistics.trend.data.hourlyStats).sort() : [];
+  const trendRows =
+    statistics.trend.kind === 'ready'
+      ? statistics.trend.data.buckets.map(bucket => [String(bucket.start), bucket.count] as [string, number])
+      : [];
   return (
     <div className={styles.statistics}>
       <section aria-label={t('exploreLog.overview')}>

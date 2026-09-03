@@ -62,6 +62,7 @@ export async function loadLogSignal(query: LogExploreQuery, signal?: AbortSignal
 
 export async function loadLogHistoryEvidence(query: LogExploreQuery, signal?: AbortSignal) {
   const observedAt = Date.now();
+  const requestWindow = resolveSignalWindow(query, observedAt);
   const page = parseLogPage(
     await apiMessageGet(buildSignalApiPath(query, observedAt), requestSignal(signal)),
     query.pageIndex ?? 0,
@@ -69,7 +70,9 @@ export async function loadLogHistoryEvidence(query: LogExploreQuery, signal?: Ab
   );
   const [overview, trend] = await Promise.allSettled([
     apiMessageGet(buildLogStatsApiPath(query, 'overview', observedAt), requestSignal(signal)).then(parseLogOverview),
-    apiMessageGet(buildLogStatsApiPath(query, 'trend', observedAt), requestSignal(signal)).then(parseLogTrend)
+    apiMessageGet(buildLogStatsApiPath(query, 'trend', observedAt), requestSignal(signal))
+      .then(parseLogTrend)
+      .then(trend => requireTrendWindow(trend, requestWindow))
   ]);
   if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
   return {
@@ -193,7 +196,7 @@ export function openLogStream(
 function sharedSignalParams(query: ExploreQuery, now: number) {
   const params = new URLSearchParams();
   const scoped = exploreHandoffState(query) === 'scoped';
-  const exact = exploreUsesExactWindow(query);
+  const window = resolveSignalWindow(query, now);
   setValue(params, QUERY_CONTEXT_FIELDS.entityId, query.entityId);
   setValue(params, 'serviceName', query.serviceName);
   setValue(params, 'serviceNamespace', query.serviceNamespace);
@@ -201,9 +204,26 @@ function sharedSignalParams(query: ExploreQuery, now: number) {
   if (scoped) setValue(params, 'collectorId', query.collectorId);
   appendOptionalDimensions(params, query);
   // Relative windows slide on every request; route timestamps are authoritative only for an exact window.
-  params.set('start', String(exact ? query.start : now - timeRangeMilliseconds(query.timeRange)));
-  params.set('end', String(exact ? query.end : now));
+  params.set('start', String(window.start));
+  params.set('end', String(window.end));
   return params;
+}
+
+function resolveSignalWindow(query: ExploreQuery, observedAt: number) {
+  if (exploreUsesExactWindow(query)) {
+    return { start: query.start!, end: query.end! };
+  }
+  return { start: observedAt - timeRangeMilliseconds(query.timeRange), end: observedAt };
+}
+
+function requireTrendWindow<T extends { start: number; end: number }>(
+  trend: T,
+  requestWindow: { start: number; end: number }
+) {
+  if (trend.start !== requestWindow.start || trend.end !== requestWindow.end) {
+    throw new ExploreSignalContractError('Log trend does not match request window');
+  }
+  return trend;
 }
 
 async function resolveInventoryMetricQuery(

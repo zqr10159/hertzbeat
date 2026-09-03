@@ -36,10 +36,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +49,7 @@ import org.apache.hertzbeat.common.entity.manager.ObserveEntity;
 import org.apache.hertzbeat.common.observability.dto.investigation.InvestigationReason;
 import org.apache.hertzbeat.common.observability.dto.investigation.InvestigationWindow;
 import org.apache.hertzbeat.common.observability.dto.investigation.LogInvestigationView;
+import org.apache.hertzbeat.common.observability.dto.log.LogTrendBucket;
 import org.apache.hertzbeat.common.observability.gateway.AuthTokenRequestContext;
 import org.apache.hertzbeat.common.observability.gateway.ObservabilityWorkspaceQueryGateway;
 import org.apache.hertzbeat.observability.logs.service.impl.LogQueryServiceImpl;
@@ -1436,15 +1433,13 @@ class LogQueryControllerTest {
     }
 
     @Test
-    void testTrendStats() throws Exception {
-        // Create logs with timestamps that fall into different hours
+    void testTrendStatsUsesTheSmallestAdaptiveIntervalWithinSixtyBuckets() throws Exception {
+        long start = 1_734_005_460_000L;
+        long end = start + 30 * 60_000L;
         List<LogEntry> mockLogs = Arrays.asList(
-                // 2023-12-12 10:00 (1734005477630000000L nano = 1734005477630L ms)
-                LogEntry.builder().timeUnixNano(1734005477630000000L).build(),
-                // Same hour
-                LogEntry.builder().timeUnixNano(1734005477640000000L).build(),
-                // Next hour: 2023-12-12 11:00 (1734009077630000000L nano = 1734009077630L ms)
-                LogEntry.builder().timeUnixNano(1734009077630000000L).build()
+                LogEntry.builder().timeUnixNano((start + 17_000L) * 1_000_000L).build(),
+                LogEntry.builder().timeUnixNano((start + 47_000L) * 1_000_000L).build(),
+                LogEntry.builder().timeUnixNano((start + 77_000L) * 1_000_000L).build()
         );
 
         when(historyDataReader.queryLogsByMultipleConditions(any(), any(), any(),
@@ -1453,16 +1448,26 @@ class LogQueryControllerTest {
         mockMvc.perform(
                 MockMvcRequestBuilders
                         .get("/api/logs/stats/trend")
+                        .param("start", String.valueOf(start))
+                        .param("end", String.valueOf(end))
         )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value((int) CommonConstants.SUCCESS_CODE))
-                .andExpect(jsonPath("$.data.hourlyStats").isMap());
+                .andExpect(jsonPath("$.data.start").value(start))
+                .andExpect(jsonPath("$.data.end").value(end))
+                .andExpect(jsonPath("$.data.intervalMs").value(60_000L))
+                .andExpect(jsonPath("$.data.buckets.length()").value(2))
+                .andExpect(jsonPath("$.data.buckets[0].start").value(start))
+                .andExpect(jsonPath("$.data.buckets[0].count").value(2))
+                .andExpect(jsonPath("$.data.buckets[1].start").value(start + 60_000L))
+                .andExpect(jsonPath("$.data.buckets[1].count").value(1));
     }
 
     @Test
     void testTrendStatsWithNullTimestamp() throws Exception {
+        long currentBucket = Math.floorDiv(System.currentTimeMillis(), 60_000L) * 60_000L;
         List<LogEntry> mockLogs = Arrays.asList(
-                LogEntry.builder().timeUnixNano(1734005477630000000L).build(),
+                LogEntry.builder().timeUnixNano(currentBucket * 1_000_000L).build(),
                 LogEntry.builder().timeUnixNano(null).build() // This should be filtered out
         );
 
@@ -1475,16 +1480,15 @@ class LogQueryControllerTest {
         )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value((int) CommonConstants.SUCCESS_CODE))
-                .andExpect(jsonPath("$.data.hourlyStats").isMap());
+                .andExpect(jsonPath("$.data.intervalMs").value(60_000L))
+                .andExpect(jsonPath("$.data.buckets.length()").value(1));
     }
 
     @Test
     void testTrendStatsAppliesInAndNotInFiltersWithRowFallback() throws Exception {
         long bucketTimeUnixNano = 1734005477630000000L;
-        String bucketKey = LocalDateTime.ofInstant(
-                        Instant.ofEpochMilli(bucketTimeUnixNano / 1_000_000L),
-                        ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:00"));
+        long timestampMs = bucketTimeUnixNano / 1_000_000L;
+        long bucketStart = Math.floorDiv(timestampMs, 60_000L) * 60_000L;
         LogEntry stableLog = LogEntry.builder()
                 .timeUnixNano(bucketTimeUnixNano)
                 .severityText("INFO")
@@ -1529,17 +1533,21 @@ class LogQueryControllerTest {
                 any(), any(), any(), any())).thenReturn(List.of(stableLog, secondStableLog, canaryLog, cartLog));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/logs/stats/trend")
+                        .param("start", String.valueOf(bucketStart))
+                        .param("end", String.valueOf(bucketStart + 30 * 60_000L))
                         .param("resourceFilter", "service.version IN ('1.2.3', '1.2.4') "
                                 + "and host.name NOT IN ('checkout-canary')")
                         .param("attributeFilter", "http.route IN ('/checkout')"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value((int) CommonConstants.SUCCESS_CODE))
-                .andExpect(jsonPath("$.data.hourlyStats.length()").value(1))
-                .andExpect(jsonPath("$.data.hourlyStats['" + bucketKey + "']").value(2));
+                .andExpect(jsonPath("$.data.intervalMs").value(60_000L))
+                .andExpect(jsonPath("$.data.buckets.length()").value(1))
+                .andExpect(jsonPath("$.data.buckets[0].start").value(bucketStart))
+                .andExpect(jsonPath("$.data.buckets[0].count").value(2));
 
         verify(historyDataReader).queryLogsByMultipleConditions(any(), any(), any(),
                 any(), any(), any(), any());
-        verify(historyDataReader, never()).countLogsByHour(any(), any(), any(), any(), any(), any(), any(),
+        verify(historyDataReader, never()).countLogsByInterval(any(), any(), anyLong(), any(), any(), any(), any(), any(),
                 anySet(), eq(false), any(), any(), any(), any(),
                 org.mockito.ArgumentMatchers.<Map<String, String>>any(),
                 org.mockito.ArgumentMatchers.<Map<String, String>>any());
@@ -1547,31 +1555,47 @@ class LogQueryControllerTest {
 
     @Test
     void testTrendStatsUsesStorageAggregateWhenAvailable() throws Exception {
-        when(historyDataReader.countLogsByHour(any(), any(), any(), any(),
-                any(), any(), any(), anySet(), eq(false)))
-                .thenReturn(java.util.Map.of("2026-04-29 21:00", 12L));
+        long currentBucket = Math.floorDiv(System.currentTimeMillis(), 60_000L) * 60_000L;
+        when(historyDataReader.countLogsByInterval(any(), any(), anyLong(), any(), any(), any(), any(),
+                any(), anySet(), eq(false)))
+                .thenReturn(List.of(new LogTrendBucket(currentBucket, 12L)));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/logs/stats/trend"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value((int) CommonConstants.SUCCESS_CODE))
-                .andExpect(jsonPath("$.data.hourlyStats['2026-04-29 21:00']").value(12));
+                .andExpect(jsonPath("$.data.buckets[0].start").value(currentBucket))
+                .andExpect(jsonPath("$.data.buckets[0].count").value(12));
         verify(historyDataReader, never()).queryLogsByMultipleConditions(any(), any(), any(),
                 any(), any(), any(), any());
     }
 
     @Test
+    void testTrendStatsRejectsWindowBeyondSupportedSixtyBuckets() throws Exception {
+        long start = 1_728_000_000_000L;
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/logs/stats/trend")
+                        .param("start", String.valueOf(start))
+                        .param("end", String.valueOf(start + 60 * 86_400_000L)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(historyDataReader);
+    }
+
+    @Test
     void testTrendStatsPushesWorkspaceAggregateIntoStorageWhenSupported() throws Exception {
         AuthTokenRequestContext.bindWorkspaceId("team-a");
-        when(historyDataReader.countLogsByHour(any(), any(), any(), any(), any(), any(), any(),
+        long currentBucket = Math.floorDiv(System.currentTimeMillis(), 60_000L) * 60_000L;
+        when(historyDataReader.countLogsByInterval(any(), any(), anyLong(), any(), any(), any(), any(), any(),
                 anySet(), eq(false), eq("team-a")))
-                .thenReturn(java.util.Map.of("2026-04-29 21:00", 12L));
+                .thenReturn(List.of(new LogTrendBucket(currentBucket, 12L)));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/logs/stats/trend"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value((int) CommonConstants.SUCCESS_CODE))
-                .andExpect(jsonPath("$.data.hourlyStats['2026-04-29 21:00']").value(12));
+                .andExpect(jsonPath("$.data.buckets[0].start").value(currentBucket))
+                .andExpect(jsonPath("$.data.buckets[0].count").value(12));
 
-        verify(historyDataReader).countLogsByHour(any(), any(), any(), any(), any(), any(), any(),
+        verify(historyDataReader).countLogsByInterval(any(), any(), anyLong(), any(), any(), any(), any(), any(),
                 anySet(), eq(false), eq("team-a"));
         verify(historyDataReader, never()).queryLogsByMultipleConditions(any(), any(), any(),
                 any(), any(), any(), any());

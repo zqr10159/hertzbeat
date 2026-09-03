@@ -10,8 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryHertzBeatData } from '../datasource/hertzbeat-query-client';
 import type { HertzBeatQueryOutcome } from '../datasource/hertzbeat-query-contract';
+import persesPrimitiveStyles from './hertzbeat-perses-primitives.module.css?raw';
 
-const runtimeControl = vi.hoisted(() => ({ fail: false }));
+const runtimeControl = vi.hoisted<{ fail: boolean; rowSelection: unknown }>(() => ({
+  fail: false,
+  rowSelection: undefined
+}));
 vi.mock('../datasource/hertzbeat-query-client', async importOriginal => {
   const actual = await importOriginal<typeof import('../datasource/hertzbeat-query-client')>();
   return { ...actual, queryHertzBeatData: vi.fn() };
@@ -20,12 +24,15 @@ vi.mock('./perses-signal-runtime', () => ({
   PersesSignalRuntime: ({
     kind,
     onTimeWindowChange,
-    timeWindowChangeEnabled
+    timeWindowChangeEnabled,
+    rowSelection
   }: {
     kind: string;
     onTimeWindowChange?: ((window: { from: number; to: number }) => void) | undefined;
     timeWindowChangeEnabled?: boolean | undefined;
+    rowSelection?: unknown;
   }) => {
+    runtimeControl.rowSelection = rowSelection;
     if (runtimeControl.fail) throw new Error('private runtime detail');
     if (kind === 'logs-table' || kind === 'trace-table') {
       return (
@@ -90,8 +97,30 @@ describe('HertzBeat Perses primitives', () => {
   beforeEach(() => {
     request.mockReset();
     runtimeControl.fail = false;
+    runtimeControl.rowSelection = undefined;
   });
   afterEach(cleanup);
+
+  it('forces the official log row onto stable time and message tracks', () => {
+    expect(persesPrimitiveStyles).toMatch(
+      /data-log-show-time='true'[\s\S]*grid-template-columns:\s*184px minmax\(0, 1fr\)\s*!important/s
+    );
+    expect(persesPrimitiveStyles).toMatch(
+      /data-log-density[\s\S]*data-log-index[\s\S]*div:last-of-type[\s\S]*margin-left:\s*0\s*!important/s
+    );
+  });
+
+  it('keeps row-internal actions below the compact and comfortable content box heights', () => {
+    expect(persesPrimitiveStyles).toMatch(
+      /data-log-density='compact'[\s\S]*data-log-index[^}]*min-height:\s*36px[^}]*padding-block:\s*4px/s
+    );
+    expect(persesPrimitiveStyles).toMatch(
+      /data-log-density='comfortable'[\s\S]*data-log-index[^}]*min-height:\s*44px[^}]*padding-block:\s*8px/s
+    );
+    expect(persesPrimitiveStyles).toMatch(
+      /data-log-index[^}]*div:last-of-type\s+button\)\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*min-height:\s*24px/s
+    );
+  });
 
   it('renders loading, cancels on unmount, and never converts cancellation into an error state', () => {
     let requestSignal: AbortSignal | undefined;
@@ -243,6 +272,7 @@ describe('HertzBeat Perses primitives', () => {
         title="Logs"
         ariaLabel="Logs table"
         query={{ signal: 'logs', queryKind: 'table', timeWindow }}
+        logDisplay={{ density: 'compact', wrap: false, showTime: false }}
         messages={messages}
       />
     );
@@ -250,7 +280,18 @@ describe('HertzBeat Perses primitives', () => {
     expect(screen.getByRole('region', { name: 'Logs table' })).toContainElement(
       screen.getByRole('table', { name: 'official logs-table' })
     );
-    expect(screen.getByTestId('official-panel-inner-surface')).toHaveStyle({ borderRadius: '0', boxShadow: 'none' });
+    expect(view.container.querySelector('[data-visualization-runtime="perses"]')).toHaveAttribute(
+      'data-log-density',
+      'compact'
+    );
+    expect(view.container.querySelector('[data-visualization-runtime="perses"]')).toHaveAttribute(
+      'data-log-wrap',
+      'false'
+    );
+    expect(view.container.querySelector('[data-visualization-runtime="perses"]')).toHaveAttribute(
+      'data-log-show-time',
+      'false'
+    );
     const completeness = screen.getByRole('status', { name: 'Logs table completeness' });
     expect(completeness).toHaveTextContent('Results are truncated');
     expect(completeness).toHaveStyle({ height: '28px', minHeight: '28px' });
@@ -329,6 +370,29 @@ describe('HertzBeat Perses primitives', () => {
       />
     );
     expect(screen.queryByRole('button', { name: 'Investigate log checkout ready' })).not.toBeInTheDocument();
+  });
+
+  it('forwards host-owned log row selection through the thin official LogsTable adapter boundary', () => {
+    const rowSelection = {
+      ariaLabel: 'Historical logs',
+      controlsId: 'log-inspector',
+      selectedIndex: 0,
+      getAriaLabel: () => 'Selected log',
+      onSelect: vi.fn()
+    };
+    render(
+      <HertzBeatLogsTableResult
+        title="Logs"
+        ariaLabel="Logs table"
+        query={{ signal: 'logs', queryKind: 'table', timeWindow }}
+        outcome={logOutcome() as never}
+        runtimeIdentity="scope-a:revision-1"
+        logRowSelection={rowSelection}
+        messages={messages}
+      />
+    );
+
+    expect(runtimeControl.rowSelection).toBe(rowSelection);
   });
 
   it('forwards a time-series zoom only when the caller owns a callback', () => {

@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-import { Button } from 'antd';
 import type { TFunction } from 'i18next';
+import type { KeyboardEvent } from 'react';
 
 import { OperationalPageHeader, OperationalStatePanel } from '@/shared/operational-page';
 
@@ -45,9 +45,11 @@ export function ExploreWorkbench({ query, t, updateQuery }: Props) {
   };
   return (
     <>
-      <OperationalPageHeader title={t('explore.title')} description={t('explore.description')} />
+      <div className={styles.pageHeader} data-explore-page-header="true">
+        <OperationalPageHeader title={t('explore.title')} />
+      </div>
       {handoffState === 'invalid' && <OperationalStatePanel kind="error" title={t('explore.handoffInvalid')} />}
-      <ExploreSignalNavigation query={query} selectSignal={selectSignal} t={t} updateQuery={updateQuery} />
+      <ExploreSignalNavigation query={query} selectSignal={selectSignal} t={t} />
     </>
   );
 }
@@ -55,9 +57,8 @@ export function ExploreWorkbench({ query, t, updateQuery }: Props) {
 function ExploreSignalNavigation({
   query,
   selectSignal,
-  t,
-  updateQuery
-}: Pick<Props, 'query' | 't' | 'updateQuery'> & { selectSignal: (signal: ExploreSignal) => void }) {
+  t
+}: Pick<Props, 'query' | 't'> & { selectSignal: (signal: ExploreSignal) => void }) {
   return (
     <div className={styles.navigationRow}>
       <nav className={styles.signalNavigation} aria-label={t('explore.signalsNavigation')} role="tablist">
@@ -69,35 +70,38 @@ function ExploreSignalNavigation({
             id={`explore-tab-${signal}`}
             aria-controls={`explore-panel-${signal}`}
             aria-selected={query.signal === signal}
+            tabIndex={query.signal === signal ? 0 : -1}
             className={(query.signal === signal ? styles.activeSignal : styles.signal) ?? ''}
             onClick={() => selectSignal(signal)}
+            onKeyDown={event => moveSignalFocus(event, signal, selectSignal)}
           >
             {t(`explore.signals.${signal}`)}
           </button>
         ))}
       </nav>
-      {query.signal === 'logs' && (
-        <div className={styles.logMode} aria-label={t('exploreLog.mode')} role="tablist">
-          <Button
-            role="tab"
-            aria-selected={!query.live}
-            aria-controls="explore-panel-logs"
-            type={query.live ? 'text' : 'primary'}
-            onClick={() => updateQuery({ live: undefined })}
-          >
-            {t('exploreLog.query')}
-          </Button>
-          <Button
-            role="tab"
-            aria-selected={Boolean(query.live)}
-            aria-controls="explore-panel-logs"
-            type={query.live ? 'primary' : 'text'}
-            onClick={() => updateQuery({ live: true })}
-          >
-            {t('exploreLog.live')}
-          </Button>
-        </div>
-      )}
     </div>
   );
+}
+
+function moveSignalFocus(
+  event: KeyboardEvent<HTMLButtonElement>,
+  signal: ExploreSignal,
+  selectSignal: (signal: ExploreSignal) => void
+) {
+  const currentIndex = signalKeys.indexOf(signal);
+  const nextIndex = signalNavigationIndex(event.key, currentIndex);
+  if (nextIndex == null) return;
+  const nextSignal = signalKeys[nextIndex];
+  if (!nextSignal) return;
+  event.preventDefault();
+  event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`#explore-tab-${nextSignal}`)?.focus();
+  selectSignal(nextSignal);
+}
+
+function signalNavigationIndex(key: string, currentIndex: number) {
+  if (key === 'Home') return 0;
+  if (key === 'End') return signalKeys.length - 1;
+  if (key === 'ArrowRight') return (currentIndex + 1) % signalKeys.length;
+  if (key === 'ArrowLeft') return (currentIndex - 1 + signalKeys.length) % signalKeys.length;
+  return undefined;
 }

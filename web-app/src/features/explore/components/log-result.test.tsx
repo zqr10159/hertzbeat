@@ -185,7 +185,15 @@ describe('LogResult', () => {
             },
             trend: {
               kind: 'ready',
-              data: { hourlyStats: { '2026-08-06 10:00': 4, '2026-08-06 11:00': 8 } }
+              data: {
+                start: 1_754_467_200_000,
+                end: 1_754_474_400_000,
+                intervalMs: 3_600_000,
+                buckets: [
+                  { start: 1_754_467_200_000, count: 4 },
+                  { start: 1_754_470_800_000, count: 8 }
+                ]
+              }
             }
           }}
           timeWindow={{ from: 1_754_467_200_000, to: 1_754_474_400_000 }}
@@ -220,7 +228,15 @@ describe('LogResult', () => {
                 fatalCount: 0
               }
             },
-            trend: { kind: 'ready', data: { hourlyStats: { '2026-08-06 10:00': 6 } } }
+            trend: {
+              kind: 'ready',
+              data: {
+                start: 1_754_467_200_000,
+                end: 1_754_470_800_000,
+                intervalMs: 3_600_000,
+                buckets: [{ start: 1_754_467_200_000, count: 6 }]
+              }
+            }
           }}
           timeWindow={{ from: 1_754_467_200_000, to: 1_754_470_800_000 }}
           runtimeIdentity="logs-trend:revision-single"
@@ -230,8 +246,12 @@ describe('LogResult', () => {
     );
 
     const trend = screen.getByRole('region', { name: i18n.t('exploreLog.trend') });
+    expect(screen.getByRole('region', { name: i18n.t('exploreLog.overview') })).toHaveAttribute(
+      'data-explore-evidence-summary'
+    );
+    expect(trend).toHaveAttribute('data-trend-density', 'visualization');
     expect(within(trend).getByText(i18n.t('exploreLog.trendInsufficient', { count: 6 }))).toBeInTheDocument();
-    expect(within(trend).queryByRole('img')).not.toBeInTheDocument();
+    expect(within(trend).getByRole('img', { name: i18n.t('exploreLog.trend') })).toBeInTheDocument();
   });
 
   it.each([

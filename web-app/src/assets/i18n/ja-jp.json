@@ -618,6 +618,7 @@
   },
   "exploreLog": {
     "mode": "ログモード",
+    "history": "履歴",
     "query": "検索",
     "live": "ライブ",
     "detail": "ログ詳細",
@@ -646,7 +647,7 @@
     "overview": "ログ概要",
     "trend": "ログ傾向",
     "trendEmpty": "このクエリでは傾向の時間区分が返されませんでした。",
-    "trendInsufficient": "傾向の時間区分が 1 件（{{count}} ログ）のため、時間傾向を描画できません。",
+    "trendInsufficient": "現在の時間範囲には 1 つの時間区分（{{count}} ログ）があります。",
     "statisticsUnavailable": "この統計領域を読み込めませんでした。",
     "statistics": {
       "total": "合計",

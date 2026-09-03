@@ -1,3 +1,36 @@
+diff --git a/lib/components/VirtualizedLogsList.js b/lib/components/VirtualizedLogsList.js
+--- a/lib/components/VirtualizedLogsList.js
++++ b/lib/components/VirtualizedLogsList.js
+@@ -267,6 +267,6 @@ export const VirtualizedLogsList = ({ logs, spec, expandedRows, onToggleExpand
+                 onCopy: handleCopy,
+                 children: [
+-                    !isHintsDismissed && /*#__PURE__*/ _jsxs(Box, {
++                    spec.showSelectionHints !== false && !isHintsDismissed && /*#__PURE__*/ _jsxs(Box, {
+                         sx: {
+                             px: 2,
+                             py: 0.75,
+diff --git a/lib/cjs/components/VirtualizedLogsList.js b/lib/cjs/components/VirtualizedLogsList.js
+--- a/lib/cjs/components/VirtualizedLogsList.js
++++ b/lib/cjs/components/VirtualizedLogsList.js
+@@ -323,6 +323,6 @@ const VirtualizedLogsList = ({ logs, spec, expandedRows, onToggleExpand })=>{
+                 onCopy: handleCopy,
+                 children: [
+-                    !isHintsDismissed && /*#__PURE__*/ (0, _jsxruntime.jsxs)(_material.Box, {
++                    spec.showSelectionHints !== false && !isHintsDismissed && /*#__PURE__*/ (0, _jsxruntime.jsxs)(_material.Box, {
+                         sx: {
+                             px: 2,
+                             py: 0.75,
+diff --git a/lib/model.d.ts b/lib/model.d.ts
+--- a/lib/model.d.ts
++++ b/lib/model.d.ts
+@@ -12,6 +12,7 @@ export interface LogsTableOptions {
+     enableDetails?: boolean;
+     showTime?: boolean;
+     showAll?: boolean;
++    showSelectionHints?: boolean;
+     selection?: SelectionOptions;
+     actions?: ActionOptions;
+ }
 diff --git a/lib/components/LogRow/LogRow.js b/lib/components/LogRow/LogRow.js
 index 51761917b3bee7c5f768542adba6609a8225db48..f49e8d701ca874dbb2a171db36a93ba0a6de09c0 100644
 --- a/lib/components/LogRow/LogRow.js

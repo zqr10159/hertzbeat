@@ -11,6 +11,8 @@ import type { LogData, PanelDefinition, QueryDefinition, TimeSeriesData, TraceDa
 import { useMemo } from 'react';
 
 import type { ExactTimeWindow } from '@/shared/query-context';
+import type { HertzBeatLogTableDisplay } from './hertzbeat-perses-primitive-frame';
+import { HertzBeatLogsTableAdapter, type HertzBeatLogRowSelection } from './hertzbeat-logs-table-adapter';
 
 import { hertzBeatPersesMultiSignalPluginLoader } from '../plugins/perses-multi-signal-plugin-loader';
 import {
@@ -27,10 +29,18 @@ export type PersesSignalRuntimeProps =
       title: string;
       timeWindow: ExactTimeWindow;
       data: TimeSeriesData;
+      display?: 'line' | 'bar' | undefined;
       onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
       timeWindowChangeEnabled?: boolean | undefined;
     }
-  | { kind: 'logs-table'; title: string; timeWindow: ExactTimeWindow; data: LogData }
+  | {
+      kind: 'logs-table';
+      title: string;
+      timeWindow: ExactTimeWindow;
+      data: LogData;
+      display?: HertzBeatLogTableDisplay;
+      rowSelection?: HertzBeatLogRowSelection;
+    }
   | { kind: 'trace-table'; title: string; timeWindow: ExactTimeWindow; data: TraceData }
   | {
       kind: 'tracing-gantt-chart';
@@ -53,7 +63,13 @@ export function PersesSignalRuntime(props: PersesSignalRuntimeProps) {
         timeWindowChangeEnabled={props.kind !== 'metric-time-series' || props.timeWindowChangeEnabled !== false}
       >
         <DataQueriesProvider definitions={queries}>
-          <Panel panelOptions={{ hideHeader: true }} definition={definition} />
+          {props.kind === 'logs-table' && props.rowSelection ? (
+            <HertzBeatLogsTableAdapter {...props.rowSelection}>
+              <Panel panelOptions={{ hideHeader: true }} definition={definition} />
+            </HertzBeatLogsTableAdapter>
+          ) : (
+            <Panel panelOptions={{ hideHeader: true }} definition={definition} />
+          )}
         </DataQueriesProvider>
       </PersesRuntimeProviders>
     </div>
@@ -96,7 +112,10 @@ function panelDefinition(props: PersesSignalRuntimeProps): PanelDefinition {
           kind: 'TimeSeriesChart',
           spec: {
             legend: { position: 'bottom', size: 'medium' },
-            visual: { lineWidth: 1.75, showPoints: 'auto' }
+            visual:
+              props.display === 'bar'
+                ? { display: 'bar', lineWidth: 0, showPoints: 'auto' }
+                : { display: 'line', lineWidth: 1.75, showPoints: 'auto' }
           }
         }
       }
@@ -107,7 +126,16 @@ function panelDefinition(props: PersesSignalRuntimeProps): PanelDefinition {
       kind: 'Panel',
       spec: {
         display,
-        plugin: { kind: 'LogsTable', spec: { allowWrap: true, enableDetails: true, showAll: true, showTime: true } }
+        plugin: {
+          kind: 'LogsTable',
+          spec: {
+            allowWrap: props.display?.wrap ?? true,
+            enableDetails: props.rowSelection == null,
+            showAll: true,
+            showTime: props.display?.showTime ?? true,
+            showSelectionHints: false
+          }
+        }
       }
     };
   }

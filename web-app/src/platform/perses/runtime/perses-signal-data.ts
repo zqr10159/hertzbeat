@@ -25,7 +25,7 @@ export class PersesSignalDataError extends Error {
 }
 
 export function toPersesLogData(data: HertzBeatTableData<HertzBeatLogRow>, window: ExactTimeWindow): LogData {
-  const entries = data.rows.map(row => {
+  const entries = orderHertzBeatLogRowsForPerses(data.rows).map(row => {
     const observedNanos = row.timeUnixNano ?? row.observedTimeUnixNano;
     if (observedNanos == null) throw new PersesSignalDataError();
     if (typeof row.body !== 'string') assertSafeJsonNumbers(row.body);
@@ -42,6 +42,25 @@ export function toPersesLogData(data: HertzBeatTableData<HertzBeatLogRow>, windo
     hasMore: data.total > entries.length,
     direction: 'backward'
   };
+}
+
+export function orderHertzBeatLogRowsForPerses<Row extends HertzBeatLogRow>(rows: readonly Row[]): Row[] {
+  const ordered = rows.map((row, index) => ({ row, index, timestamp: logTimestamp(row) }));
+  if (ordered.some(item => item.timestamp == null)) return [...rows];
+  return ordered
+    .sort((left, right) => right.timestamp! - left.timestamp! || left.index - right.index)
+    .map(item => item.row);
+}
+
+function logTimestamp(row: HertzBeatLogRow) {
+  const observedNanos = row.timeUnixNano ?? row.observedTimeUnixNano;
+  if (observedNanos == null) return undefined;
+  try {
+    return unixNanoSeconds(observedNanos);
+  } catch (error) {
+    if (error instanceof PersesSignalDataError) return undefined;
+    throw error;
+  }
 }
 
 function unixNanoSeconds(value: string) {

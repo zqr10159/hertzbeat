@@ -13,7 +13,12 @@ import type {
   HertzBeatTraceDetail,
   HertzBeatTraceRow
 } from '../datasource/hertzbeat-query-schema';
-import { toPersesLogData, toPersesTraceDetailData, toPersesTraceSearchData } from './perses-signal-data';
+import {
+  orderHertzBeatLogRowsForPerses,
+  toPersesLogData,
+  toPersesTraceDetailData,
+  toPersesTraceSearchData
+} from './perses-signal-data';
 
 const timeWindow = { from: 1_750_000_000_000, to: 1_750_000_060_000 } as const;
 
@@ -109,6 +114,25 @@ describe('HertzBeat to Perses signal data', () => {
       1_750_000_001.0000002,
       7
     );
+  });
+
+  it('shares the timestamp-descending Perses row order with host-owned row inspection', () => {
+    const older = logRow({ logRecordUid: 'older', timeUnixNano: '1750000001000000000', body: 'older' });
+    const newest = logRow({ logRecordUid: 'newest', timeUnixNano: '1750000003000000000', body: 'newest' });
+    const middle = logRow({
+      logRecordUid: 'middle',
+      timeUnixNano: null,
+      observedTimeUnixNano: '1750000002000000000',
+      body: 'middle'
+    });
+    const rows = [older, newest, middle];
+
+    expect(orderHertzBeatLogRowsForPerses(rows).map(row => row.logRecordUid)).toEqual(['newest', 'middle', 'older']);
+    expect(toPersesLogData({ rows, total: rows.length }, timeWindow).entries.map(entry => entry.line)).toEqual([
+      'newest',
+      'middle',
+      'older'
+    ]);
   });
 
   it('maps complete per-service trace statistics without attributing totals to the root service', () => {

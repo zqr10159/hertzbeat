@@ -623,6 +623,7 @@
   },
   "exploreLog": {
     "mode": "Log mode",
+    "history": "History",
     "query": "Query",
     "live": "Live",
     "detail": "Log detail",
@@ -651,7 +652,7 @@
     "overview": "Log overview",
     "trend": "Log trend",
     "trendEmpty": "No trend buckets were returned for this query.",
-    "trendInsufficient": "Only one trend bucket is available ({{count}} logs), so no time trend can be drawn.",
+    "trendInsufficient": "The current window contains one bucket ({{count}} logs).",
     "statisticsUnavailable": "This statistics region could not be loaded.",
     "statistics": {
       "total": "Total",

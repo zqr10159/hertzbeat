@@ -720,7 +720,10 @@ function logEvidence(data: ReturnType<typeof page>) {
         fatalCount: 0
       }
     },
-    trend: { kind: 'ready' as const, data: { hourlyStats: {} } }
+    trend: {
+      kind: 'ready' as const,
+      data: { start: 1_754_467_200_000, end: 1_754_469_000_000, intervalMs: 60_000, buckets: [] }
+    }
   };
 }
 function logRow(

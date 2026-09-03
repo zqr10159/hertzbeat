@@ -80,7 +80,12 @@ export type LogOverview = {
   errorCount: number;
   fatalCount: number;
 };
-export type LogTrend = { hourlyStats: Record<string, number> };
+export type LogTrend = {
+  start: number;
+  end: number;
+  intervalMs: number;
+  buckets: Array<{ start: number; count: number }>;
+};
 type LogStatisticEvidence<T> = { kind: 'ready'; data: T } | { kind: 'error' };
 export type LogHistoryEvidence = {
   page: ExplorePageResult<LogRow>;

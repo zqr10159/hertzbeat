@@ -341,17 +341,31 @@ describe('explore API paths', () => {
 
   it('keeps log overview and trend failures independent from a valid page', async () => {
     const signal = new AbortController().signal;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_754_468_100_000);
     apiMessageGet
       .mockResolvedValueOnce(stableLogPage([logRow('valid')]))
       .mockRejectedValueOnce(new Error('overview unavailable'))
-      .mockResolvedValueOnce({ hourlyStats: { '2026-08-06 10:00': 4 } });
+      .mockResolvedValueOnce({
+        start: 1_754_467_200_000,
+        end: 1_754_468_100_000,
+        intervalMs: 60_000,
+        buckets: [{ start: 1_754_467_200_000, count: 4 }]
+      });
 
     await expect(
       loadLogHistoryEvidence({ signal: 'logs', timeRange: 'last-15m', query: 'timeout' }, signal)
     ).resolves.toEqual({
       page: expect.objectContaining({ totalElements: 1 }),
       overview: { kind: 'error' },
-      trend: { kind: 'ready', data: { hourlyStats: { '2026-08-06 10:00': 4 } } }
+      trend: {
+        kind: 'ready',
+        data: {
+          start: 1_754_467_200_000,
+          end: 1_754_468_100_000,
+          intervalMs: 60_000,
+          buckets: [{ start: 1_754_467_200_000, count: 4 }]
+        }
+      }
     });
     expect(apiMessageGet.mock.calls.map(call => String(call[0]))).toEqual([
       expect.stringContaining('/api/logs/list?'),
@@ -359,6 +373,46 @@ describe('explore API paths', () => {
       expect.stringContaining('/api/logs/stats/trend?')
     ]);
     expect(apiMessageGet.mock.calls.every(call => call[1]?.signal === signal)).toBe(true);
+    nowSpy.mockRestore();
+  });
+
+  it('rejects trend evidence for a different relative request window', async () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_754_468_100_000);
+    apiMessageGet
+      .mockResolvedValueOnce(stableLogPage([logRow('valid')]))
+      .mockRejectedValueOnce(new Error('overview unavailable'))
+      .mockResolvedValueOnce({
+        start: 1_754_467_200_001,
+        end: 1_754_468_100_000,
+        intervalMs: 60_000,
+        buckets: []
+      });
+
+    const evidence = await loadLogHistoryEvidence({ signal: 'logs', timeRange: 'last-15m' });
+
+    expect(evidence.trend).toEqual({ kind: 'error' });
+    nowSpy.mockRestore();
+  });
+
+  it('rejects trend evidence for a different exact request window', async () => {
+    apiMessageGet
+      .mockResolvedValueOnce(stableLogPage([logRow('valid')]))
+      .mockRejectedValueOnce(new Error('overview unavailable'))
+      .mockResolvedValueOnce({
+        start: 1_754_467_200_000,
+        end: 1_754_468_100_001,
+        intervalMs: 60_000,
+        buckets: []
+      });
+
+    const evidence = await loadLogHistoryEvidence({
+      signal: 'logs',
+      timeRange: 'last-15m',
+      start: 1_754_467_200_000,
+      end: 1_754_468_100_000
+    });
+
+    expect(evidence.trend).toEqual({ kind: 'error' });
   });
 
   it('does not turn aborted log statistics into cacheable partial evidence', async () => {

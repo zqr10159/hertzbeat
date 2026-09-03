@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const window = { from: 1_750_000_000_000, to: 1_750_000_060_000 } as const;
 
-vi.mock('@mui/material', () => ({ ThemeProvider: passthrough }));
+vi.mock('@mui/material', () => ({
+  ThemeProvider: passthrough,
+  createTheme: vi.fn((options: object) => options)
+}));
 vi.mock('@perses-dev/components', () => ({
   ChartsProvider: passthrough,
   SnackbarProvider: passthrough,

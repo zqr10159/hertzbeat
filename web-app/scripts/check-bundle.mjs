@@ -31,6 +31,7 @@ const totalRawLimit =
   bundleLimits.baseApplicationJavaScriptBytes +
   bundleLimits.persesRuntimeJavaScriptAllowanceBytes +
   bundleLimits.persesMultiSignalJavaScriptAllowanceBytes +
+  bundleLimits.observabilityWorkbenchJavaScriptAllowanceBytes +
   bundleLimits.alertInvestigationJavaScriptAllowanceBytes;
 
 if (!existsSync(manifestPath)) {
@@ -67,6 +68,7 @@ if (totalRaw > totalRawLimit) {
       `(${bundleLimits.baseApplicationJavaScriptBytes} base + ` +
       `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes} Perses time-series allowance + ` +
       `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes} Perses multi-signal allowance + ` +
+      `${bundleLimits.observabilityWorkbenchJavaScriptAllowanceBytes} Observability Workbench allowance + ` +
       `${bundleLimits.alertInvestigationJavaScriptAllowanceBytes} Alert Investigation allowance)`
   );
 }
@@ -90,6 +92,7 @@ console.log(
     `total JavaScript is ${totalRaw} bytes including bounded ` +
     `${bundleLimits.persesRuntimeJavaScriptAllowanceBytes}-byte time-series and ` +
     `${bundleLimits.persesMultiSignalJavaScriptAllowanceBytes}-byte multi-signal Perses allowances, plus a bounded ` +
+    `${bundleLimits.observabilityWorkbenchJavaScriptAllowanceBytes}-byte Observability Workbench allowance and ` +
     `${bundleLimits.alertInvestigationJavaScriptAllowanceBytes}-byte Alert Investigation allowance.`
 );
 

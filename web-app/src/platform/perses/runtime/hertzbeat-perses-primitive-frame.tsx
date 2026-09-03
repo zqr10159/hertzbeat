@@ -7,6 +7,7 @@ import type { ExactTimeWindow } from '@/shared/query-context';
 import type { HertzBeatQueryFailure, HertzBeatQueryOutcome } from '../datasource/hertzbeat-query-contract';
 import { PersesSignalDataError } from './perses-signal-data';
 import { loadPersesRuntime } from './perses-runtime-registry';
+import type { HertzBeatLogRowSelection } from './hertzbeat-logs-table-adapter';
 import styles from './hertzbeat-perses-primitives.module.css';
 
 type FailureMessageKey = HertzBeatQueryFailure['messageKey'];
@@ -41,7 +42,16 @@ export type SharedPrimitiveProps = {
   interactions?: HertzBeatPersesTableInteraction[] | undefined;
   onTimeWindowChange?: ((window: ExactTimeWindow) => void) | undefined;
   timeWindowChangeEnabled?: boolean | undefined;
+  timeSeriesDisplay?: 'line' | 'bar' | undefined;
   variant?: 'default' | 'compact' | undefined;
+  logDisplay?: HertzBeatLogTableDisplay | undefined;
+  logRowSelection?: HertzBeatLogRowSelection | undefined;
+};
+
+export type HertzBeatLogTableDisplay = {
+  density: 'compact' | 'comfortable';
+  wrap: boolean;
+  showTime: boolean;
 };
 
 export type PrimitiveState<T> =
@@ -91,7 +101,14 @@ export function HertzBeatPrimitiveFrame<T>({ state, toRuntimeProps, ...props }: 
   }
   const runtimeRole = runtimeProps.kind === 'metric-time-series' ? 'img' : 'region';
   return (
-    <div className={className} data-visualization-runtime="perses" data-variant={props.variant ?? 'default'}>
+    <div
+      className={className}
+      data-visualization-runtime="perses"
+      data-variant={props.variant ?? 'default'}
+      data-log-density={props.logDisplay?.density}
+      data-log-wrap={props.logDisplay?.wrap}
+      data-log-show-time={props.logDisplay?.showTime}
+    >
       <PersesPrimitiveErrorBoundary
         ariaLabel={props.ariaLabel}
         fallback={props.messages.runtimeError}

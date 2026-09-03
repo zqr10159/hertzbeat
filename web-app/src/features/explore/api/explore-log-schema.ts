@@ -139,11 +139,45 @@ const logOverviewSchema: z.ZodType<LogOverview> = z.object({
   fatalCount: nonNegativeIntegerSchema
 });
 
-const hourlyStatsSchema = z
-  .record(z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:00$/u), nonNegativeIntegerSchema)
-  .refine(stats => Object.keys(stats).every(bucket => Number.isFinite(new Date(bucket.replace(' ', 'T')).getTime())));
+const logTrendIntervals = new Set([60_000, 300_000, 900_000, 1_800_000, 3_600_000, 21_600_000, 86_400_000]);
 
-const logTrendSchema: z.ZodType<LogTrend> = z.object({ hourlyStats: hourlyStatsSchema });
+const logTrendSchema: z.ZodType<LogTrend> = z
+  .object({
+    start: nonNegativeIntegerSchema,
+    end: nonNegativeIntegerSchema,
+    intervalMs: nonNegativeIntegerSchema.positive().refine(interval => logTrendIntervals.has(interval)),
+    buckets: z.array(
+      z
+        .object({
+          start: nonNegativeIntegerSchema,
+          count: nonNegativeIntegerSchema
+        })
+        .strict()
+    )
+  })
+  .strict()
+  .superRefine((trend, context) => {
+    if (trend.start > trend.end) {
+      context.addIssue({ code: 'custom', message: 'Trend start must not be after end' });
+    }
+    if (trend.buckets.length > 60) {
+      context.addIssue({ code: 'custom', message: 'Trend contains too many buckets' });
+    }
+    const firstBucketIndex = Math.floor(trend.start / trend.intervalMs);
+    const lastBucketIndex = Math.floor(trend.end / trend.intervalMs);
+    for (const [index, bucket] of trend.buckets.entries()) {
+      const previous = trend.buckets[index - 1];
+      const bucketIndex = Math.floor(bucket.start / trend.intervalMs);
+      if (
+        bucket.start % trend.intervalMs !== 0 ||
+        bucketIndex < firstBucketIndex ||
+        bucketIndex > lastBucketIndex ||
+        (previous != null && previous.start >= bucket.start)
+      ) {
+        context.addIssue({ code: 'custom', message: 'Trend bucket is invalid', path: ['buckets', index] });
+      }
+    }
+  });
 
 export function parseLogOverview(value: unknown): LogOverview {
   const result = logOverviewSchema.safeParse(value);
