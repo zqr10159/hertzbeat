@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockStatic;
 
 import java.lang.reflect.Field;
@@ -136,8 +137,56 @@ class QueuedExecutorSaturationTest {
         assertTrue(((ExecutorService) field.get(executor)).awaitTermination(2, TimeUnit.SECONDS));
     }
 
+    @Test
+    void interruptWhileWaitingForEmptyQueueReturnsReservedPermit() throws Exception {
+        try (DispatchFixture fixture = new DispatchFixture()) {
+            fixture.permits.release();
+            fixture.start();
+            assertTrue(fixture.taking.await(2, TimeUnit.SECONDS));
+            fixture.executor.close();
+            fixture.thread.join(2000);
+            assertFalse(fixture.thread.isAlive());
+            assertEquals(1, fixture.permits.availablePermits());
+        }
+    }
+
+    @Test
+    void interruptWhileWaitingForCapacityDoesNotCreatePermit() throws Exception {
+        try (DispatchFixture fixture = new DispatchFixture()) {
+            fixture.start();
+            assertTrue(fixture.waiting.await(2, TimeUnit.SECONDS));
+            fixture.executor.close();
+            fixture.thread.join(2000);
+            assertFalse(fixture.thread.isAlive());
+            assertEquals(0, fixture.permits.availablePermits());
+        }
+    }
+
+    @Test
+    void rejectedDelegateSubmissionReturnsExactlyOnePermit() throws Exception {
+        try (DispatchFixture fixture = new DispatchFixture()) {
+            Field field = fixture.executor.getClass().getDeclaredField("delegate");
+            field.setAccessible(true);
+            ((ExecutorService) field.get(fixture.executor)).shutdownNow();
+            ExecutorService rejectingDelegate = mock(ExecutorService.class);
+            doThrow(new RejectedExecutionException("synthetic delegate closure"))
+                    .when(rejectingDelegate).execute(any(Runnable.class));
+            fixture.replace("delegate", rejectingDelegate);
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            fixture.thread.setUncaughtExceptionHandler((thread, error) -> failure.set(error));
+            fixture.executor.execute(() -> { });
+            fixture.permits.release();
+            fixture.start();
+            fixture.thread.join(2000);
+            assertFalse(fixture.thread.isAlive());
+            assertTrue(failure.get() instanceof RejectedExecutionException);
+            assertEquals(1, fixture.permits.availablePermits());
+        }
+    }
+
     private static final class DispatchFixture implements AutoCloseable {
         private final CountDownLatch waiting = new CountDownLatch(1);
+        private final CountDownLatch taking = new CountDownLatch(1);
         private final CountDownLatch continueRequeue = new CountDownLatch(1);
         private final CountDownLatch producerCompleted = new CountDownLatch(1);
         private volatile boolean producerAccepted;
@@ -149,6 +198,12 @@ class QueuedExecutorSaturationTest {
             }
         };
         private final LinkedBlockingDeque<Runnable> queue = new LinkedBlockingDeque<>(1) {
+            @Override
+            public Runnable takeFirst() throws InterruptedException {
+                taking.countDown();
+                return super.takeFirst();
+            }
+
             @Override
             public void putFirst(Runnable task) throws InterruptedException {
                 // A real producer can occupy the slot released by takeFirst before the requeue.
