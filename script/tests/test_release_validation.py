@@ -25,6 +25,7 @@ import tempfile
 from pathlib import Path
 import re
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 import package_smoke
@@ -46,6 +47,29 @@ def patterns(block, key):
 
 
 class ReleaseValidation(unittest.TestCase):
+    def test_native_aot_keeps_opt_in_health_types_only_in_native_profile(self):
+        pom = ET.parse(ROOT / 'hertzbeat-collector/hertzbeat-collector-collector/pom.xml')
+        ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
+        expected = '--management.endpoints.web.exposure.include=health,prometheus'
+        matching_profiles = []
+        for profile in pom.findall('./m:profiles/m:profile', ns):
+            for plugin in profile.findall('./m:build/m:plugins/m:plugin', ns):
+                if plugin.findtext('m:artifactId', namespaces=ns) == 'spring-boot-maven-plugin':
+                    args = [arg.text for arg in plugin.findall('./m:configuration/m:arguments/m:argument', ns)]
+                    if expected in args:
+                        matching_profiles.append(profile.findtext('m:id', namespaces=ns))
+        self.assertEqual(matching_profiles, ['native'])
+        self.assertNotIn(expected, [arg.text for arg in pom.findall(
+            './m:build/m:plugins/m:plugin/m:configuration/m:arguments/m:argument', ns)])
+
+    def test_collector_runtime_health_remains_explicit_opt_in(self):
+        default = (ROOT / 'hertzbeat-collector/hertzbeat-collector-collector/src/main/resources/application.yml').read_text()
+        exposure = default.split('management:\n', 1)[1].split('  endpoint:\n', 1)[0]
+        self.assertRegex(exposure, r"include:\s*\n\s*- 'prometheus'")
+        self.assertNotIn('health', exposure)
+        fixture = (ROOT / 'script/tests/fixtures/collector-smoke/application-smoke.yml').read_text()
+        self.assertIn('include: health,prometheus', fixture)
+
     def test_strict_mode_fails_instead_of_skipping_missing_tools(self):
         case = test_release_scripts.RealReadinessUtilities()
         with patch('test_release_scripts.shutil.which', return_value=None):
