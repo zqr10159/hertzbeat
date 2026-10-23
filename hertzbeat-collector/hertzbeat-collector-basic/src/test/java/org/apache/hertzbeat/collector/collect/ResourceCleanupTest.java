@@ -26,6 +26,7 @@ import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -115,6 +116,36 @@ class ResourceCleanupTest {
         }
     }
 
+    @Test
+    void ftpRuntimeCleanupFailureDoesNotReplaceLoginFailure() throws Exception {
+        try (var clients = mockConstruction(FTPClient.class, (client, context) -> {
+            when(client.login("fixture-user", "fixture-password")).thenReturn(false);
+            doThrow(new IllegalStateException("fixture runtime cleanup failure")).when(client).disconnect();
+        })) {
+            var result = CollectRep.MetricsData.newBuilder();
+            new FtpCollectImpl().collect(result, ftpMetrics());
+            assertEquals(CollectRep.Code.UN_CONNECTABLE, result.getCode());
+            assertTrue(result.getMsg().contains("username or password"));
+            verify(clients.constructed().get(0)).disconnect();
+        }
+    }
+
+    @Test
+    void ftpSuccessfulReadWithRuntimeCleanupFailureStillReportsFailure() throws Exception {
+        try (var clients = mockConstruction(FTPClient.class, (client, context) -> {
+            when(client.login("fixture-user", "fixture-password")).thenReturn(true);
+            when(client.changeWorkingDirectory("/")).thenReturn(true);
+            doThrow(new IllegalStateException("fixture runtime cleanup failure")).when(client).disconnect();
+        })) {
+            var result = CollectRep.MetricsData.newBuilder();
+            new FtpCollectImpl().collect(result, ftpMetrics());
+            assertEquals(CollectRep.Code.UN_CONNECTABLE, result.getCode());
+            assertTrue(result.getMsg().contains("fixture runtime cleanup failure"));
+            assertEquals(0, result.getValuesCount());
+            verify(clients.constructed().get(0)).disconnect();
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"connect", "write", "read"})
     void websocketFailuresAlwaysCloseSocket(String failure) throws Exception {
@@ -151,6 +182,31 @@ class ResourceCleanupTest {
             assertEquals(1, result.getValuesCount());
             assertEquals("101", result.getValues(0).getColumns(0));
             assertEquals("Switching Protocols", result.getValues(0).getColumns(1));
+            verify(sockets.constructed().get(0)).close();
+        }
+    }
+
+    @Test
+    void websocketFlushesBufferedHandshakeBeforeReadingResponse() throws Exception {
+        ByteArrayOutputStream wire = new ByteArrayOutputStream();
+        OutputStream output = new BufferedOutputStream(wire);
+        InputStream input = new ByteArrayInputStream("HTTP/1.1 101 Switching Protocols\r\n\r\n"
+                .getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public synchronized int read(byte[] bytes, int offset, int length) {
+                assertTrue(wire.toString(StandardCharsets.UTF_8).endsWith("\r\n\r\n"));
+                return super.read(bytes, offset, length);
+            }
+        };
+        try (var sockets = mockConstruction(Socket.class, (socket, context) -> {
+            when(socket.isConnected()).thenReturn(true);
+            when(socket.getInputStream()).thenReturn(input);
+            when(socket.getOutputStream()).thenReturn(output);
+        })) {
+            var result = CollectRep.MetricsData.newBuilder();
+            new WebsocketCollectImpl().collect(result, websocketMetrics());
+            assertEquals(CollectRep.Code.SUCCESS, result.getCode());
+            assertEquals(1, result.getValuesCount());
             verify(sockets.constructed().get(0)).close();
         }
     }

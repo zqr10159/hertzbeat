@@ -102,7 +102,7 @@ public class FtpCollectImpl extends AbstractCollect {
         } finally {
             try {
                 ftpClient.disconnect();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 if (collected) {
                     throw new IllegalArgumentException(e.getMessage(), e);
                 }
