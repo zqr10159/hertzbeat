@@ -34,6 +34,8 @@ import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
+import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.NodeId;
 import org.yaml.snakeyaml.nodes.Tag;
 
 /**
@@ -95,7 +97,15 @@ public class AlertDefineYamlImExportServiceImpl extends AlertDefineAbstractImExp
         private AlertDefineYamlConstructor(LoaderOptions options) {
             super(options);
             // Accept only legacy DTO tags, as mappings; never construct arbitrary Java objects.
-            LEGACY_TAGS.forEach(tag -> yamlConstructors.put(tag, new ConstructYamlMap()));
+            LEGACY_TAGS.forEach(tag -> yamlConstructors.put(tag, new ConstructYamlMap() {
+                @Override
+                public Object construct(Node node) {
+                    if (node.getNodeId() != NodeId.mapping) {
+                        throw new YAMLException("Legacy alert definition DTO tags require a mapping");
+                    }
+                    return super.construct(node);
+                }
+            }));
         }
     }
 }

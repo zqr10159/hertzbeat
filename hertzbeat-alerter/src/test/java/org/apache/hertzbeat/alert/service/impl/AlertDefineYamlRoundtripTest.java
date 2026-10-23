@@ -76,6 +76,20 @@ class AlertDefineYamlRoundtripTest {
         assertThrows(IllegalArgumentException.class, () -> service.parseImport(input(yaml)));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "- !!org.apache.hertzbeat.alert.dto.ExportAlertDefineDTO []",
+        "- !!org.apache.hertzbeat.alert.dto.ExportAlertDefineDTO scalar",
+        "- alertDefine: !!org.apache.hertzbeat.alert.dto.AlertDefineDTO []",
+        "- alertDefine: !!org.apache.hertzbeat.alert.dto.AlertDefineDTO scalar"
+    })
+    void rejectsLegacyDtoTagOnNonMappingBeforePersistence(String yaml) {
+        AlertDefineService persistence = mock(AlertDefineService.class);
+        ReflectionTestUtils.setField(service, "alertDefineService", persistence);
+        assertThrows(IllegalArgumentException.class, () -> service.importConfig(input(yaml)));
+        verifyNoInteractions(persistence);
+    }
+
     @Test
     void rejectsUnrelatedGlobalTags() {
         assertThrows(IllegalArgumentException.class,
