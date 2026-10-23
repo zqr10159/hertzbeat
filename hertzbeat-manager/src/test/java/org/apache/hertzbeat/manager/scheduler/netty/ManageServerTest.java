@@ -17,16 +17,19 @@
 
 package org.apache.hertzbeat.manager.scheduler.netty;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.DefaultEventLoopGroup;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -103,6 +106,44 @@ class ManageServerTest {
         verify(transport).shutdown();
         assertTrue(scheduled.isShutdown());
         assertTrue(checks.isShutdown());
+    }
+
+    @Test
+    void realUnboundTransportAllowsTwoShutdownCalls() throws Exception {
+        ManageServer server = new ManageServer(schedulerProperties(), collectorJobScheduler, commonThreadPool,
+                collectorAlertHandler, commonDataQueue, new VirtualThreadProperties());
+        initializeUnboundTransportGroups(server);
+        assertDoesNotThrow(server::shutdown);
+        assertDoesNotThrow(server::shutdown);
+        verify(commonThreadPool, times(2)).destroy();
+        assertTrue(((ExecutorService) ReflectionTestUtils.getField(server, "channelSchedule")).isShutdown());
+        assertTrue(((ExecutorService) ReflectionTestUtils.getField(server, "channelCheckExecutor")).isShutdown());
+    }
+
+    @Test
+    void manualShutdownThenSpringCloseAllowsRepeatedTransportShutdown() throws Exception {
+        ManageServer server = new ManageServer(schedulerProperties(), collectorJobScheduler, commonThreadPool,
+                collectorAlertHandler, commonDataQueue, new VirtualThreadProperties());
+        initializeUnboundTransportGroups(server);
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            GenericBeanDefinition definition = new GenericBeanDefinition();
+            definition.setBeanClass(ManageServer.class);
+            definition.setInstanceSupplier(() -> server);
+            definition.setDestroyMethodName(null);
+            context.registerBeanDefinition("manageServer", definition);
+            context.refresh();
+            assertDoesNotThrow(server::shutdown);
+        }
+        verify(commonThreadPool, times(2)).destroy();
+        assertTrue(((ExecutorService) ReflectionTestUtils.getField(server, "channelSchedule")).isShutdown());
+        assertTrue(((ExecutorService) ReflectionTestUtils.getField(server, "channelCheckExecutor")).isShutdown());
+    }
+
+    private void initializeUnboundTransportGroups(ManageServer server) {
+        RemotingServer transport = (RemotingServer) ReflectionTestUtils.getField(server, "remotingServer");
+        // Exercise the real shutdown implementation without binding a server socket.
+        ReflectionTestUtils.setField(transport, "bossGroup", new DefaultEventLoopGroup(1));
+        ReflectionTestUtils.setField(transport, "workerGroup", new DefaultEventLoopGroup(1));
     }
 
     @Test
