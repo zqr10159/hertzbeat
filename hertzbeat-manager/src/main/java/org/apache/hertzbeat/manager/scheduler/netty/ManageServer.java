@@ -18,6 +18,7 @@
 package org.apache.hertzbeat.manager.scheduler.netty;
 
 import io.netty.channel.Channel;
+import jakarta.annotation.PreDestroy;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -129,6 +130,7 @@ public class ManageServer implements CommandLineRunner {
         this.channelSchedule.scheduleAtFixedRate(this::dispatchChannelHealthCheck, 10, 3, TimeUnit.SECONDS);
     }
 
+    @PreDestroy
     public void shutdown() {
         this.remotingServer.shutdown();
 

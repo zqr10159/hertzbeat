@@ -22,12 +22,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,6 +46,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.support.GenericBeanDefinition;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -78,6 +82,27 @@ class ManageServerTest {
         if (manageServer != null) {
             manageServer.shutdown();
         }
+    }
+
+    @Test
+    void closingSpringContextShutsDownTransportAndOwnedExecutors() {
+        RemotingServer transport = (RemotingServer) ReflectionTestUtils.getField(manageServer, "remotingServer");
+        ExecutorService scheduled = (ExecutorService) ReflectionTestUtils.getField(manageServer, "channelSchedule");
+        ExecutorService checks = (ExecutorService) ReflectionTestUtils.getField(manageServer, "channelCheckExecutor");
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            GenericBeanDefinition definition = new GenericBeanDefinition();
+            definition.setBeanClass(ManageServer.class);
+            definition.setInstanceSupplier(() -> manageServer);
+            // Match a scanned component: do not infer a destroy method from its name.
+            definition.setDestroyMethodName(null);
+            context.registerBeanDefinition("manageServer", definition);
+            context.refresh();
+            assertFalse(scheduled.isShutdown());
+            assertFalse(checks.isShutdown());
+        }
+        verify(transport).shutdown();
+        assertTrue(scheduled.isShutdown());
+        assertTrue(checks.isShutdown());
     }
 
     @Test
