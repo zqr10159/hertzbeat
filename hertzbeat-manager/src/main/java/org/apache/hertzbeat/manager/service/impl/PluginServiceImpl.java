@@ -201,6 +201,8 @@ public class PluginServiceImpl implements PluginService {
             throw new IllegalArgumentException("Parameters must belong to one plugin");
         }
         pluginParamDao.deletePluginParamsByPluginMetadataId(pluginMetadataId);
+        // IDENTITY inserts must follow queued deletes when replacing the same unique parameter field.
+        pluginParamDao.flush();
         pluginParamDao.saveAll(params);
         syncPluginParamMap(pluginMetadataId, params, false);
     }

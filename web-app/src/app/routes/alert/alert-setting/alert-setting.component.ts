@@ -953,11 +953,26 @@ export class AlertSettingComponent implements OnInit {
       const compareMatch = expr.match(/^([\w.]+)\s*([><=!]+)\s*(-?\d+(?:\.\d+)?)$/);
       if (compareMatch) {
         const [_, field, operator, value] = compareMatch;
+        const numericValue = Number(value);
+        // Compare decimal values without rounding their coefficients through Number.
+        // The visual serializer may emit exponent notation or strip insignificant zeros.
+        const normalizedDecimal = (literal: string): string => {
+          const [mantissa, exponent = '0'] = literal.toLowerCase().split('e');
+          const [integer, fraction = ''] = mantissa.replace(/^-/, '').split('.');
+          const digits = `${integer}${fraction}`.replace(/^0+/, '');
+          if (!digits) return '0';
+          const coefficient = digits.replace(/0+$/, '');
+          const power = Number(exponent) - fraction.length + digits.length - coefficient.length;
+          return `${mantissa.startsWith('-') ? '-' : ''}${coefficient}e${power}`;
+        };
+        if (!Number.isFinite(numericValue) || normalizedDecimal(value) !== normalizedDecimal(numericValue.toString())) {
+          return null;
+        }
         const parsedRule = this.parseLogFieldAndAttribute(field);
         return {
           field: parsedRule.field,
           operator,
-          value: Number(value),
+          value: numericValue,
           ...(parsedRule.objectAttribute && { objectAttribute: parsedRule.objectAttribute })
         } as any;
       }

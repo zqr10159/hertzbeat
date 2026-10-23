@@ -19,22 +19,24 @@
 
 import { fakeAsync, tick } from '@angular/core/testing';
 import { FormBuilder } from '@angular/forms';
-import { Subject } from 'rxjs';
+import { NEVER, Subject } from 'rxjs';
 
 import { AlertSettingComponent } from './alert-setting.component';
 
 describe('Alert setting expression preservation regression', () => {
   let component: AlertSettingComponent;
   let detail: Subject<any>;
+  let save: jasmine.Spy;
 
   beforeEach(() => {
     detail = new Subject<any>();
+    save = jasmine.createSpy('editAlertDefine').and.returnValue(NEVER);
     component = new AlertSettingComponent(
       jasmine.createSpyObj('modal', ['create']),
       jasmine.createSpyObj('notifications', ['success', 'error']),
       jasmine.createSpyObj('apps', ['getAppHierarchy']),
       jasmine.createSpyObj('monitors', ['getMonitorsByApp']),
-      { getAlertDefine: () => detail } as any,
+      { getAlertDefine: () => detail, editAlertDefine: save } as any,
       { fanyi: (key: string) => key } as any,
       new FormBuilder(),
       jasmine.createSpyObj('messages', ['success'])
@@ -147,4 +149,72 @@ describe('Alert setting expression preservation regression', () => {
     expect(component.isExpr).toBeTrue();
     expect(component.define.expr).toBe(expr);
   });
+
+  for (const type of ['realtime_log', 'realtime_metric']) {
+    const field = type === 'realtime_log' ? 'log.severityNumber' : 'usage';
+    const prefix = type === 'realtime_metric' ? 'equals(__app__,"linux") && equals(__metrics__,"cpu") && ' : '';
+    for (const literal of [
+      '9007199254740993',
+      '-9007199254740993',
+      '0.10000000000000001',
+      '-0.10000000000000001',
+      '123456789012345.6789',
+      `0.${'0'.repeat(323)}1`,
+      `1${'0'.repeat(309)}`
+    ]) {
+      it(`keeps lossy ${type} numeric literal ${literal} in exact expert source and permits saving it`, fakeAsync(() => {
+        const expr = `${prefix}${field} == ${literal}`;
+        open(type, expr);
+        tick();
+
+        expect(component.isExpr).toBeTrue();
+        expect(component.define.expr).toBe(expr);
+        component.onManageModalOk();
+        expect(save).toHaveBeenCalledOnceWith(component.define);
+        expect(save.calls.mostRecent().args[0].expr).toBe(expr);
+      }));
+    }
+
+    for (const [literal, rendered] of [
+      ['9007199254740991', '9007199254740991'],
+      ['9007199254740992', '9007199254740992'],
+      ['-9007199254740992', '-9007199254740992'],
+      ['9007199254740994', '9007199254740994'],
+      ['0.1', '0.1'],
+      ['00012.3400', '12.34'],
+      ['-00012.3400', '-12.34'],
+      ['0.0000001', '1e-7'],
+      [`1${'0'.repeat(21)}`, '1e+21'],
+      ['-000.000', '0']
+    ]) {
+      it(`keeps round-trip-safe ${type} numeric literal ${literal} available visually`, fakeAsync(() => {
+        open(type, `${prefix}${field} == ${literal}`);
+        tick();
+
+        expect(component.isExpr).toBeFalse();
+        expect(component.define.expr).toBe(`${prefix}${field} == ${rendered}`);
+        expect(component.qbFormCtrl.valid).toBeTrue();
+      }));
+    }
+
+    for (const literal of ['1e3', '1e-324', '-9.007199254740993e15']) {
+      it(`retains unsupported scientific ${type} literal ${literal} as exact expert source`, fakeAsync(() => {
+        const expr = `${prefix}${field} == ${literal}`;
+        open(type, expr);
+        tick();
+
+        expect(component.isExpr).toBeTrue();
+        expect(component.define.expr).toBe(expr);
+      }));
+    }
+
+    it(`does not publish a partial visual ${type} tree when one numeric operand loses precision`, fakeAsync(() => {
+      const expr = `${prefix}${field} > 5 and ${field} == 9007199254740993`;
+      open(type, expr);
+      tick();
+
+      expect(component.isExpr).toBeTrue();
+      expect(component.define.expr).toBe(expr);
+    }));
+  }
 });
