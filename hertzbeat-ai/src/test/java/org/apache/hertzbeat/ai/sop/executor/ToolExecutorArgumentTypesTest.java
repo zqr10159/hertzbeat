@@ -63,6 +63,52 @@ class ToolExecutorArgumentTypesTest {
     }
 
     @Test
+    void ordinaryAdjacentPlaceholdersRemainString() {
+        assertEquals("AB", invoke(Map.of("argument", "${a}${b}"), Map.of("a", "A", "b", "B")).get("argument"));
+    }
+
+    @Test
+    void ordinarySeparatedPlaceholdersRemainString() {
+        assertEquals("A-B", invoke(Map.of("argument", "${a}-${b}"), Map.of("a", "A", "b", "B")).get("argument"));
+    }
+
+    @Test
+    void adjacentPlaceholdersKeepStringReplacementBeforeCompositeContextKey() {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("a", "A");
+        context.put("b", "B");
+        context.put("a}${b", List.of("combined"));
+        assertEquals("AB", invoke(Map.of("argument", "${a}${b}"), context).get("argument"));
+    }
+
+    @Test
+    void separatedPlaceholdersKeepStringReplacementBeforeCompositeContextKey() {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("a", "A");
+        context.put("b", "B");
+        context.put("a}-${b", List.of("combined"));
+        assertEquals("A-B", invoke(Map.of("argument", "${a}-${b}"), context).get("argument"));
+    }
+
+    @Test
+    void adjacentCompositeKeyFirstKeepsExistingStringResult() {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("a}${b", List.of("combined"));
+        context.put("a", "A");
+        context.put("b", "B");
+        assertEquals("[combined]", invoke(Map.of("argument", "${a}${b}"), context).get("argument"));
+    }
+
+    @Test
+    void separatedCompositeKeyFirstKeepsExistingStringResult() {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("a}-${b", List.of("combined"));
+        context.put("a", "A");
+        context.put("b", "B");
+        assertEquals("[combined]", invoke(Map.of("argument", "${a}-${b}"), context).get("argument"));
+    }
+
+    @Test
     void missingVariableRemainsLiteral() {
         assertEquals("${missing}", invoke(Map.of("argument", "${missing}"), Map.of()).get("argument"));
     }

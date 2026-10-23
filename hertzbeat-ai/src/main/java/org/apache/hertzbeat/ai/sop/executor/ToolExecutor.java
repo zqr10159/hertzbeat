@@ -74,7 +74,10 @@ public class ToolExecutor implements SopExecutor {
             Object value = entry.getValue();
             if (value instanceof String) {
                 String strValue = (String) value;
-                if (strValue.startsWith("${") && strValue.endsWith("}")) {
+                // Keep ambiguous/multiple placeholders on the unchanged legacy string replacement path.
+                if (strValue.startsWith("${") && strValue.endsWith("}")
+                        && strValue.indexOf('}', 2) == strValue.length() - 1
+                        && strValue.indexOf("${", 2) < 0) {
                     Object contextValue = context.get(strValue.substring(2, strValue.length() - 1));
                     if (contextValue != null && !(contextValue instanceof String)) {
                         resolved.put(entry.getKey(), contextValue);
