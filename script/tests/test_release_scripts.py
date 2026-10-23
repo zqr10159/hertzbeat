@@ -425,10 +425,15 @@ class RealReadinessUtilities(unittest.TestCase):
     """Optional integration checks, restricted to a socket child created here."""
 
     def check_tool(self, tool):
+        strict = os.environ.get('HERTZBEAT_REQUIRE_REAL_READINESS') == '1'
         if not shutil.which(tool):
+            if strict:
+                self.fail(tool + ' is required by strict readiness validation')
             self.skipTest(tool + ' is not installed')
         if tool == 'netstat' and subprocess.run([tool, '--version'], stdout=subprocess.DEVNULL,
                                                 stderr=subprocess.DEVNULL).returncode:
+            if strict:
+                self.fail('Linux netstat is required by strict readiness validation')
             self.skipTest('Linux netstat is not installed')
         child = subprocess.Popen([sys.executable, '-u', '-c',
                                   'import socket,sys; a=socket.socket(); a.bind(("127.0.0.1",0)); '
