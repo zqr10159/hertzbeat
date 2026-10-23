@@ -132,13 +132,20 @@ public class ManageServer implements CommandLineRunner {
 
     @PreDestroy
     public void shutdown() {
-        this.remotingServer.shutdown();
-
-        if (this.channelSchedule != null) {
-            this.channelSchedule.shutdownNow();
-        }
-        if (this.channelCheckExecutor != null) {
-            this.channelCheckExecutor.shutdownNow();
+        try {
+            if (this.remotingServer != null) {
+                this.remotingServer.shutdown();
+            }
+        } finally {
+            try {
+                if (this.channelSchedule != null) {
+                    this.channelSchedule.shutdownNow();
+                }
+            } finally {
+                if (this.channelCheckExecutor != null) {
+                    this.channelCheckExecutor.shutdownNow();
+                }
+            }
         }
     }
 

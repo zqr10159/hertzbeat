@@ -20,8 +20,10 @@ package org.apache.hertzbeat.manager.scheduler.netty;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
@@ -30,10 +32,12 @@ import static org.mockito.Mockito.when;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.DefaultEventLoopGroup;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hertzbeat.alert.calculate.CollectorAlertHandler;
@@ -137,6 +141,45 @@ class ManageServerTest {
         verify(commonThreadPool, times(2)).destroy();
         assertTrue(((ExecutorService) ReflectionTestUtils.getField(server, "channelSchedule")).isShutdown());
         assertTrue(((ExecutorService) ReflectionTestUtils.getField(server, "channelCheckExecutor")).isShutdown());
+    }
+
+    @Test
+    void transportFailureDoesNotSkipManagerExecutors() {
+        RemotingServer transport = (RemotingServer) ReflectionTestUtils.getField(manageServer, "remotingServer");
+        ExecutorService scheduled = (ExecutorService) ReflectionTestUtils.getField(manageServer, "channelSchedule");
+        ExecutorService checks = (ExecutorService) ReflectionTestUtils.getField(manageServer, "channelCheckExecutor");
+        doThrow(new IllegalStateException("fixture close failure")).doNothing().when(transport).shutdown();
+        assertThrows(IllegalStateException.class, manageServer::shutdown);
+        assertTrue(scheduled.isShutdown());
+        assertTrue(checks.isShutdown());
+    }
+
+    @Test
+    void schedulerFailureDoesNotSkipChannelCheckExecutor() {
+        ExecutorService original = (ExecutorService) ReflectionTestUtils.getField(manageServer, "channelSchedule");
+        original.shutdownNow();
+        ScheduledExecutorService scheduled = mock(ScheduledExecutorService.class);
+        ReflectionTestUtils.setField(manageServer, "channelSchedule", scheduled);
+        ExecutorService checks = (ExecutorService) ReflectionTestUtils.getField(manageServer, "channelCheckExecutor");
+        when(scheduled.shutdownNow()).thenThrow(new IllegalStateException("fixture close failure")).thenReturn(List.of());
+        assertThrows(IllegalStateException.class, manageServer::shutdown);
+        assertTrue(checks.isShutdown());
+    }
+
+    @Test
+    void missingTransportAndSchedulerStillCloseCheckExecutor() {
+        RemotingServer transport = (RemotingServer) ReflectionTestUtils.getField(manageServer, "remotingServer");
+        ScheduledExecutorService scheduled = (ScheduledExecutorService) ReflectionTestUtils.getField(manageServer, "channelSchedule");
+        scheduled.shutdownNow();
+        ReflectionTestUtils.setField(manageServer, "remotingServer", null);
+        ReflectionTestUtils.setField(manageServer, "channelSchedule", null);
+        try {
+            assertDoesNotThrow(manageServer::shutdown);
+            assertTrue(((ExecutorService) ReflectionTestUtils.getField(manageServer, "channelCheckExecutor")).isShutdown());
+        } finally {
+            ReflectionTestUtils.setField(manageServer, "remotingServer", transport);
+            ReflectionTestUtils.setField(manageServer, "channelSchedule", scheduled);
+        }
     }
 
     private void initializeUnboundTransportGroups(ManageServer server) {
