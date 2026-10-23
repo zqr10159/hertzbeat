@@ -561,7 +561,7 @@ public class MonitorServiceImpl implements MonitorService {
         List<Monitor> monitors = monitorDao.findMonitorsByIdIn(allMonitorIds);
         if (!monitors.isEmpty()) {
             monitorDao.deleteAll(monitors);
-            paramDao.deleteParamsByMonitorIdIn(ids);
+            paramDao.deleteParamsByMonitorIdIn(allMonitorIds);
             Set<Long> monitorIds = monitors.stream().map(Monitor::getId).collect(Collectors.toSet());
             alertDefineBindDao.deleteAlertDefineMonitorBindsByMonitorIdIn(monitorIds);
             monitorBindDao.deleteMonitorBindByBizIdIn(monitorIds);
