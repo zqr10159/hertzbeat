@@ -17,6 +17,8 @@
 
 package org.apache.hertzbeat.manager.service;
 
+import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 
 /** Exercises parameter replacement and rollback with the production entity/repository and real H2 transactions. */
@@ -55,6 +58,7 @@ class PluginParameterPersistenceTest {
     private DriverManagerDataSource dataSource;
     private TransactionTemplate transaction;
     private PluginParamDao parameters;
+    private EntityManager entityManager;
     private PluginServiceImpl service;
     private Map<Long, List<Configmap>> cacheBefore;
 
@@ -75,7 +79,8 @@ class PluginParameterPersistenceTest {
         beans.registerSingleton("transactionManager", manager);
         var repository = new JpaRepositoryFactoryBean<PluginParamDao, PluginParam, Long>(PluginParamDao.class);
         repository.setBeanFactory(beans);
-        repository.setEntityManager(SharedEntityManagerCreator.createSharedEntityManager(factory));
+        entityManager = SharedEntityManagerCreator.createSharedEntityManager(factory);
+        repository.setEntityManager(entityManager);
         repository.afterPropertiesSet();
         parameters = repository.getObject();
         service = new PluginServiceImpl(mock(PluginMetadataDao.class), mock(PluginItemDao.class), parameters);
@@ -116,6 +121,69 @@ class PluginParameterPersistenceTest {
 
         assertEquals(List.of("old"), values(901L));
         assertEquals(beforeFailure, parameterCache());
+    }
+
+    @Test
+    void failureAfterServiceReturnsRollsBackDatabaseWithoutPublishingParameters() {
+        save(List.of(parameter(901L, "normal", "old")));
+        IllegalStateException outerFailure = new IllegalStateException("Outer transaction failed");
+
+        assertSame(outerFailure, assertThrows(IllegalStateException.class,
+                () -> transaction.executeWithoutResult(status -> {
+                    service.savePluginParam(List.of(parameter(901L, "normal", "new")));
+                    assertEquals(List.of("new"), values(901L));
+                    throw outerFailure;
+                })));
+
+        assertEquals(List.of("old"), values(901L));
+        assertEquals(List.of(new Configmap("normal", "old", (byte) 1)), parameterCache().get(901L));
+    }
+
+    @Test
+    void successfulTransactionPublishesParametersOnlyAfterCommit() {
+        save(List.of(parameter(901L, "normal", "old")));
+
+        transaction.executeWithoutResult(status -> {
+            service.savePluginParam(List.of(parameter(901L, "normal", "new")));
+            assertEquals(List.of("new"), values(901L));
+            assertEquals(List.of(new Configmap("normal", "old", (byte) 1)), parameterCache().get(901L));
+        });
+
+        assertEquals(List.of("new"), values(901L));
+        assertEquals(List.of(new Configmap("normal", "new", (byte) 1)), parameterCache().get(901L));
+    }
+
+    @Test
+    void publicationUsesDetachedValuesWhenCallerChangesTheInputAfterSave() {
+        PluginParam param = parameter(901L, "normal", "new");
+        List<PluginParam> input = new ArrayList<>(List.of(param));
+
+        transaction.executeWithoutResult(status -> {
+            service.savePluginParam(input);
+            entityManager.detach(param);
+            param.setField("changed");
+            param.setParamValue("changed");
+            param.setType((byte) 2);
+            input.clear();
+        });
+
+        assertEquals(List.of("new"), values(901L));
+        assertEquals(List.of(new Configmap("normal", "new", (byte) 1)), parameterCache().get(901L));
+    }
+
+    @Test
+    void twoSavesInOneTransactionPublishTheLastCommittedParameters() {
+        save(List.of(parameter(901L, "normal", "old")));
+
+        transaction.executeWithoutResult(status -> {
+            service.savePluginParam(List.of(parameter(901L, "normal", "first")));
+            service.savePluginParam(List.of(parameter(901L, "normal", "latest")));
+            assertEquals(List.of("latest"), values(901L));
+            assertEquals(List.of(new Configmap("normal", "old", (byte) 1)), parameterCache().get(901L));
+        });
+
+        assertEquals(List.of("latest"), values(901L));
+        assertEquals(List.of(new Configmap("normal", "latest", (byte) 1)), parameterCache().get(901L));
     }
 
     private void save(List<PluginParam> params) {

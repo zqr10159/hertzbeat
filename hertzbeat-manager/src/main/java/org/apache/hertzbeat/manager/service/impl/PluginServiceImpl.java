@@ -74,6 +74,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
@@ -204,7 +206,19 @@ public class PluginServiceImpl implements PluginService {
         // IDENTITY inserts must follow queued deletes when replacing the same unique parameter field.
         pluginParamDao.flush();
         pluginParamDao.saveAll(params);
-        syncPluginParamMap(pluginMetadataId, params, false);
+        List<Configmap> snapshot = params.stream()
+                .map(param -> new Configmap(param.getField(), param.getParamValue(), param.getType())).toList();
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    PARAMS_MAP.put(pluginMetadataId, snapshot);
+                }
+            });
+        } else {
+            PARAMS_MAP.put(pluginMetadataId, snapshot);
+        }
     }
 
     private void syncPluginParamMap(Long pluginMetadataId, List<PluginParam> params, boolean isDelete) {
