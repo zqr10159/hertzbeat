@@ -19,6 +19,7 @@ package org.apache.hertzbeat.remoting.netty;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -27,6 +28,10 @@ import static org.mockito.Mockito.verify;
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.EventLoopGroup;
 import java.lang.reflect.Field;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.RejectedExecutionException;
+import org.apache.hertzbeat.common.support.CommonThreadPool;
 import org.apache.hertzbeat.common.concurrent.BackgroundTaskExecutor;
 import org.apache.hertzbeat.remoting.event.NettyEventListener;
 import org.junit.jupiter.api.Test;
@@ -118,6 +123,37 @@ class NettyRemotingServerShutdownTest {
         verify(boss, times(2)).shutdownGracefully();
         verify(worker, times(2)).shutdownGracefully();
         verify(executor, times(2)).destroy();
+    }
+
+    @Test
+    void shutdownClosesActualCommonPoolWorkerAndLongRunningLanes() throws Exception {
+        CommonThreadPool executor = new CommonThreadPool();
+        NettyRemotingServer server = server(executor);
+        CountDownLatch started = new CountDownLatch(2);
+        CountDownLatch interrupted = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        Runnable task = () -> {
+            started.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                interrupted.countDown();
+                Thread.currentThread().interrupt();
+            }
+        };
+        try {
+            executor.execute(task);
+            executor.executeLongRunning(task);
+            assertTrue(started.await(2, TimeUnit.SECONDS));
+            server.shutdown();
+            assertTrue(interrupted.await(2, TimeUnit.SECONDS));
+            assertThrows(RejectedExecutionException.class, () -> executor.execute(() -> { }));
+            assertThrows(RejectedExecutionException.class, () -> executor.executeLongRunning(() -> { }));
+            assertDoesNotThrow(server::shutdown);
+        } finally {
+            release.countDown();
+            executor.destroy();
+        }
     }
 
     private NettyRemotingServer server(BackgroundTaskExecutor executor) {

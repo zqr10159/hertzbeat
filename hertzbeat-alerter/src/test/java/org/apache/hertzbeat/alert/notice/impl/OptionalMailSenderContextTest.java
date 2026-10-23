@@ -19,9 +19,16 @@ package org.apache.hertzbeat.alert.notice.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.when;
 
 import jakarta.mail.Session;
@@ -40,6 +47,8 @@ import org.mockito.MockedConstruction;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mail.MailSendException;
+import org.apache.hertzbeat.alert.notice.AlertNoticeException;
 import org.springframework.web.client.RestTemplate;
 
 /** Actual Spring dependency resolution; every mail transport is intercepted in-process. */
@@ -95,6 +104,56 @@ class OptionalMailSenderContextTest {
             verify(sender).send(message);
             assertEquals("database@example.invalid", message.getFrom()[0].toString());
             assertEquals("receiver@example.invalid", message.getAllRecipients()[0].toString());
+        }
+    }
+
+    @Test
+    void noConfigurationUsesExistingDefaultsAndPropagatesTransportFailure() throws Exception {
+        MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+        try (MockedConstruction<JavaMailSenderImpl> construction = mockConstruction(JavaMailSenderImpl.class,
+                (sender, initialization) -> {
+                    when(sender.getJavaMailProperties()).thenReturn(new Properties());
+                    when(sender.createMimeMessage()).thenReturn(message);
+                    doThrow(new MailSendException("fixture transport blocked; no network"))
+                            .when(sender).send(message);
+                });
+                AnnotationConfigApplicationContext context = context(null, mock(GeneralConfigDao.class))) {
+            context.refresh();
+            AlertNoticeException failure = assertThrows(AlertNoticeException.class,
+                    () -> context.getBean(EmailAlertNotifyHandlerImpl.class).send(receiver(), template(), new GroupAlert()));
+            assertTrue(failure.getMessage().contains("fixture transport blocked"));
+            assertEquals(1, construction.constructed().size());
+            JavaMailSenderImpl sender = construction.constructed().getFirst();
+            verify(sender).setHost("smtp.demo.com");
+            verify(sender).setPort(465);
+            verify(sender).setUsername("demo");
+            verify(sender).send(message);
+        }
+    }
+
+    @Test
+    void lookupFailureLeavesBareSenderDefaultsAndDoesNotDisableTransport() throws Exception {
+        JavaMailSenderImpl defaults = new JavaMailSenderImpl();
+        assertNull(defaults.getHost());
+        assertEquals(-1, defaults.getPort());
+        GeneralConfigDao dao = mock(GeneralConfigDao.class);
+        when(dao.findByType("email")).thenThrow(new IllegalStateException("fixture configuration lookup failure"));
+        MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+        try (MockedConstruction<JavaMailSenderImpl> construction = mockConstruction(JavaMailSenderImpl.class,
+                (sender, initialization) -> {
+                    when(sender.createMimeMessage()).thenReturn(message);
+                    doThrow(new MailSendException("fixture transport blocked; no network"))
+                            .when(sender).send(message);
+                });
+                AnnotationConfigApplicationContext context = context(null, dao)) {
+            context.refresh();
+            AlertNoticeException failure = assertThrows(AlertNoticeException.class,
+                    () -> context.getBean(EmailAlertNotifyHandlerImpl.class).send(receiver(), template(), new GroupAlert()));
+            assertTrue(failure.getMessage().contains("fixture transport blocked"));
+            JavaMailSenderImpl sender = construction.constructed().getFirst();
+            verify(sender, never()).setHost(any());
+            verify(sender, never()).setPort(anyInt());
+            verify(sender).send(message);
         }
     }
 
