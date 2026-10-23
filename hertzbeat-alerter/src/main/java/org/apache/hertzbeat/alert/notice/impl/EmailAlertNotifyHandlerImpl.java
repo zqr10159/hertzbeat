@@ -32,6 +32,7 @@ import org.apache.hertzbeat.common.support.event.SystemConfigChangeEvent;
 import org.apache.hertzbeat.common.util.JsonUtil;
 import org.apache.hertzbeat.common.util.ResourceBundleUtil;
 import org.apache.hertzbeat.base.dao.GeneralConfigDao;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -72,8 +73,9 @@ public class EmailAlertNotifyHandlerImpl extends AbstractAlertNotifyHandlerImpl 
 
     private ResourceBundle bundle = ResourceBundleUtil.getBundle("alerter");
 
-    public EmailAlertNotifyHandlerImpl(JavaMailSender javaMailSender, GeneralConfigDao generalConfigDao) {
-        this.javaMailSender = javaMailSender;
+    public EmailAlertNotifyHandlerImpl(@Nullable JavaMailSender javaMailSender, GeneralConfigDao generalConfigDao) {
+        // Mail settings may be supplied from the database without Spring mail auto-configuration.
+        this.javaMailSender = javaMailSender != null ? javaMailSender : new JavaMailSenderImpl();
         this.generalConfigDao = generalConfigDao;
     }
 
