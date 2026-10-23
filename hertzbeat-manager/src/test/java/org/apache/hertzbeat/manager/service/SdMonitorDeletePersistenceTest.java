@@ -160,6 +160,37 @@ class SdMonitorDeletePersistenceTest {
     }
 
     @Test
+    void missingRequestedMonitorDoesNotDeleteOrphanParameters() {
+        transaction.executeWithoutResult(status -> parameters.save(parameter(99)));
+        service.deleteMonitors(Set.of(1L, 99L));
+        assertEquals(Set.of(3L, 4L), transaction.execute(status -> monitors.findAll().stream()
+                .map(Monitor::getId).collect(Collectors.toSet())));
+        assertEquals(Set.of(3L, 4L, 99L), transaction.execute(status -> parameters.findAll().stream()
+                .map(Param::getMonitorId).collect(Collectors.toSet())));
+    }
+
+    @Test
+    void staleAndNullChildBindingsDoNotExpandParameterDeletionBeyondExistingMonitors() {
+        transaction.executeWithoutResult(status -> {
+            parameters.save(parameter(99));
+            Param unbound = parameter(99);
+            unbound.setMonitorId(null);
+            parameters.save(unbound);
+            MonitorBind nullChild = binding(1, 99);
+            nullChild.setMonitorId(null);
+            bindings.saveAll(List.of(binding(1, 99), nullChild));
+        });
+        service.deleteMonitors(Set.of(1L));
+        assertEquals(Set.of(3L, 4L), transaction.execute(status -> monitors.findAll().stream()
+                .map(Monitor::getId).collect(Collectors.toSet())));
+        assertEquals(Set.of(3L, 4L, 99L), transaction.execute(status -> parameters.findAll().stream()
+                .map(Param::getMonitorId).filter(java.util.Objects::nonNull).collect(Collectors.toSet())));
+        Long unboundCount = transaction.execute(status -> parameters.findAll().stream()
+                .filter(param -> param.getMonitorId() == null).count());
+        assertEquals(Long.valueOf(1), unboundCount);
+    }
+
+    @Test
     void failureAfterDeletesRollsBackMonitorsParametersAndBindings() {
         doThrow(new IllegalStateException("fixture late cleanup failure")).when(favorites).deleteFavoritesByMonitorIdIn(anySet());
         assertThrows(IllegalStateException.class, () -> service.deleteMonitors(Set.of(1L)));
