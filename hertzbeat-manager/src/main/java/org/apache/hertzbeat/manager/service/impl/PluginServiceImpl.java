@@ -195,9 +195,14 @@ public class PluginServiceImpl implements PluginService {
         if (CollectionUtils.isEmpty(params)) {
             return;
         }
-        pluginParamDao.deletePluginParamsByPluginMetadataId(params.get(0).getPluginMetadataId());
+        Long pluginMetadataId = params.get(0) == null ? null : params.get(0).getPluginMetadataId();
+        if (pluginMetadataId == null || params.stream().anyMatch(param -> param == null
+                || !pluginMetadataId.equals(param.getPluginMetadataId()))) {
+            throw new IllegalArgumentException("Parameters must belong to one plugin");
+        }
+        pluginParamDao.deletePluginParamsByPluginMetadataId(pluginMetadataId);
         pluginParamDao.saveAll(params);
-        syncPluginParamMap(params.get(0).getPluginMetadataId(), params, false);
+        syncPluginParamMap(pluginMetadataId, params, false);
     }
 
     private void syncPluginParamMap(Long pluginMetadataId, List<PluginParam> params, boolean isDelete) {
