@@ -108,7 +108,7 @@ public class PluginServiceImpl implements PluginService {
     /**
      * plugin params
      */
-    private static final Map<Long, List<Configmap>> PARAMS_MAP = new ConcurrentHashMap<>();
+    private static final Map<Long, ParameterCacheEntry> PARAMS_MAP = new ConcurrentHashMap<>();
 
     /**
      * pluginItem Mapping pluginId
@@ -142,7 +142,7 @@ public class PluginServiceImpl implements PluginService {
                 }
                 // delete metadata
                 metadataDao.deleteById(plugin.getId());
-                syncPluginParamMap(plugin.getId(), null, true);
+                invalidatePluginParamsAfterCommit(plugin.getId());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -206,28 +206,63 @@ public class PluginServiceImpl implements PluginService {
         // IDENTITY inserts must follow queued deletes when replacing the same unique parameter field.
         pluginParamDao.flush();
         pluginParamDao.saveAll(params);
-        List<Configmap> snapshot = params.stream()
-                .map(param -> new Configmap(param.getField(), param.getParamValue(), param.getType())).toList();
+        invalidatePluginParamsAfterCommit(pluginMetadataId);
+    }
+
+    private void invalidatePluginParamsAfterCommit(Long pluginMetadataId) {
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    PARAMS_MAP.put(pluginMetadataId, snapshot);
+                    PARAMS_MAP.remove(pluginMetadataId);
                 }
             });
         } else {
-            PARAMS_MAP.put(pluginMetadataId, snapshot);
+            PARAMS_MAP.remove(pluginMetadataId);
         }
     }
 
-    private void syncPluginParamMap(Long pluginMetadataId, List<PluginParam> params, boolean isDelete) {
-        if (isDelete) {
-            PARAMS_MAP.remove(pluginMetadataId);
-            return;
+    private List<Configmap> readPluginParams(Long pluginMetadataId) {
+        return pluginParamDao.findParamsByPluginMetadataId(pluginMetadataId).stream()
+                .map(param -> new Configmap(param.getField(), param.getParamValue(), param.getType())).toList();
+    }
+
+    private List<Configmap> getPluginParams(Long pluginMetadataId) {
+        ParameterCacheEntry entry = PARAMS_MAP.get(pluginMetadataId);
+        if (entry != null && entry.values != null) {
+            return entry.values;
         }
-        List<Configmap> configmapList = params.stream().map(item -> new Configmap(item.getField(), item.getParamValue(), item.getType())).toList();
-        PARAMS_MAP.put(pluginMetadataId, configmapList);
+        // An ambient transaction may see uncommitted data or an older persistence-context snapshot.
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            return readPluginParams(pluginMetadataId);
+        }
+        ParameterCacheEntry loading = new ParameterCacheEntry(null);
+        ParameterCacheEntry existing = PARAMS_MAP.putIfAbsent(pluginMetadataId, loading);
+        if (existing != null) {
+            if (existing.values != null) {
+                return existing.values;
+            }
+            loading = existing;
+        }
+        try {
+            // Never hold a map lock while acquiring a database connection. A committing writer may invalidate this slot.
+            List<Configmap> values = readPluginParams(pluginMetadataId);
+            PARAMS_MAP.replace(pluginMetadataId, loading, new ParameterCacheEntry(values));
+            return values;
+        } catch (RuntimeException | Error exception) {
+            PARAMS_MAP.remove(pluginMetadataId, loading);
+            throw exception;
+        }
+    }
+
+    /** Identity equality prevents an invalidated in-flight read from replacing a later cache slot. */
+    private static final class ParameterCacheEntry {
+        private final List<Configmap> values;
+
+        private ParameterCacheEntry(List<Configmap> values) {
+            this.values = values;
+        }
     }
 
     static {
@@ -450,7 +485,9 @@ public class PluginServiceImpl implements PluginService {
                 .collect(Collectors.groupingBy(PluginParam::getPluginMetadataId));
 
             for (Map.Entry<Long, List<PluginParam>> entry : content.entrySet()) {
-                syncPluginParamMap(entry.getKey(), entry.getValue(), false);
+                List<Configmap> values = entry.getValue().stream()
+                        .map(param -> new Configmap(param.getField(), param.getParamValue(), param.getType())).toList();
+                PARAMS_MAP.put(entry.getKey(), new ParameterCacheEntry(values));
             }
         } catch (Exception e) {
             log.error("Failed to init params:{}", e.getMessage());
@@ -578,7 +615,7 @@ public class PluginServiceImpl implements PluginService {
                     continue;
                 }
                 Long pluginId = ITEM_TO_PLUGINMETADATAID_MAP.get(t.getClass().getName());
-                List<Configmap> configmapList = PARAMS_MAP.get(pluginId);
+                List<Configmap> configmapList = getPluginParams(pluginId);
                 PluginContext context = PluginContext.builder().params(configmapList).build();
                 execute.accept(t, context);
             }

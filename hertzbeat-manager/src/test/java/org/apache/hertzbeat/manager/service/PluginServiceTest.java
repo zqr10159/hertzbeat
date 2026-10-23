@@ -51,7 +51,6 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import org.apache.hertzbeat.common.constants.PluginType;
-import org.apache.hertzbeat.common.entity.job.Configmap;
 import org.apache.hertzbeat.common.entity.manager.PluginItem;
 import org.apache.hertzbeat.common.entity.manager.PluginMetadata;
 import org.apache.hertzbeat.common.support.exception.CommonException;
@@ -120,8 +119,8 @@ class PluginServiceTest {
 
     @Test
     void emptyParameterBatchDoesNothing() {
-        Map<Long, List<Configmap>> cache = parameterCache();
-        Map<Long, List<Configmap>> before = new HashMap<>(cache);
+        Map<Long, Object> cache = parameterCache();
+        Map<Long, Object> before = new HashMap<>(cache);
         pluginService.savePluginParam(List.of());
         pluginService.savePluginParam(null);
         verifyNoInteractions(pluginParamDao);
@@ -134,16 +133,13 @@ class PluginServiceTest {
                 parameter(901L, "text", "value", (byte) 1),
                 parameter(901L, "password", "********", (byte) 2),
                 parameter(901L, "json", "{\"key\":\"value\"}", (byte) 3));
-        Map<Long, List<Configmap>> cache = parameterCache();
-        Map<Long, List<Configmap>> before = new HashMap<>(cache);
+        Map<Long, Object> cache = parameterCache();
+        Map<Long, Object> before = new HashMap<>(cache);
         try {
             pluginService.savePluginParam(params);
             verify(pluginParamDao).deletePluginParamsByPluginMetadataId(901L);
             verify(pluginParamDao).saveAll(params);
-            assertEquals(List.of(new Configmap("count", "42", (byte) 0),
-                    new Configmap("text", "value", (byte) 1),
-                    new Configmap("password", "********", (byte) 2),
-                    new Configmap("json", "{\"key\":\"value\"}", (byte) 3)), cache.get(901L));
+            assertFalse(cache.containsKey(901L), "A successful no-transaction save invalidates cached parameters");
         } finally {
             cache.clear();
             cache.putAll(before);
@@ -151,8 +147,8 @@ class PluginServiceTest {
     }
 
     private void assertInvalidParameterBatch(List<PluginParam> params) {
-        Map<Long, List<Configmap>> cache = parameterCache();
-        Map<Long, List<Configmap>> before = new HashMap<>(cache);
+        Map<Long, Object> cache = parameterCache();
+        Map<Long, Object> before = new HashMap<>(cache);
         try {
             assertAll(() -> assertThrows(IllegalArgumentException.class, () -> pluginService.savePluginParam(params)),
                     () -> verifyNoInteractions(pluginParamDao),
@@ -168,8 +164,8 @@ class PluginServiceTest {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Long, List<Configmap>> parameterCache() {
-        return (Map<Long, List<Configmap>>) ReflectionTestUtils.getField(PluginServiceImpl.class, "PARAMS_MAP");
+    private Map<Long, Object> parameterCache() {
+        return (Map<Long, Object>) ReflectionTestUtils.getField(PluginServiceImpl.class, "PARAMS_MAP");
     }
 
     @Test
