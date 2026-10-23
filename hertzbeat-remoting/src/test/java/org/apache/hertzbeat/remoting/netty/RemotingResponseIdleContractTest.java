@@ -21,19 +21,28 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.timeout.IdleStateEvent;
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hertzbeat.common.entity.message.ClusterMsg;
 import org.apache.hertzbeat.remoting.event.NettyEventListener;
 import org.junit.jupiter.api.Test;
@@ -125,6 +134,7 @@ class RemotingResponseIdleContractTest {
             var response = message();
             transport.processResponseMsg(channel.pipeline().firstContext(), response);
             assertSame(response, expected.waitResponse(0));
+            assertSame(expected, transport.responseTable.get("fixture"));
             verify(async, never()).handle(any(), any());
         } finally {
             channel.finishAndReleaseAll();
@@ -158,6 +168,69 @@ class RemotingResponseIdleContractTest {
             transport.channelIdle(channel.pipeline().firstContext(), IdleStateEvent.ALL_IDLE_STATE_EVENT);
             assertFalse(channel.isOpen());
             verify(listener).onChannelIdle(channel);
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    @Test
+    void idleListenerSeesOpenChannelBeforeFallbackClose() throws Exception {
+        NettyEventListener listener = mock(NettyEventListener.class);
+        AtomicBoolean openDuringCallback = new AtomicBoolean();
+        doAnswer(invocation -> {
+            openDuringCallback.set(((Channel) invocation.getArgument(0)).isOpen());
+            return null;
+        }).when(listener).onChannelIdle(any());
+        EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter());
+        try {
+            new Transport(listener).channelIdle(channel.pipeline().firstContext(), IdleStateEvent.ALL_IDLE_STATE_EVENT);
+            assertTrue(openDuringCallback.get());
+            assertFalse(channel.isOpen());
+            verify(listener).onChannelIdle(channel);
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    @Test
+    void listenerOwnCloseAndFallbackCloseOnlyFireCloseCallbacksOnce() throws Exception {
+        AtomicInteger inactiveEvents = new AtomicInteger();
+        AtomicInteger closeCallbacks = new AtomicInteger();
+        NettyEventListener listener = mock(NettyEventListener.class);
+        doAnswer(invocation -> {
+            ((Channel) invocation.getArgument(0)).close();
+            return null;
+        }).when(listener).onChannelIdle(any());
+        EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void channelInactive(ChannelHandlerContext context) throws Exception {
+                inactiveEvents.incrementAndGet();
+                super.channelInactive(context);
+            }
+        });
+        channel.closeFuture().addListener(future -> closeCallbacks.incrementAndGet());
+        try {
+            new Transport(listener).channelIdle(channel.pipeline().firstContext(), IdleStateEvent.ALL_IDLE_STATE_EVENT);
+            channel.runPendingTasks();
+            assertFalse(channel.isOpen());
+            assertEquals(1, inactiveEvents.get());
+            assertEquals(1, closeCallbacks.get());
+            verify(listener).onChannelIdle(channel);
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    @Test
+    void listenerFailureStillClosesChannelWithoutMaskingItsException() throws Exception {
+        NettyEventListener listener = mock(NettyEventListener.class);
+        IOException failure = new IOException("fixture listener failure");
+        doThrow(failure).when(listener).onChannelIdle(any());
+        EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter());
+        try {
+            assertSame(failure, assertThrows(IOException.class, () -> new Transport(listener)
+                    .channelIdle(channel.pipeline().firstContext(), IdleStateEvent.ALL_IDLE_STATE_EVENT)));
+            assertFalse(channel.isOpen());
         } finally {
             channel.finishAndReleaseAll();
         }
