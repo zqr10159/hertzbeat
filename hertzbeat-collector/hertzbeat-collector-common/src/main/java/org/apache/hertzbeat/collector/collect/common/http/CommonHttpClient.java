@@ -95,7 +95,7 @@ public class CommonHttpClient {
     /**
      * ssl supported version
      */
-    private static final String[] SUPPORTED_SSL = {"TLSv1", "TLSv1.1", "TLSv1.2", "SSLv3"};
+    private static final String[] SUPPORTED_SSL = {"TLSv1", "TLSv1.1", "TLSv1.2", "SSLv3", "TLSv1.3"};
 
     static {
         try {
